@@ -1,0 +1,29 @@
+- Product
+    - Kategori Disesuaikan (Sudah)
+    - Data Product Disesuaikan (Sudah)
+- Supplier
+    - Data Supplier Disesuaikan (Sudah)
+- PO
+    - CRUD PO Disesuaikan (Sudah)
+- Pembayaran PO
+    - Tampilan Disesuaikan (Sudah)
+    - Alur Ke Buku Kas Umum/BKU
+- Penerimaan Barang PO
+    - Penyesuaian Alur Penerimaan Barang
+        - Pemberian SKU ?
+        - Pemberian Expired
+        - Kemungkinan Retur / Barang QTY Tidak Sesuai
+- Stok
+    - Penyesuaian Alur Stok
+        - Ketentuan Stok ? Stok Besar / Stok SKU
+- Kartu Stok
+    - Penyesuaian Dengan Alur Stok
+- Stok Opname
+    - Penyesuaian Alur Stok Opname
+- Ketentuan Tingkatan
+    - Superadmin
+    - Admin PO
+    - Admin Gudang
+    - Admin Anak Cabang -> Sales
+    - Admin Sales Canvas?
+    - Admin Agen?
