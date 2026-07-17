@@ -217,4 +217,9 @@ class Product extends Model
     {
         return app(ProductUnitConverter::class)->detailedDisplay($this, $qty);
     }
+
+    public function stockSummaryDisplay(int|float $qty): string
+    {
+        return app(ProductUnitConverter::class)->stockSummaryDisplay($this, $qty);
+    }
 }

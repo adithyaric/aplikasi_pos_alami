@@ -85,7 +85,7 @@
                         </div>
                         <div class="col-md-12 form-group">
                             <label for="">Harga Beli</label>
-                            <input type="text" class="form-control" name="harga_beli" value="{{ old('harga_beli', 0) }}"
+                            <input type="text" class="form-control rupiah-input" name="harga_beli" value="{{ old('harga_beli', 0) }}"
                                 placeholder="Masukkan Harga Beli">
                             @error('harga_beli')
                             <div class="invalid-feedback text-danger">

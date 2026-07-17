@@ -34,7 +34,7 @@
                                 <tr>
                                     <td>{{ $loop->iteration }}</td>
                                     <td>{{ $value->name }}</td>
-                                    <td>{{ $value->jenis_outlet }}</td>
+                                    <td>{{ $value->jenis_outlet_label }}</td>
                                     <td>{{ $value->alamat }}</td>
                                     <td>{{ $value->desc }}</td>
                                     <td>

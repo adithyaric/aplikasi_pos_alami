@@ -12,7 +12,18 @@
         </div>
 
     @auth
-    @php $role = auth()->user()->role; @endphp
+    @php
+        $role = auth()->user()->role;
+        $isSuperadmin = $role === 'superadmin';
+        $isWarehouse = in_array($role, ['superadmin', 'admin-gudang'], true);
+        $isStaffOutlet = $role === 'staff-outlet';
+        $canSeeProcurement = in_array($role, ['superadmin', 'admin-gudang', 'owner'], true);
+        $canSeeStock = in_array($role, ['superadmin', 'admin-gudang', 'owner'], true);
+        $canSeeMasters = in_array($role, ['superadmin', 'admin-gudang', 'owner'], true);
+        $permintaanActive = request()->is('request-orders*')
+            || request()->is('picking-lists*')
+            || (! $isStaffOutlet && request()->is('delivery-orders*'));
+    @endphp
     <ul class="sidebar-menu">
 
         {{-- Dashboard --}}
@@ -20,25 +31,34 @@
             <a href="/dashboard"><i class="fa fa-tachometer"></i><span>Dashboard</span></a>
         </li>
 
-        {{-- Setting (superadmin only) --}}
-        @if ($role === 'superadmin')
+        @if ($isWarehouse)
         <li class="{{ request()->is('product*') ? 'active' : '' }}">
             <a href="/product"><i class="fa fa-archive"></i><span>Produk</span></a>
         </li>
+        @endif
+
+        @if ($canSeeProcurement)
         <li class="treeview {{ request()->is('pembelian*') || request()->is('penerimaan*') || request()->is('supplier*') ? 'active' : '' }}">
             <a href="#"><i class="fa fa-shopping-cart"></i><span>Pembelian</span><i class="fa fa-angle-left pull-right"></i></a>
             <ul class="treeview-menu">
+                @if ($isWarehouse)
                 <li class="{{ request()->is('supplier*') ? 'active' : '' }}">
                     <a href="/supplier"><i class="fa fa-archive"></i><span>Supplier</span></a>
                 </li>
+                @endif
                 <li class="{{ request()->is('pembelian*') && !request()->is('pembelian/*/penerimaan') ? 'active' : '' }}">
                     <a href="/pembelian"><i class="fa fa-file-text-o"></i><span>PO</span></a>
                 </li>
+                @if (! $isStaffOutlet)
                 <li class="{{ request()->is('penerimaan*') || request()->is('pembelian/*/penerimaan') ? 'active' : '' }}">
                     <a href="/penerimaan"><i class="fa fa-download"></i><span>Penerimaan Barang</span></a>
                 </li>
+                @endif
             </ul>
         </li>
+        @endif
+
+        @if ($canSeeStock)
         <li class="treeview {{ request()->is('stock*') ? 'active' : '' }}">
             <a href="#"><i class="fa fa-cubes"></i><span>Stok</span><i class="fa fa-angle-left pull-right"></i></a>
             <ul class="treeview-menu">
@@ -53,20 +73,71 @@
                 </li>
             </ul>
         </li>
+        @endif
+
+        @if ($canSeeMasters)
+        <li class="{{ in_array(Route::currentRouteName(), ['outlet.index', 'outlet.create', 'outlet.edit', 'outlet.show']) ? 'active' : '' }}">
+            <a href="/outlet"><i class="fa fa-home"></i><span>Outlet</span></a>
+        </li>
+        <li class="{{ request()->is('salesman*') ? 'active' : '' }}">
+            <a href="/salesman"><i class="fa fa-users"></i><span>Salesman</span></a>
+        </li>
+        @endif
+
+        @if (in_array($role, ['superadmin', 'admin-gudang', 'staff-outlet', 'owner'], true))
+        <li class="treeview {{ $permintaanActive ? 'active' : '' }}">
+            <a href="#"><i class="fa fa-exchange"></i><span>Permintaan Barang</span><i class="fa fa-angle-left pull-right"></i></a>
+            <ul class="treeview-menu">
+                <li class="{{ request()->is('request-orders*') ? 'active' : '' }}">
+                    <a href="/request-orders"><i class="fa fa-cube"></i><span>Request Outlet</span></a>
+                </li>
+                @if (! $isStaffOutlet)
+                <li class="{{ request()->is('picking-lists*') ? 'active' : '' }}">
+                    <a href="/picking-lists"><i class="fa fa-list-ol"></i><span>Picking &amp; Packing</span></a>
+                </li>
+                <li class="{{ request()->is('delivery-orders*') ? 'active' : '' }}">
+                    <a href="/delivery-orders"><i class="fa fa-truck"></i><span>Outbound</span></a>
+                </li>
+                @endif
+            </ul>
+        </li>
+        @endif
+
+        @if ($isStaffOutlet)
+        <li class="{{ request()->is('delivery-orders*') ? 'active' : '' }}">
+            <a href="/delivery-orders"><i class="fa fa-history"></i><span>Riwayat Permintaan</span></a>
+        </li>
+        @endif
+
+        @if (in_array($role, ['superadmin', 'admin-gudang', 'staff-outlet', 'owner'], true))
+        @if ($isStaffOutlet)
+        <li class="{{ request()->is('refundPembelian*') ? 'active' : '' }}">
+            <a href="/refundPembelian"><i class="fa fa-undo"></i><span>Retur Barang</span></a>
+        </li>
+        @else
         <li class="treeview {{ request()->is('refundPembelian*') ? 'active' : '' }}">
             <a href="#"><i class="fa fa-undo"></i><span>Retur Barang</span><i class="fa fa-angle-left pull-right"></i></a>
             <ul class="treeview-menu">
                 <li class="{{ request()->is('refundPembelian*') && request()->get('type') === 'gudang_ke_supplier' ? 'active' : '' }}">
                     <a href="/refundPembelian?type=gudang_ke_supplier"><i class="fa fa-undo"></i><span>Retur Barang Gudang</span></a>
                 </li>
-                {{--  <li class="{{ request()->is('refundPembelian*') && request()->get('type') === 'outlet_ke_gudang' ? 'active' : '' }}">
+                @if ($isSuperadmin)
+                <li class="{{ request()->is('refundPembelian*') && request()->get('type') === 'outlet_ke_gudang' ? 'active' : '' }}">
                     <a href="/refundPembelian?type=outlet_ke_gudang"><i class="fa fa-undo"></i><span>Retur Barang Outlet</span></a>
-                </li>  --}}
+                </li>
+                @endif
             </ul>
         </li>
+        @endif
+        @endif
+
+        @if (in_array($role, ['superadmin', 'admin-gudang', 'staff-outlet', 'owner'], true))
         <li class="{{ in_array(Route::currentRouteName(), ['laporan.index']) ? 'active' : '' }}">
             <a href="/laporan"><i class="fa fa-file-excel-o"></i><span>Laporan</span></a>
         </li>
+        @endif
+
+        @if ($isSuperadmin)
         <li class="treeview {{ request()->is('branchs*') || request()->is('agents*') || request()->is('canvases*') ? 'active' : '' }}">
             <a href="#"><i class="fa fa-trello"></i><span>Affiliate</span><i class="fa fa-angle-left pull-right"></i></a>
             <ul class="treeview-menu">
@@ -75,9 +146,6 @@
                 </li>
                 <li class="{{ request()->is('canvases*') ? 'active' : '' }}">
                     <a href="/canvases"><i class="fa fa-archive"></i><span>Canvas</span></a>
-                </li>
-                <li class="{{ request()->is('branchs*') ? 'active' : '' }}">
-                    <a href="/branchs"><i class="fa fa-archive"></i><span>Anak Cabang</span></a>
                 </li>
             </ul>
         </li>
@@ -88,114 +156,6 @@
             <a href="/setting"><i class="fa fa-gear"></i><span>Setting</span></a>
         </li>
         @endif
-
-
-
-        {{-- Produk (superadmin, admin-gudang) --}}
-        {{--  @if (in_array($role, ['superadmin', 'admin-gudang']))
-        <li class="treeview {{ request()->is('category-product*') || request()->is('product*') ? 'active' : '' }}">
-            <a href="#"><i class="fa fa-archive"></i><span>Produk</span><i class="fa fa-angle-left pull-right"></i></a>
-            <ul class="treeview-menu">
-                <li class="{{ request()->is('category-product*') ? 'active' : '' }}">
-                    <a href="/category-product"><i class="fa fa-tags"></i><span>Kategori</span></a>
-                </li>
-                <li class="{{ request()->is('product*') ? 'active' : '' }}">
-                    <a href="/product"><i class="fa fa-archive"></i><span>Produk</span></a>
-                </li>
-            </ul>
-        </li>
-        @endif  --}}
-
-        {{-- Stok (superadmin, admin-gudang, owner) --}}
-        {{--  @if (in_array($role, ['superadmin', 'admin-gudang', 'owner']))
-        <li class="treeview {{ request()->is('stock*') ? 'active' : '' }}">
-            <a href="#"><i class="fa fa-cubes"></i><span>Stok</span><i class="fa fa-angle-left pull-right"></i></a>
-            <ul class="treeview-menu">
-                <li class="{{ request()->routeIs('stock.index') ? 'active' : '' }}">
-                    <a href="/stock"><i class="fa fa-cubes"></i><span>Stok</span></a>
-                </li>
-                <li class="{{ request()->routeIs('stock.kartu') ? 'active' : '' }}">
-                    <a href="/stock-kartu"><i class="fa fa-cube"></i><span>Kartu Stok</span></a>
-                </li>
-                <li class="{{ request()->routeIs('stock.opname') ? 'active' : '' }}">
-                    <a href="/stock-opname"><i class="fa fa-cube"></i><span>Stock Opname</span></a>
-                </li>
-            </ul>
-        </li>
-        @endif  --}}
-
-        {{-- Permintaan Barang --}}
-        {{--  @if (in_array($role, ['superadmin', 'admin-gudang', 'staff-outlet']))
-        @php
-            $permintaanActive = request()->is('request-orders*') || request()->is('picking-lists*')
-                || (in_array($role, ['superadmin', 'admin-gudang']) && request()->is('delivery-orders*'));
-        @endphp
-        <li class="treeview {{ $permintaanActive ? 'active' : '' }}">
-            <a href="#"><i class="fa fa-exchange"></i><span>Permintaan Barang</span><i class="fa fa-angle-left pull-right"></i></a>
-            <ul class="treeview-menu">
-                @if (in_array($role, ['superadmin', 'staff-outlet']))
-                <li class="{{ request()->is('request-orders*') ? 'active' : '' }}">
-                    <a href="/request-orders"><i class="fa fa-cube"></i><span>Outlet Minta Gudang</span></a>
-                </li>
-                @endif
-                @if (in_array($role, ['superadmin', 'admin-gudang']))
-                <li class="{{ request()->is('picking-lists*') ? 'active' : '' }}">
-                    <a href="/picking-lists"><i class="fa fa-list-ol"></i><span>Picking &amp; Packing</span></a>
-                </li>
-                <li class="{{ request()->is('delivery-orders*') ? 'active' : '' }}">
-                    <a href="/delivery-orders"><i class="fa fa-truck"></i><span>Outbound</span></a>
-                </li>
-                @endif
-            </ul>
-        </li>
-        @endif  --}}
-
-        {{-- Riwayat Permintaan (staff-outlet only — separate from Permintaan Barang) --}}
-        {{--  @if ($role === 'staff-outlet')
-        <li class="{{ request()->is('delivery-orders*') ? 'active' : '' }}">
-            <a href="/delivery-orders"><i class="fa fa-history"></i><span>Riwayat Permintaan</span></a>
-        </li>
-        @endif  --}}
-
-        {{-- Retur Barang --}}
-        {{--  @if (in_array($role, ['superadmin', 'admin-gudang', 'staff-outlet']))
-        @if ($role === 'staff-outlet')  --}}
-        {{-- Staff-outlet: single direct link to their outlet retur --}}
-        {{--  <li class="{{ request()->is('refundPembelian*') ? 'active' : '' }}">
-            <a href="/refundPembelian"><i class="fa fa-undo"></i><span>Retur Barang</span></a>
-        </li>
-        @else
-        <li class="treeview {{ request()->is('refundPembelian*') ? 'active' : '' }}">
-            <a href="#"><i class="fa fa-undo"></i><span>Retur Barang</span><i class="fa fa-angle-left pull-right"></i></a>
-            <ul class="treeview-menu">
-                @if (in_array($role, ['superadmin', 'admin-gudang']))
-                <li class="{{ request()->is('refundPembelian*') && request()->get('type') === 'gudang_ke_supplier' ? 'active' : '' }}">
-                    <a href="/refundPembelian?type=gudang_ke_supplier"><i class="fa fa-undo"></i><span>Retur Barang Gudang</span></a>
-                </li>
-                @endif
-                @if ($role === 'superadmin')
-                <li class="{{ request()->is('refundPembelian*') && request()->get('type') === 'outlet_ke_gudang' ? 'active' : '' }}">
-                    <a href="/refundPembelian?type=outlet_ke_gudang"><i class="fa fa-undo"></i><span>Retur Barang Outlet</span></a>
-                </li>
-                @endif
-            </ul>
-        </li>
-        @endif
-        @endif  --}}
-
-        {{-- Outlet (superadmin only) --}}
-        {{--  @if ($role === 'superadmin')
-        <li class="{{ in_array(Route::currentRouteName(), ['outlet.index', 'outlet.create', 'outlet.edit']) ? 'active' : '' }}">
-            <a href="/outlet"><i class="fa fa-home"></i><span>Outlet</span></a>
-        </li>
-        @endif  --}}
-
-        {{-- Laporan --}}
-        {{--  @if (in_array($role, ['superadmin', 'admin-gudang', 'staff-outlet', 'owner']))
-        <li class="{{ in_array(Route::currentRouteName(), ['laporan.index']) ? 'active' : '' }}">
-            <a href="/laporan"><i class="fa fa-file-excel-o"></i><span>Laporan</span></a>
-        </li>
-        @endif  --}}
 
     </ul>
     @endauth

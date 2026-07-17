@@ -25,7 +25,9 @@ class OutletController extends Controller
 
     public function create()
     {
-        return view('outlets.create', []);
+        return view('outlets.create', [
+            'jenisOutletOptions' => Outlet::typeOptions(),
+        ]);
     }
 
     public function store(OutletRequest $request)
@@ -64,6 +66,7 @@ class OutletController extends Controller
     {
         return view('outlets.edit', [
             'outlet' => $outlet,
+            'jenisOutletOptions' => Outlet::typeOptions($outlet->jenis_outlet),
         ]);
     }
 

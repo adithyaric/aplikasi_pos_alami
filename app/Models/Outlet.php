@@ -9,6 +9,12 @@ class Outlet extends Model
 {
     use SoftDeletes;
 
+    public const TYPE_OPTIONS = [
+        'branch' => 'Cabang / Branch',
+        'toko' => 'Toko',
+        'beauty' => 'Beauty',
+    ];
+
     protected $fillable = [
         'logo',
         'name',
@@ -38,5 +44,25 @@ class Outlet extends Model
     public function scopeBranches($query)
     {
         return $query->where('jenis_outlet', 'branch');
+    }
+
+    public static function typeOptions(?string $currentType = null): array
+    {
+        $options = self::TYPE_OPTIONS;
+
+        if ($currentType && ! array_key_exists($currentType, $options)) {
+            $options = [
+                $currentType => ucwords(str_replace(['-', '_'], ' ', $currentType)),
+            ] + $options;
+        }
+
+        return $options;
+    }
+
+    public function getJenisOutletLabelAttribute(): string
+    {
+        $options = self::typeOptions($this->jenis_outlet);
+
+        return $options[$this->jenis_outlet] ?? ucwords(str_replace(['-', '_'], ' ', (string) $this->jenis_outlet));
     }
 }

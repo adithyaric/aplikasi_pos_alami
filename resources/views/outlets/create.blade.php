@@ -28,8 +28,14 @@
                             </div>
                             <div class="form-group">
                                 <label for="">Jenis Outlet</label>
-                                <input type="text" class="form-control" name="jenis_outlet" value="{{ old('jenis_outlet') }}"
-                                    placeholder="Masukkan Jenis Outlet (Toko / Beauty)">
+                                <select class="form-control" name="jenis_outlet" required>
+                                    <option value="" disabled {{ old('jenis_outlet') ? '' : 'selected' }}>Pilih Jenis Outlet</option>
+                                    @foreach ($jenisOutletOptions as $value => $label)
+                                        <option value="{{ $value }}" {{ old('jenis_outlet') === $value ? 'selected' : '' }}>
+                                            {{ $label }}
+                                        </option>
+                                    @endforeach
+                                </select>
                                 @error('jenis_outlet')
                                     <div class="invalid-feedback text-danger">
                                         {{ $message }}

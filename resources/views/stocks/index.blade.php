@@ -37,9 +37,8 @@
                                     <td>{{ $stock->product->code }}</td>
                                     <td>{{ $stock->product->name }}</td>
                                     <td>
-                                        {{-- Menggunakan total_qty hasil SUM --}}
                                         <span class="text-{{ $stock->total_qty <= 0 ? 'danger' : ($stock->product->isLowStock() ? 'warning' : 'success') }}">
-                                            {{ $stock->product->qtyDisplay($stock->total_qty) }}
+                                            {{ $stock->product->stockSummaryDisplay($stock->total_qty) }}
                                         </span>
                                     </td>
                                     <td>

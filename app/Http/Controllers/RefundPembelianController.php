@@ -119,6 +119,11 @@ class RefundPembelianController extends Controller
         ]);
     }
 
+    private function normalizeMoney($value): int
+    {
+        return (int) preg_replace('/[^\d]/', '', (string) $value);
+    }
+
     public function store(Request $request)
     {
         $type = $request->input('type');
@@ -195,7 +200,7 @@ class RefundPembelianController extends Controller
                     // ── Gudang ke Supplier ──────────────────────────────────────
                     $stock = Stock::findOrFail($product['stock_id']);
 
-                    $harga  = (int) str_replace(',', '', $product['harga'] ?? $stock->harga_beli);
+                    $harga  = $this->normalizeMoney($product['harga'] ?? $stock->harga_beli);
                     $total += $harga * $product['qty'];
 
                     if ($isReplacement) {

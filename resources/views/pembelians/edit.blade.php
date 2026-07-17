@@ -93,7 +93,7 @@
                                     <td>
                                         <input type="text" class="form-control harga_beli numeral-mask"
                                             name="product[{{ $key }}][harga_beli]" required
-                                            value="{{ $stock->harga_beli }}">
+                                            value="{{ number_format($stock->harga_beli, 0, '.', ',') }}">
                                     </td>
                                     <td>
                                         <input class="form-control subtotal"
@@ -318,10 +318,9 @@
         loadProductsForSupplier(selectedSupplierId);
     });
 
-    // Helper: format number with thousand separators (Indonesian style)
+    // Helper: format number with comma thousands separators for rupiah inputs
     function formatRupiah(angka) {
-        if (!angka) return '0';
-        return angka.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        return window.formatNumberWithCommas(angka) || '0';
     }
 
     function addBahanBaku() {
@@ -421,7 +420,7 @@
         updateKonversiDisplay($row);
 
         $.get('/product/' + product_id, function(data) {
-            harga_beli.val(data.harga_beli).trigger('input');
+            harga_beli.val(formatRupiah(data.harga_beli)).trigger('input');
             updateSubtotalAndTotal();
         });
     });
@@ -575,7 +574,7 @@
             $productSelect.val(item.product_id).trigger('change.select2');
 
             // Isi harga dari data cache
-            $hargaInput.val(item.harga).trigger('input');
+            $hargaInput.val(formatRupiah(item.harga)).trigger('input');
 
             // Isi qty
             $qtyInput.val(item.qty);

@@ -248,7 +248,7 @@
                                     class="form-control numeral-mask"
                                     id="amountDisplay"
                                     placeholder="Masukkan jumlah yang dibayar"
-                                    value="{{ old('amount', ) }}" required
+                                    value="{{ old('amount') ? number_format((int) preg_replace('/[^\d]/', '', old('amount')), 0, '.', ',') : '' }}" required
                                     @if ($pembelian->pembelianTransaction?->status === 'paid') disabled @endif />
 
                                 {{-- Hidden input yang dikirim ke backend --}}
@@ -323,7 +323,7 @@
         var grandTotal = {{ $pembelian->total }};
 
         // Init mask pada display input
-        $('#amountDisplay').mask('#.##0', { reverse: true });
+        $('#amountDisplay').mask('#,##0', { reverse: true });
 
         // Auto-generate referensi saat pilih bank transfer
         //$('#paymentMethod').change(function() {
@@ -345,7 +345,7 @@
 
             // Paksa max
             if (raw > maxAmount) {
-                $(this).val(maxAmount.toLocaleString('id-ID'));
+                $(this).val(window.formatNumberWithCommas(maxAmount));
                 raw = maxAmount;
             }
 

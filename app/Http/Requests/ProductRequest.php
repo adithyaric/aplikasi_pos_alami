@@ -14,6 +14,8 @@ class ProductRequest extends FormRequest
             'status_produk_note' => $this->filled('status_produk_note')
                 ? trim((string) $this->input('status_produk_note'))
                 : null,
+            'harga_beli' => $this->cleanNumeric($this->input('harga_beli')),
+            'harga_jual' => $this->cleanNumeric($this->input('harga_jual')),
             'konversi_qty' => $this->filled('konversi_qty')
                 ? round((float) $this->input('konversi_qty'), 2)
                 : null,
@@ -21,6 +23,17 @@ class ProductRequest extends FormRequest
                 ? round((float) $this->input('konversi_qty_terbesar'), 2)
                 : null,
         ]);
+    }
+
+    private function cleanNumeric($value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $cleaned = preg_replace('/[^\d]/', '', (string) $value);
+
+        return $cleaned === '' ? null : $cleaned;
     }
 
     public function authorize()
@@ -46,8 +59,8 @@ class ProductRequest extends FormRequest
             // 'brand' => 'nullable',
             // 'model' => 'nullable',
             'is_serialized' => 'nullable',
-            'harga_beli' => 'required',
-            'harga_jual' => 'nullable',
+            'harga_beli' => 'required|numeric|min:0',
+            'harga_jual' => 'nullable|numeric|min:0',
             // 'diskon' => 'nullable',
             // 'berat' => 'nullable',
             'satuan' => 'nullable|string',

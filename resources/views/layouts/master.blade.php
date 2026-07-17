@@ -176,6 +176,15 @@
     <script src="https://cdn.jsdelivr.net/npm/moment/moment.min.js"></script>
     <!-- page script -->
     <script>
+        window.normalizeNumericInput = function(value) {
+            return String(value ?? '').replace(/[^\d]/g, '');
+        };
+
+        window.formatNumberWithCommas = function(value) {
+            var digits = window.normalizeNumericInput(value);
+            return digits ? digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '';
+        };
+
         $(function() {
             $(".select2").select2();
             $("#example1").DataTable();
@@ -183,7 +192,11 @@
             //Date picker
             $('#datepicker').datepicker({
                 autoclose: true
-            })
+            });
+
+            $('.rupiah-input').each(function() {
+                $(this).val(window.formatNumberWithCommas($(this).val()));
+            });
         });
 
         $(document).on('input', 'input[type="number"]', function() {
@@ -196,6 +209,16 @@
             if (stripped !== value) {
                 $(this).val(stripped);
             }
+        });
+
+        $(document).on('input', '.rupiah-input', function() {
+            $(this).val(window.formatNumberWithCommas($(this).val()));
+        });
+
+        $(document).on('submit', 'form', function() {
+            $(this).find('.rupiah-input').each(function() {
+                $(this).val(window.normalizeNumericInput($(this).val()));
+            });
         });
     </script>
     @yield('page-script')

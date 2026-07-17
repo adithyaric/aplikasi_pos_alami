@@ -97,6 +97,32 @@ class ProductUnitConverter
         return $converted === $base ? $base : "{$base} | {$converted}";
     }
 
+    public function stockSummaryDisplay(Product $product, int|float $qty): string
+    {
+        $qty = (int) round($qty);
+        $baseUnit = $product->satuan ?: 'PCS';
+        $bigUnit = $product->satuan_besar;
+        $largestUnit = $product->satuan_terbesar;
+        $bigFactor = $product->konversi_qty ? (int) round((float) $product->konversi_qty) : null;
+        $largestFactor = ($bigFactor && $product->konversi_qty_terbesar)
+            ? $bigFactor * (int) round((float) $product->konversi_qty_terbesar)
+            : null;
+
+        $parts = [
+            $this->formatPart($qty, $baseUnit),
+        ];
+
+        if ($bigFactor && $bigUnit) {
+            $parts[] = $this->formatFractionalPart($qty / $bigFactor, $bigUnit);
+        }
+
+        if ($largestFactor && $largestUnit) {
+            $parts[] = $this->formatFractionalPart($qty / $largestFactor, $largestUnit);
+        }
+
+        return implode(' | ', array_filter($parts));
+    }
+
     protected function parseNumeric(int|float|string $value): float
     {
         if (is_int($value) || is_float($value)) {
@@ -117,5 +143,14 @@ class ProductUnitConverter
     protected function formatPart(int $qty, string $unit): string
     {
         return number_format($qty, 0, ',', '.').' '.$unit;
+    }
+
+    protected function formatFractionalPart(float $qty, string $unit): string
+    {
+        if ((float) (int) $qty === $qty) {
+            return number_format($qty, 0, ',', '.').' '.$unit;
+        }
+
+        return rtrim(rtrim(number_format($qty, 2, ',', '.'), '0'), ',').' '.$unit;
     }
 }
