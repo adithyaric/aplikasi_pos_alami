@@ -38,13 +38,13 @@ class OutletController extends Controller
             $file = $request->file('logo');
 
             // Generate a unique file name
-            $fileName = time() . '.' . $file->getClientOriginalExtension();
+            $fileName = time().'.'.$file->getClientOriginalExtension();
 
             // Store the file
             $file->storeAs('public/logos', $fileName);
 
             // Add the file path to the data array
-            $data['logo'] = 'storage/logos/' . $fileName;
+            $data['logo'] = 'storage/logos/'.$fileName;
         }
 
         Outlet::create($data);
@@ -77,9 +77,9 @@ class OutletController extends Controller
             }
             // Store the new image file
             $file = $request->file('logo');
-            $fileName = time() . '.' . $file->getClientOriginalExtension();
+            $fileName = time().'.'.$file->getClientOriginalExtension();
             $file->storeAs('public/logos', $fileName);
-            $data['logo'] = 'storage/logos/' . $fileName;
+            $data['logo'] = 'storage/logos/'.$fileName;
         }
         $outlet->update($data);
 

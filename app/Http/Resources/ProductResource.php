@@ -27,7 +27,7 @@ class ProductResource extends JsonResource
             // 'image_url' => asset($this->pic),
             'is_serialized' => $this->is_serialized,
             'total_stock' => $this->total_stock,
-            'stocks' => $sortedStocks->map(fn($stock) => [
+            'stocks' => $sortedStocks->map(fn ($stock) => [
                 'id' => $stock->id,
                 'status' => $stock->status,
                 'serial_number' => $stock->serial_number,

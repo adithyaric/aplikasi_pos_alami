@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\BranchRequest;
 use App\Models\Branch;
-use Illuminate\Http\Request;
 
 class BranchController extends Controller
 {
@@ -49,7 +48,6 @@ class BranchController extends Controller
     /**
      * Display the specified resource.
      *
-     * @param  \App\Models\Branch  $branch
      * @return \Illuminate\Http\Response
      */
     public function show(Branch $branch)
@@ -60,7 +58,6 @@ class BranchController extends Controller
     /**
      * Show the form for editing the specified resource.
      *
-     * @param  \App\Models\Branch  $branch
      * @return \Illuminate\Http\Response
      */
     public function edit(Branch $branch)
@@ -74,7 +71,6 @@ class BranchController extends Controller
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Branch  $branch
      * @return \Illuminate\Http\Response
      */
     public function update(BranchRequest $request, Branch $branch)
@@ -88,7 +84,6 @@ class BranchController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param  \App\Models\Branch  $branch
      * @return \Illuminate\Http\Response
      */
     public function destroy(Branch $branch)

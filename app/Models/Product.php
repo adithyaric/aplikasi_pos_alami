@@ -213,7 +213,7 @@ class Product extends Model
             ->dontSubmitEmptyLogs()
             ->logExcept(['created_at', 'updated_at'])
             ->dontLogIfAttributesChangedOnly(['updated_at'])
-            ->setDescriptionForEvent(fn(string $eventName) => "Data Product has been {$eventName}")
+            ->setDescriptionForEvent(fn (string $eventName) => "Data Product has been {$eventName}")
             ->useLogName('Product');
     }
 
@@ -232,13 +232,13 @@ class Product extends Model
         $parts = [];
 
         // Satuan dasar selalu tampil
-        $parts[] = number_format($qty, 0, ',', '.') . ' ' . ($this->satuan ?? 'PCS');
+        $parts[] = number_format($qty, 0, ',', '.').' '.($this->satuan ?? 'PCS');
 
         // Satuan besar
         if ($this->konversi_qty && $this->satuan_besar) {
             $satuanBesar = floor($qty / $this->konversi_qty);
             if ($satuanBesar > 0) {
-                $parts[] = number_format($satuanBesar, 0, ',', '.') . ' ' . $this->satuan_besar;
+                $parts[] = number_format($satuanBesar, 0, ',', '.').' '.$this->satuan_besar;
             }
         }
 
@@ -251,7 +251,7 @@ class Product extends Model
                 $formatted = fmod($satuanTerbesar, 1) === 0.0
                     ? number_format($satuanTerbesar, 0, ',', '.')
                     : number_format($satuanTerbesar, 1, ',', '.');
-                $parts[] = $formatted . ' ' . $this->satuan_terbesar;
+                $parts[] = $formatted.' '.$this->satuan_terbesar;
             }
         }
 

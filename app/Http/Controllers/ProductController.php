@@ -10,7 +10,6 @@ use App\Imports\ProductsImport;
 use App\Imports\ProductsMinStockImport;
 use App\Jobs\ProcessProductImportChunk;
 use App\Models\Category;
-use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\ProductImport;
 use App\Models\Supplier;
@@ -61,7 +60,7 @@ class ProductController extends Controller
             ->withSum('stocks as available_stock_qty', 'qty_available')
             ->withSum([
                 'stockPembelians as approved_stock_pembelians_qty' => function ($query) {
-                    $query->whereHas('pembelian', fn($pembelian) => $pembelian->where('owner_approval_status', 'approved'));
+                    $query->whereHas('pembelian', fn ($pembelian) => $pembelian->where('owner_approval_status', 'approved'));
                 },
             ], 'qty')
             ->orderBy('code')
@@ -74,7 +73,7 @@ class ProductController extends Controller
                 ->latest()
                 ->take(5)
                 ->get()
-                ->map(fn(ProductImport $productImport) => $this->formatProductImport($productImport)),
+                ->map(fn (ProductImport $productImport) => $this->formatProductImport($productImport)),
             'categories' => Category::orderBy('name')->get(['id', 'name']),
             'search' => $request->search,
             'selectedCategoryId' => $request->input('category_id'),
@@ -98,6 +97,7 @@ class ProductController extends Controller
         if ($request->has('supplier_ids')) {
             $product->suppliers()->sync($request->supplier_ids);
         }
+
         return redirect(route('product.index'))->with('toast_success', 'Berhasil Menyimpan Data!');
     }
 
@@ -147,6 +147,7 @@ class ProductController extends Controller
     public function destroy(Product $product)
     {
         $product->delete();
+
         return redirect(route('product.index'))->with('toast_success', 'Berhasil Menghapus Data!');
     }
 

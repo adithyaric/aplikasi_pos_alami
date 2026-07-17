@@ -60,7 +60,7 @@ class PembelianController extends Controller
 
         if (request()->filled('supplier_id')) {
             $supplierId = request()->integer('supplier_id');
-            $products->whereHas('suppliers', fn($query) => $query->where('suppliers.id', $supplierId));
+            $products->whereHas('suppliers', fn ($query) => $query->where('suppliers.id', $supplierId));
         }
 
         $products = $products->get()
@@ -108,13 +108,13 @@ class PembelianController extends Controller
         $pembelians = $query->get();
 
         // Hitung summary cards
-        $totalPiutang     = $pembelians->filter(fn($p) => ($p->pembelianTransaction?->status ?? 'unpaid') !== 'paid')
-            ->sum(fn($p) => $p->total - ($p->pembelianTransaction?->amount ?? 0));
-        $countPiutang     = $pembelians->filter(fn($p) => ($p->pembelianTransaction?->status ?? 'unpaid') !== 'paid')->count();
+        $totalPiutang     = $pembelians->filter(fn ($p) => ($p->pembelianTransaction?->status ?? 'unpaid') !== 'paid')
+            ->sum(fn ($p) => $p->total - ($p->pembelianTransaction?->amount ?? 0));
+        $countPiutang     = $pembelians->filter(fn ($p) => ($p->pembelianTransaction?->status ?? 'unpaid') !== 'paid')->count();
 
-        $totalLunas       = $pembelians->filter(fn($p) => $p->pembelianTransaction?->status === 'paid')
-            ->sum(fn($p) => $p->pembelianTransaction?->amount ?? 0);
-        $countLunas       = $pembelians->filter(fn($p) => $p->pembelianTransaction?->status === 'paid')->count();
+        $totalLunas       = $pembelians->filter(fn ($p) => $p->pembelianTransaction?->status === 'paid')
+            ->sum(fn ($p) => $p->pembelianTransaction?->amount ?? 0);
+        $countLunas       = $pembelians->filter(fn ($p) => $p->pembelianTransaction?->status === 'paid')->count();
 
         $totalTransaksi   = $pembelians->count();
         $totalTransaksiNominal = $pembelians->sum('total');
@@ -146,7 +146,7 @@ class PembelianController extends Controller
         $allProducts = collect(array_values($allProductsArr));
 
         $totalQtyItems = $allProducts->count();
-        $totalQtyLines = $pembelians->sum(fn($p) => $p->pembelianProducts->count());
+        $totalQtyLines = $pembelians->sum(fn ($p) => $p->pembelianProducts->count());
 
         return view('pembelians.index', [
             'pembelians'          => $pembelians,
@@ -169,7 +169,7 @@ class PembelianController extends Controller
     {
         $lastPembelian = Pembelian::latest('id')->first();
         $nextNumber = $lastPembelian ? ((int) substr($lastPembelian->code, 4) + 1) : 1;
-        $code = 'PO' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+        $code = 'PO'.str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
 
         return view('pembelians.create', [
             'suppliers' => Supplier::get(),
@@ -206,7 +206,7 @@ class PembelianController extends Controller
             'pembelian_id' => $pembelian->id,
             'payment_date' => null,
             'payment_method' => 'bank_transfer',
-            'payment_reference' => $supplier->bank_no_rek . '-' . $supplier->bank_nama ?? 'TRX-' . now(),
+            'payment_reference' => $supplier->bank_no_rek.'-'.$supplier->bank_nama ?? 'TRX-'.now(),
             // 'amount' => $grandTotal,
             'amount' => 0,
             'status' => 'unpaid',
@@ -228,7 +228,7 @@ class PembelianController extends Controller
     {
         $pdf = PDF::loadView('pembelians.pembelian_pdf', ['pembelian' => $pembelian]);
 
-        return $pdf->download('pembelian_' . $pembelian->id . '.pdf');
+        return $pdf->download('pembelian_'.$pembelian->id.'.pdf');
     }
 
     public function edit(Pembelian $pembelian)
@@ -289,6 +289,7 @@ class PembelianController extends Controller
     public function penerimaan(Pembelian $pembelian)
     {
         $pembelian->load(['pembelianProducts.product', 'stocks.product', 'supplier']);
+
         return view('pembelians.penerimaan', compact('pembelian'));
     }
 
@@ -343,7 +344,7 @@ class PembelianController extends Controller
                     ->where('product_id', $itemData['product_id'])
                     ->first();
 
-                if (!$pembelianProduct) continue;
+                if (! $pembelianProduct) { continue; }
 
                 $pembelianProduct->update(['qty_diterima' => $qtyDiterima]);
 
@@ -418,7 +419,7 @@ class PembelianController extends Controller
                 $product->updateStockValue();
             }
 
-            if ($request->receipt_status == 'completed' && !$pembelian->is_published) {
+            if ($request->receipt_status == 'completed' && ! $pembelian->is_published) {
                 $pembelian->update(['is_published' => true]);
             }
 
@@ -428,6 +429,7 @@ class PembelianController extends Controller
                 ->with('toast_success', 'Penerimaan updated successfully');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return back()->with('toast_error', $e->getMessage())->withInput();
         }
     }
@@ -660,7 +662,7 @@ class PembelianController extends Controller
             'payment_date'      => 'required|date',
             'payment_method'    => 'required|in:cash,bank_transfer,giro_cek,lainnya',
             'payment_reference' => 'nullable|string',
-            'amount'            => 'required|numeric|min:0|max:' . $maxAmount,
+            'amount'            => 'required|numeric|min:0|max:'.$maxAmount,
             'notes'             => 'nullable|string',
             'status'            => 'required|in:unpaid,paid,partial',
             'bukti_transfer'    => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
@@ -691,7 +693,7 @@ class PembelianController extends Controller
             $buktiPath = null;
             if ($request->hasFile('bukti_transfer')) {
                 $file = $request->file('bukti_transfer');
-                $filename = 'bukti_' . time() . '_' . $pembelian->id . '.' . $file->getClientOriginalExtension();
+                $filename = 'bukti_'.time().'_'.$pembelian->id.'.'.$file->getClientOriginalExtension();
                 $buktiPath = $file->storeAs('bukti_transfer', $filename, 'public');
             }
 
@@ -766,7 +768,7 @@ class PembelianController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+                'message' => 'Terjadi kesalahan: '.$e->getMessage()
             ], 500);
         }
     }

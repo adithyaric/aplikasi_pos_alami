@@ -108,11 +108,13 @@ class ProductsImport
 
             if (empty($row['kode'])) {
                 $failures[] = $this->buildFailure($productImport->id, $rowNumber, $row, 'Kode wajib diisi.');
+
                 continue;
             }
 
             if (empty($row['nama'])) {
                 $failures[] = $this->buildFailure($productImport->id, $rowNumber, $row, 'Nama produk wajib diisi.');
+
                 continue;
             }
 
@@ -123,6 +125,7 @@ class ProductsImport
                     $row,
                     'Kode produk duplikat di database, baris ini dilewati.'
                 );
+
                 continue;
             }
 
@@ -133,6 +136,7 @@ class ProductsImport
                     $row,
                     'Nama kategori duplikat di database, baris ini dilewati.'
                 );
+
                 continue;
             }
 
@@ -140,6 +144,7 @@ class ProductsImport
 
             if ($supplierResolution['error']) {
                 $failures[] = $this->buildFailure($productImport->id, $rowNumber, $row, $supplierResolution['error']);
+
                 continue;
             }
 
@@ -431,7 +436,7 @@ class ProductsImport
         if ($ambiguousNames->isNotEmpty()) {
             return [
                 'ids' => null,
-                'error' => 'Nama supplier duplikat di database: ' . $ambiguousNames->implode(', '),
+                'error' => 'Nama supplier duplikat di database: '.$ambiguousNames->implode(', '),
             ];
         }
 
@@ -533,7 +538,7 @@ class ProductsImport
         $codes = [];
 
         for ($i = 0; $i < $count; $i++) {
-            $codes[] = 'S' . str_pad((string) ($nextNumber + $i), 5, '0', STR_PAD_LEFT);
+            $codes[] = 'S'.str_pad((string) ($nextNumber + $i), 5, '0', STR_PAD_LEFT);
         }
 
         return $codes;

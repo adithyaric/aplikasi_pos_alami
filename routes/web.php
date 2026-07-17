@@ -272,7 +272,7 @@ Route::middleware(['role:superadmin'])->group(function () {
 //     Route::resource('/review', ReviewController::class);
 // });
 
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';
 
 //* Artisan Commands
 Route::get('/optimize-clear', function () {

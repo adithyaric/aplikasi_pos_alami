@@ -181,7 +181,7 @@ class StockController extends Controller
 
             // Tempelkan nama supplier di keterangan jika tipe transaksinya masuk/pembelian
             if ($supplierName) {
-                $keterangan = "Supplier: " . $supplierName . " | " . $keterangan;
+                $keterangan = 'Supplier: '.$supplierName.' | '.$keterangan;
             }
 
             $result[] = [
@@ -235,12 +235,12 @@ class StockController extends Controller
                 ->latest('id')
                 ->first();
 
-            if ($refundItem && !empty($refundItem->alasan)) {
-                $this->appendKeteranganPart($parts, 'Alasan retur: ' . $refundItem->alasan);
+            if ($refundItem && ! empty($refundItem->alasan)) {
+                $this->appendKeteranganPart($parts, 'Alasan retur: '.$refundItem->alasan);
             }
         }
 
-        return !empty($parts) ? implode(' | ', $parts) : '-';
+        return ! empty($parts) ? implode(' | ', $parts) : '-';
     }
 
     protected function appendKeteranganPart(array &$parts, ?string $value): void
@@ -279,7 +279,7 @@ class StockController extends Controller
 
         // Filter supplier disesuaikan dengan product yang memiliki stock aktif
         $supplierOptions = \App\Models\Supplier::orderBy('name')
-            ->whereHas('pembelians.stocks', fn($q) => $q->where('qty', '>', 0))
+            ->whereHas('pembelians.stocks', fn ($q) => $q->where('qty', '>', 0))
             ->get(['id', 'name']);
 
         return view('stocks.opname', [
@@ -303,11 +303,11 @@ class StockController extends Controller
             ->groupBy('product_id');
 
         if ($lokasi = $request->input('lokasi')) {
-            $query->whereHas('product', fn($q) => $q->where('lokasi', $lokasi));
+            $query->whereHas('product', fn ($q) => $q->where('lokasi', $lokasi));
         }
 
         if ($supplierId = $request->input('supplier_id')) {
-            $query->whereHas('pembelian', fn($q) => $q->where('supplier_id', $supplierId));
+            $query->whereHas('pembelian', fn ($q) => $q->where('supplier_id', $supplierId));
         }
 
         $stocks = $query->get()->map(function ($stock) {
@@ -359,7 +359,7 @@ class StockController extends Controller
                         ->orderBy('id', 'desc')
                         ->first();
 
-                    if (!$stock) {
+                    if (! $stock) {
                         // Jika tidak ada stok sama sekali, buat baris stok baru dari master produk
                         $stock = Stock::create([
                             'product_id' => $item['product_id'],
@@ -396,16 +396,18 @@ class StockController extends Controller
                         'qty_in'         => $item['selisih'] > 0 ? $item['selisih'] : 0,
                         'qty_out'        => $item['selisih'] < 0 ? abs($item['selisih']) : 0,
                         'balance'        => $globalBalance,
-                        'notes'          => 'Stock opname adjustment - ' . ($item['keterangan'] ?? 'Stock adjustment'),
+                        'notes'          => 'Stock opname adjustment - '.($item['keterangan'] ?? 'Stock adjustment'),
                     ]);
                 }
             }
 
             DB::commit();
+
             return response()->json(['success' => true, 'message' => 'Stok opname berhasil disimpan']);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['success' => false, 'message' => 'Gagal menyimpan: ' . $e->getMessage()], 500);
+
+            return response()->json(['success' => false, 'message' => 'Gagal menyimpan: '.$e->getMessage()], 500);
         }
     }
 
@@ -418,11 +420,11 @@ class StockController extends Controller
             ->orderBy('product_id');
 
         if ($lokasi = $request->input('lokasi')) {
-            $query->whereHas('product', fn($q) => $q->where('lokasi', $lokasi));
+            $query->whereHas('product', fn ($q) => $q->where('lokasi', $lokasi));
         }
 
         if ($supplierId = $request->input('supplier_id')) {
-            $query->whereHas('pembelian', fn($q) => $q->where('supplier_id', $supplierId));
+            $query->whereHas('pembelian', fn ($q) => $q->where('supplier_id', $supplierId));
         }
 
         $stocks = $query->get();
@@ -430,7 +432,7 @@ class StockController extends Controller
 
         return Excel::download(
             new StockOpnameTemplateExport($stocks, $date, $settings),
-            'Template_Stock_Opname-' . $date . '.xlsx'
+            'Template_Stock_Opname-'.$date.'.xlsx'
         );
     }
 }

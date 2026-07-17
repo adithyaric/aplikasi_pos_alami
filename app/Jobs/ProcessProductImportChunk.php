@@ -57,9 +57,9 @@ class ProcessProductImportChunk implements ShouldQueue
             ->where('id', $this->productImportId)
             ->update([
                 'processed_chunks' => DB::raw('processed_chunks + 1'),
-                'processed_rows' => DB::raw('processed_rows + ' . (int) $result['processed_rows']),
-                'successful_rows' => DB::raw('successful_rows + ' . (int) $result['successful_rows']),
-                'failed_rows' => DB::raw('failed_rows + ' . (int) $result['failed_rows']),
+                'processed_rows' => DB::raw('processed_rows + '.(int) $result['processed_rows']),
+                'successful_rows' => DB::raw('successful_rows + '.(int) $result['successful_rows']),
+                'failed_rows' => DB::raw('failed_rows + '.(int) $result['failed_rows']),
                 'status' => ProductImport::STATUS_PROCESSING,
                 'updated_at' => now(),
             ]);

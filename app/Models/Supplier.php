@@ -35,7 +35,7 @@ class Supplier extends Model
 
         $next = $last ? ((int) substr($last, 1)) + 1 : 1;
 
-        return 'S' . str_pad($next, 5, '0', STR_PAD_LEFT);
+        return 'S'.str_pad($next, 5, '0', STR_PAD_LEFT);
     }
 
     public function products()
