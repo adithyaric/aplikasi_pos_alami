@@ -13,6 +13,7 @@ use App\Models\Stock;
 use App\Models\StockMovement;
 use App\Models\StockPembelian;
 use App\Models\Supplier;
+use App\Support\ProductUnitConverter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use PDF;
@@ -303,6 +304,7 @@ class PembelianController extends Controller
             'items'               => 'required|array',
             'items.*.product_id'  => 'required|exists:products,id',
             'items.*.qty_diterima' => 'required|integer|min:1',
+            'items.*.unit'        => 'nullable|string|max:255',
         ], [
             'receipt_date.date'         => 'Tanggal penerimaan harus berupa tanggal yang valid.',
             'receipt_pic.string'        => 'PIC penerimaan harus berupa teks.',
@@ -320,6 +322,7 @@ class PembelianController extends Controller
 
         DB::beginTransaction();
         try {
+            $converter = app(ProductUnitConverter::class);
             $photoPath = $pembelian->receipt_photo;
             if ($request->hasFile('receipt_photo')) {
                 $photoPath = $request->file('receipt_photo')->store('receipt-photos', 'public');
@@ -335,10 +338,8 @@ class PembelianController extends Controller
 
             foreach ($request->items as $itemData) {
                 $product = Product::find($itemData['product_id']);
-                $konversiQty = $product->konversi_qty ?? 1;
-
-                // Konversi dari satuan besar ke satuan kecil
-                $qtyDiterima = (int) $itemData['qty_diterima'] * $konversiQty;
+                $unit = $itemData['unit'] ?? $converter->defaultInputUnit($product, 'supplier');
+                $qtyDiterima = $converter->normalize($product, $itemData['qty_diterima'], $unit);
 
                 $pembelianProduct = $pembelian->pembelianProducts()
                     ->where('product_id', $itemData['product_id'])

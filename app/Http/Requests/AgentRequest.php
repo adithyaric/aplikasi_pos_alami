@@ -26,6 +26,12 @@ class AgentRequest extends FormRequest
         return [
             'name' => 'required',
             'desc' => 'nullable',
+            'code' => 'nullable|string|max:255',
+            'alamat' => 'nullable|string',
+            'no_telp' => 'nullable|string|max:255',
+            'termin_days' => 'nullable|integer|min:0',
+            'credit_limit' => 'nullable|numeric|min:0',
+            'is_active' => 'nullable|boolean',
         ];
     }
 }

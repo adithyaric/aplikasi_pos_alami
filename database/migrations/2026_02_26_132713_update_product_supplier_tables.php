@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -23,7 +24,7 @@ return new class extends Migration
             $table->string('lokasi')->nullable()->after('min_stock');
 
             // Remove unused supplier_id column if it exists
-            if (Schema::hasColumn('products', 'supplier_id')) {
+            if (Schema::hasColumn('products', 'supplier_id') && DB::getDriverName() !== 'sqlite') {
                 $table->dropForeign(['supplier_id']); // if foreign key exists
                 $table->dropColumn('supplier_id');
             }

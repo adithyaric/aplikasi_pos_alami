@@ -17,6 +17,9 @@ class ProductRequest extends FormRequest
             'konversi_qty' => $this->filled('konversi_qty')
                 ? round((float) $this->input('konversi_qty'), 2)
                 : null,
+            'konversi_qty_terbesar' => $this->filled('konversi_qty_terbesar')
+                ? round((float) $this->input('konversi_qty_terbesar'), 2)
+                : null,
         ]);
     }
 
@@ -51,7 +54,7 @@ class ProductRequest extends FormRequest
             'satuan_besar' => 'nullable|string|max:255',
             'satuan_terbesar' => 'nullable|string|max:255',
             'konversi_qty' => 'nullable|numeric|min:1',
-            'konversi_qty_terbesar' => 'nullable|numeric|min:1',
+            'konversi_qty_terbesar' => 'nullable|numeric|min:1|required_with:satuan_terbesar',
             // 'min_stock' => 'nullable|integer|min:0',
             // 'lokasi' => 'nullable|string',
             'status_produk' => 'required|in:free_produk,tambahan_diskon,free_tester,listing,lunas,belum_lunas,sudah',

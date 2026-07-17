@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 use Illuminate\View\View;
 
@@ -37,8 +38,21 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
+        $usernameBase = Str::slug(Str::before((string) ($request->email ?: $request->name), '@'), '_');
+        $usernameBase = $usernameBase !== '' ? $usernameBase : 'customer';
+        $username = $usernameBase;
+        $suffix = 1;
+
+        while (User::where('username', $username)->exists()) {
+            $username = $usernameBase.'_'.$suffix;
+            $suffix++;
+        }
+
         $user = User::create([
             'name' => $request->name,
+            'username' => $username,
+            'role' => 'customer',
+            'status' => 'active',
             'email' => $request->email,
             'no_telp' => $request->no_telp,
             'password' => Hash::make($request->password),

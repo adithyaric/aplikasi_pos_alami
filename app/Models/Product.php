@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ProductUnitConverter;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
@@ -188,21 +189,7 @@ class Product extends Model
 
     public function konversiDisplay(int|float $qty): string
     {
-        if (! $this->konversi_qty || ! $this->satuan_besar) {
-            return '-';
-        }
-        $qty   = (int) $qty;
-        $boxes = (int) floor($qty / $this->konversi_qty);
-        $rem   = (int) fmod($qty, $this->konversi_qty);
-
-        if ($rem === 0) {
-            return "{$boxes} {$this->satuan_besar}";
-        }
-        if ($boxes > 0) {
-            return "{$boxes} {$this->satuan_besar} {$rem} {$this->satuan}";
-        }
-
-        return "{$qty} {$this->satuan}";
+        return app(ProductUnitConverter::class)->display($this, $qty);
     }
 
     public function getActivitylogOptions(): LogOptions
@@ -228,33 +215,6 @@ class Product extends Model
 
     public function qtyDisplay(int|float $qty): string
     {
-        $qty = (int) $qty;
-        $parts = [];
-
-        // Satuan dasar selalu tampil
-        $parts[] = number_format($qty, 0, ',', '.').' '.($this->satuan ?? 'PCS');
-
-        // Satuan besar
-        if ($this->konversi_qty && $this->satuan_besar) {
-            $satuanBesar = floor($qty / $this->konversi_qty);
-            if ($satuanBesar > 0) {
-                $parts[] = number_format($satuanBesar, 0, ',', '.').' '.$this->satuan_besar;
-            }
-        }
-
-        // Satuan terbesar
-        if ($this->konversi_qty && $this->satuan_besar && $this->konversi_qty_terbesar && $this->satuan_terbesar) {
-            $totalSatuanBesar = $qty / $this->konversi_qty;
-            $satuanTerbesar = $totalSatuanBesar / $this->konversi_qty_terbesar;
-            if ($satuanTerbesar > 0) {
-                // Tampilkan desimal kalau tidak bulat (misal 1,5 Ball)
-                $formatted = fmod($satuanTerbesar, 1) === 0.0
-                    ? number_format($satuanTerbesar, 0, ',', '.')
-                    : number_format($satuanTerbesar, 1, ',', '.');
-                $parts[] = $formatted.' '.$this->satuan_terbesar;
-            }
-        }
-
-        return implode(' | ', $parts);
+        return app(ProductUnitConverter::class)->detailedDisplay($this, $qty);
     }
 }

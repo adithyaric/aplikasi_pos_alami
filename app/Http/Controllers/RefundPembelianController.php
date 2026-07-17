@@ -122,6 +122,7 @@ class RefundPembelianController extends Controller
     public function store(Request $request)
     {
         $type = $request->input('type');
+        $returnMode = $request->input('return_mode', 'replacement');
         $selectedRows = collect($request->input('selected_rows', []))
             ->map(fn ($row) => (string) $row)
             ->filter()
@@ -137,6 +138,7 @@ class RefundPembelianController extends Controller
             'code'    => 'required|string|unique:refund_pembelians,code',
             'tanggal' => 'required|date',
             'type'    => 'required|in:gudang_ke_supplier,outlet_ke_gudang',
+            'return_mode' => 'nullable|in:replacement,cash_refund',
             'product' => 'required|array|min:1',
             'product.*.product_id' => 'required|exists:products,id',
             'product.*.qty'        => 'required|integer|min:1',
@@ -167,6 +169,7 @@ class RefundPembelianController extends Controller
         DB::beginTransaction();
         try {
             $isOutlet = $request->type === 'outlet_ke_gudang';
+            $isReplacement = ! $isOutlet && $returnMode === 'replacement';
             $total    = 0;
 
             if (empty($selectedProducts)) {
@@ -177,7 +180,8 @@ class RefundPembelianController extends Controller
                 'code'              => $request->code,
                 'tanggal'           => $request->tanggal,
                 'type'              => $request->type,
-                'status'            => $isOutlet ? 'complete' : 'retur',
+                'return_mode'       => $isOutlet ? 'replacement' : $returnMode,
+                'status'            => ($isOutlet || $isReplacement) ? 'complete' : 'retur',
                 'supplier_id'       => $request->supplier_id,
                 'outlet_id'         => $request->outlet_id,
                 'delivery_order_id' => $request->delivery_order_id,
@@ -191,28 +195,41 @@ class RefundPembelianController extends Controller
                     // ── Gudang ke Supplier ──────────────────────────────────────
                     $stock = Stock::findOrFail($product['stock_id']);
 
-                    if ($stock->qty_available < $product['qty']) {
-                        throw new \Exception("Stok gudang tidak mencukupi untuk: {$stock->product->name}");
-                    }
-
-                    // Reduce warehouse stock (only qty, qty_available is generated)
-                    $stock->qty -= $product['qty'];
-                    $stock->save();
-
                     $harga  = (int) str_replace(',', '', $product['harga'] ?? $stock->harga_beli);
                     $total += $harga * $product['qty'];
 
-                    StockMovement::create([
-                        'product_id'     => $product['product_id'],
-                        'user_id'        => auth()->id(),
-                        'type'           => 'retur_ke_supplier',
-                        'reference_type' => RefundPembelian::class,
-                        'reference_id'   => $refundPembelian->id,
-                        'qty_in'         => 0,
-                        'qty_out'        => $product['qty'],
-                        'balance'        => $stock->qty,
-                        'notes'          => "Retur ke supplier - {$refundPembelian->code} - SKU: {$stock->sku} - Alasan: {$product['alasan']}",
-                    ]);
+                    if ($isReplacement) {
+                        StockMovement::create([
+                            'product_id'     => $product['product_id'],
+                            'user_id'        => auth()->id(),
+                            'type'           => 'adjustment',
+                            'reference_type' => RefundPembelian::class,
+                            'reference_id'   => $refundPembelian->id,
+                            'qty_in'         => 0,
+                            'qty_out'        => 0,
+                            'balance'        => Stock::where('product_id', $product['product_id'])->sum('qty'),
+                            'notes'          => "Retur replacement supplier - {$refundPembelian->code} - SKU: {$stock->sku} - Alasan: {$product['alasan']}",
+                        ]);
+                    } else {
+                        if ($stock->qty_available < $product['qty']) {
+                            throw new \Exception("Stok gudang tidak mencukupi untuk: {$stock->product->name}");
+                        }
+
+                        $stock->qty -= $product['qty'];
+                        $stock->save();
+
+                        StockMovement::create([
+                            'product_id'     => $product['product_id'],
+                            'user_id'        => auth()->id(),
+                            'type'           => 'out',
+                            'reference_type' => RefundPembelian::class,
+                            'reference_id'   => $refundPembelian->id,
+                            'qty_in'         => 0,
+                            'qty_out'        => $product['qty'],
+                            'balance'        => $stock->qty,
+                            'notes'          => "Retur cash refund supplier - {$refundPembelian->code} - SKU: {$stock->sku} - Alasan: {$product['alasan']}",
+                        ]);
+                    }
 
                     RefundPembelianItem::create([
                         'refund_pembelian_id' => $refundPembelian->id,
@@ -222,6 +239,7 @@ class RefundPembelianController extends Controller
                         'qty'                 => $product['qty'],
                         'harga'               => $harga,
                         'alasan'              => $product['alasan'],
+                        'resolution'          => $isReplacement ? 'barang' : null,
                     ]);
                 } else {
                     // ── Outlet ke Gudang ─────────────────────────────────────────
@@ -243,7 +261,7 @@ class RefundPembelianController extends Controller
                     StockMovement::create([
                         'product_id'     => $product['product_id'],
                         'user_id'        => auth()->id(),
-                        'type'           => 'retur_dari_outlet',
+                        'type'           => 'in',
                         'reference_type' => RefundPembelian::class,
                         'reference_id'   => $refundPembelian->id,
                         'qty_in'         => $product['qty'],
@@ -332,7 +350,7 @@ class RefundPembelianController extends Controller
 
         DB::beginTransaction();
         try {
-            if ($refundPembelian->type === 'gudang_ke_supplier') {
+            if ($refundPembelian->type === 'gudang_ke_supplier' && ! $refundPembelian->isReplacement()) {
                 // Reverse stock reduction (only for retur status)
                 foreach ($refundPembelian->refundPembelianItems as $item) {
                     $stock = Stock::find($item->stock_id);
@@ -396,31 +414,28 @@ class RefundPembelianController extends Controller
                 $resolution = $itemData['resolution'];
                 $item->update(['resolution' => $resolution]);
 
-                // if ($resolution === 'barang') {
-                // Restore warehouse stock
-                $stock = Stock::find($item->stock_id);
-                if ($stock) {
-                    $stock->qty += $item->qty;
-                    $stock->save();
-                    $newBalance = $stock->qty;
-                } else {
-                    $newBalance = $item->qty;
-                }
+                if ($resolution === 'barang') {
+                    $stock = Stock::find($item->stock_id);
+                    if ($stock) {
+                        $stock->qty += $item->qty;
+                        $stock->save();
+                        $newBalance = $stock->qty;
+                    } else {
+                        $newBalance = $item->qty;
+                    }
 
-                StockMovement::create([
-                    'product_id'     => $item->product_id,
-                    'user_id'        => auth()->id(),
-                    'type'           => 'penerimaan_retur',
-                    'reference_type' => RefundPembelian::class,
-                    'reference_id'   => $refundPembelian->id,
-                    'qty_in'         => $item->qty,
-                    'qty_out'        => 0,
-                    'balance'        => $newBalance,
-                    'notes'          => "Terima retur barang - {$refundPembelian->code} - SKU: {$item->sku} - Alasan: {$item->alasan}",
-                ]);
-                // } else {
-                //     $uangTotal += $item->qty * $item->harga;
-                // }
+                    StockMovement::create([
+                        'product_id'     => $item->product_id,
+                        'user_id'        => auth()->id(),
+                        'type'           => 'in',
+                        'reference_type' => RefundPembelian::class,
+                        'reference_id'   => $refundPembelian->id,
+                        'qty_in'         => $item->qty,
+                        'qty_out'        => 0,
+                        'balance'        => $newBalance,
+                        'notes'          => "Terima retur barang - {$refundPembelian->code} - SKU: {$item->sku} - Alasan: {$item->alasan}",
+                    ]);
+                }
             }
 
             // if ($uangTotal > 0 && $request->kas_id) {

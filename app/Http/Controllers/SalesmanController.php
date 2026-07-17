@@ -3,14 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\SalesmanRequest;
+use App\Models\Outlet;
 use App\Models\Salesman;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class SalesmanController extends Controller
 {
     public function index(Request $request)
     {
-        $salesmans = Salesman::get();
+        $salesmans = Salesman::with(['outlet:id,name', 'user:id,name'])->get();
         if ($request->wantsJson()) {
             return response($salesmans);
         }
@@ -22,7 +24,10 @@ class SalesmanController extends Controller
 
     public function create()
     {
-        return view('salesmans.create', []);
+        return view('salesmans.create', [
+            'outlets' => Outlet::branches()->orderBy('name')->get(),
+            'users' => User::where('role', 'sales')->orderBy('name')->get(),
+        ]);
     }
 
     public function store(SalesmanRequest $request)
@@ -43,6 +48,8 @@ class SalesmanController extends Controller
     {
         return view('salesmans.edit', [
             'salesman' => $salesman,
+            'outlets' => Outlet::branches()->orderBy('name')->get(),
+            'users' => User::where('role', 'sales')->orderBy('name')->get(),
         ]);
     }
 

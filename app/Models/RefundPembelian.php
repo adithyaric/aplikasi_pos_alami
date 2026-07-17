@@ -13,6 +13,7 @@ class RefundPembelian extends Model
         'code',
         'tanggal',
         'type',             // gudang_ke_supplier | outlet_ke_gudang
+        'return_mode',      // replacement | cash_refund
         'status',           // retur | complete
         'kas_id',
         'supplier_id',
@@ -54,5 +55,10 @@ class RefundPembelian extends Model
     public function refundPembelianItems()
     {
         return $this->hasMany(RefundPembelianItem::class);
+    }
+
+    public function isReplacement(): bool
+    {
+        return $this->return_mode === 'replacement';
     }
 }

@@ -29,4 +29,14 @@ class Outlet extends Model
     {
         return $this->hasMany(Pembelian::class);
     }
+
+    public function salesmen()
+    {
+        return $this->hasMany(Salesman::class);
+    }
+
+    public function scopeBranches($query)
+    {
+        return $query->where('jenis_outlet', 'branch');
+    }
 }

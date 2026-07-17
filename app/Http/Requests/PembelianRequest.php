@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Product;
+use App\Support\ProductUnitConverter;
 use Illuminate\Foundation\Http\FormRequest;
 
 class PembelianRequest extends FormRequest
@@ -26,9 +27,13 @@ class PembelianRequest extends FormRequest
                 // Konversi qty satuan besar → satuan kecil
                 if (isset($product['product_id']) && isset($product['qty'])) {
                     $prod = Product::find($product['product_id']);
-                    if ($prod && $prod->konversi_qty) {
-                        $products[$key]['qty_satuan_besar'] = (int) $product['qty']; // simpan aslinya
-                        $products[$key]['qty'] = (int) $product['qty'] * (int) $prod->konversi_qty;
+                    if ($prod) {
+                        $converter = app(ProductUnitConverter::class);
+                        $unit = $product['unit'] ?? $converter->defaultInputUnit($prod, 'warehouse');
+
+                        $products[$key]['unit'] = $unit;
+                        $products[$key]['qty_satuan_besar'] = $unit === $prod->satuan_besar ? (int) $product['qty'] : null;
+                        $products[$key]['qty'] = $converter->normalize($prod, $product['qty'], $unit);
                     }
                 }
             }
@@ -57,6 +62,7 @@ class PembelianRequest extends FormRequest
             'product.*.product_id'         => 'required|exists:products,id',
             'product.*.qty'                => 'required|numeric|min:1',
             'product.*.qty_satuan_besar'   => 'nullable|numeric|min:1',
+            'product.*.unit'               => 'nullable|string|max:255',
             'product.*.harga_beli'         => 'required|min:0',
             'product.*.subtotal'           => 'required|min:0',
             'product.*.serial_numbers'     => 'nullable|string',

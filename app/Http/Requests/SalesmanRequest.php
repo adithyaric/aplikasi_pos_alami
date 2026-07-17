@@ -17,6 +17,9 @@ class SalesmanRequest extends FormRequest
             'name' => 'required',
             'alamat' => 'required',
             'no_telp' => 'required',
+            'code' => 'nullable|string|max:255',
+            'outlet_id' => 'nullable|exists:outlets,id',
+            'user_id' => 'nullable|exists:users,id',
         ];
     }
 }
