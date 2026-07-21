@@ -23,7 +23,7 @@
                                 <td>{{ $requestOrder->code }}</td>
                             </tr>
                             <tr>
-                                <th>Owner (Outlet)</th>
+                                <th>Owner (Cabang)</th>
                                 <td>{{ $requestOrder->owner->name ?? '-' }}</td>
                             </tr>
                             <tr>

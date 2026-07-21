@@ -47,11 +47,13 @@ class ReturOutletExport implements FromCollection, WithHeadings, WithMapping, Wi
             ->orderBy('tanggal')
             ->get()
             ->flatMap(function ($retur) {
-                return $retur->refundPembelianItems->map(function ($item) use ($retur) {
+                $items = $retur->refundPembelianItems->map(function ($item) use ($retur) {
                     $item->retur = $retur;
 
                     return $item;
                 });
+
+                return RefundPembelian::groupItems($items);
             });
     }
 
@@ -69,7 +71,7 @@ class ReturOutletExport implements FromCollection, WithHeadings, WithMapping, Wi
             [],                       // row 3
             [],                       // row 4
             [],                       // row 5
-            ['No', 'Tanggal', 'Kode Retur', 'Jenis Retur', 'Outlet', 'Kode Request', 'Kode Barang', 'Nama Barang', 'Batch', 'Expired', 'Qty', 'Satuan', 'Alasan Retur', 'Status', 'Keterangan'],
+            ['No', 'Tanggal', 'Kode Retur', 'Jenis Retur', 'Cabang', 'Kode Request', 'Kode Barang', 'Nama Barang', 'Qty', 'Satuan', 'Alasan Retur', 'Status', 'Keterangan'],
         ];
     }
 
@@ -87,8 +89,6 @@ class ReturOutletExport implements FromCollection, WithHeadings, WithMapping, Wi
             $retur->deliveryOrder->code ?? '-',
             $item->product->code ?? '-',
             $item->product->name ?? '-',
-            $item->sku ?? '-',
-            $item->stock?->expired_at ? Carbon::parse($item->stock->expired_at)->isoFormat('DD MMMM YYYY') : '-',
             (function () use ($item) {
                 $k = $item->product?->konversiDisplay($item->qty) ?? '-';
 
@@ -110,27 +110,27 @@ class ReturOutletExport implements FromCollection, WithHeadings, WithMapping, Wi
         $website     = $this->settings['website'] ?? '';
         $contactInfo = trim("$phone | $email | $website", ' |');
 
-        $sheet->mergeCells('A1:O1');
+        $sheet->mergeCells('A1:M1');
         $sheet->setCellValue('A1', $companyName);
         $sheet->getStyle('A1')->applyFromArray([
             'font' => ['bold' => true, 'size' => 16],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
 
-        $sheet->mergeCells('A2:O2');
+        $sheet->mergeCells('A2:M2');
         $sheet->setCellValue('A2', $address);
         $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        $sheet->mergeCells('A3:O3');
+        $sheet->mergeCells('A3:M3');
         $sheet->setCellValue('A3', $contactInfo);
         $sheet->getStyle('A3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         $periode = Carbon::parse($this->mulai)->isoFormat('DD MMMM YYYY').' s/d '.Carbon::parse($this->selesai)->isoFormat('DD MMMM YYYY');
-        $sheet->mergeCells('A4:O4');
+        $sheet->mergeCells('A4:M4');
         $sheet->setCellValue('A4', 'Periode: '.$periode);
         $sheet->getStyle('A4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        $sheet->getStyle('A6:O6')->applyFromArray([
+        $sheet->getStyle('A6:M6')->applyFromArray([
             'font' => ['bold' => true],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
             'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
@@ -150,12 +150,12 @@ class ReturOutletExport implements FromCollection, WithHeadings, WithMapping, Wi
         $sheet->getColumnDimension('K')->setWidth(8);
         $sheet->getColumnDimension('L')->setWidth(8);
         $sheet->getColumnDimension('M')->setWidth(20);
-        $sheet->getColumnDimension('N')->setWidth(12);
-        $sheet->getColumnDimension('O')->setWidth(20);
+        $sheet->getColumnDimension('L')->setWidth(12);
+        $sheet->getColumnDimension('M')->setWidth(20);
 
         $highestRow = $sheet->getHighestRow();
         if ($highestRow > 6) {
-            $sheet->getStyle('A7:O'.$highestRow)
+            $sheet->getStyle('A7:M'.$highestRow)
                 ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
         }
 
@@ -163,15 +163,15 @@ class ReturOutletExport implements FromCollection, WithHeadings, WithMapping, Wi
         $sheet->getStyle('B')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getStyle('K')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getStyle('L')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle('N')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('L')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
     }
 
     public function properties(): array
     {
         return [
             'creator' => config('app.name'),
-            'title' => 'Laporan Retur Outlet',
-            'description' => 'Laporan Retur Outlet Periode '.$this->mulai.' - '.$this->selesai,
+            'title' => 'Laporan Retur Cabang',
+            'description' => 'Laporan Retur Cabang Periode '.$this->mulai.' - '.$this->selesai,
         ];
     }
 }

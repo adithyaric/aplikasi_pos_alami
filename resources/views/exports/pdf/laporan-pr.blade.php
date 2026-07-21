@@ -16,7 +16,7 @@
                 <th style="width:3%">No</th>
                 <th style="width:8%">Tanggal PR</th>
                 <th style="width:11%">Kode PR</th>
-                <th style="width:10%">Outlet</th>
+                <th style="width:10%">Cabang</th>
                 <th style="width:8%">Kode Barang</th>
                 <th style="width:18%">Nama Barang</th>
                 <th style="width:5%">QTY</th>

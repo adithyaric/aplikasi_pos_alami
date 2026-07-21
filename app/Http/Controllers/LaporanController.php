@@ -296,7 +296,15 @@ class LaporanController extends Controller
             ->whereDate('tanggal', '<=', $selesai)
             ->orderBy('tanggal')
             ->get()
-            ->flatMap(fn ($retur) => $retur->refundPembelianItems->each(fn ($item) => $item->retur = $retur));
+            ->flatMap(function ($retur) {
+                $items = $retur->refundPembelianItems->map(function ($item) use ($retur) {
+                    $item->retur = $retur;
+
+                    return $item;
+                });
+
+                return RefundPembelian::groupItems($items);
+            });
 
         return Pdf::loadView('exports.pdf.laporan-retur-supplier', compact('rows', 'settings', 'mulai', 'selesai'))
             ->setPaper('a4', 'landscape')
@@ -319,7 +327,15 @@ class LaporanController extends Controller
             ->whereDate('tanggal', '<=', $selesai)
             ->orderBy('tanggal')
             ->get()
-            ->flatMap(fn ($retur) => $retur->refundPembelianItems->each(fn ($item) => $item->retur = $retur));
+            ->flatMap(function ($retur) {
+                $items = $retur->refundPembelianItems->map(function ($item) use ($retur) {
+                    $item->retur = $retur;
+
+                    return $item;
+                });
+
+                return RefundPembelian::groupItems($items);
+            });
 
         return Pdf::loadView('exports.pdf.laporan-retur-outlet', compact('rows', 'settings', 'mulai', 'selesai'))
             ->setPaper('a4', 'landscape')

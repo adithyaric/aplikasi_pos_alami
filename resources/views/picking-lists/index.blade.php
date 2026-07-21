@@ -10,9 +10,9 @@
                 <div class="box">
                     <div class="box-header">
                         <div class="pull-right" style="display:flex; align-items:center; gap:8px;">
-                            <label class="control-label" style="margin:0;">Filter Outlet:</label>
+                            <label class="control-label" style="margin:0;">Filter Cabang:</label>
                             <select id="outlet-filter" class="select2" style="min-width:220px;">
-                                <option value="">-- Semua Outlet --</option>
+                                <option value="">-- Semua Cabang --</option>
                                 @foreach ($outlets as $outlet)
                                     <option value="{{ $outlet->id }}">{{ $outlet->name }}</option>
                                 @endforeach
@@ -80,7 +80,7 @@
                                                 <form action="{{ route('delivery-orders.generate', $value->id) }}"
                                                     method="post" style="display: inline;">
                                                     @csrf
-                                                    <button class="btn-xs btn btn-primary">Generate DO & Send to outlet</button>
+                                                    <button class="btn-xs btn btn-primary">Generate DO & Kirim ke Cabang</button>
                                                 </form>
                                             @endif
                                         @endif

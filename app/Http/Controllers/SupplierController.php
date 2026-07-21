@@ -46,6 +46,15 @@ class SupplierController extends Controller
         ]);
     }
 
+    public function nextPoCode(Supplier $supplier)
+    {
+        return response()->json([
+            'code' => $supplier->generateNextPoCode(),
+            'prefix' => $supplier->poNumberPrefix(),
+            'padding' => (int) ($supplier->po_number_padding ?: 5),
+        ]);
+    }
+
     public function update(SupplierRequest $request, Supplier $supplier)
     {
         $data = $request->validated();

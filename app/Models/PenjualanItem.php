@@ -14,9 +14,15 @@ class PenjualanItem extends Model
         'product_id',
         'stock_id',
         'qty',
+        'qty_input',
+        'unit',
         'price',
         'subtotal',
         'serial_number',
+    ];
+
+    protected $casts = [
+        'qty_input' => 'decimal:2',
     ];
 
     public function penjualan()
@@ -32,5 +38,10 @@ class PenjualanItem extends Model
     public function stock()
     {
         return $this->belongsTo(Stock::class);
+    }
+
+    public function allocations()
+    {
+        return $this->hasMany(PenjualanItemAllocation::class);
     }
 }

@@ -20,7 +20,18 @@
                                 <label for="">Kode PO</label>
                                 <input type="text" class="form-control" name="code" value="{{ old('code', $code) }}"
                                     placeholder="Masukkan Kode PO">
+                                <small class="text-muted">Kode PO bisa auto mengikuti format supplier yang dipilih.</small>
                                 @error('code')
+                                    <div class="invalid-feedback text-danger">
+                                        {{ $message }}
+                                    </div>
+                                @enderror
+                            </div>
+                            <div class="form-group">
+                                <label for="">Customer PO</label>
+                                <input type="text" class="form-control" name="customer_po" value="{{ old('customer_po') }}"
+                                    placeholder="Masukkan Customer PO (opsional)">
+                                @error('customer_po')
                                     <div class="invalid-feedback text-danger">
                                         {{ $message }}
                                     </div>
@@ -154,6 +165,9 @@
         let productIndex = 0;
         let supplierRequest = null;
         let selectedSupplierId = $('[name="supplier_id"]').val() || null;
+        let poCodeRequest = null;
+        let poCodeManuallyEdited = {{ old('code') ? 'true' : 'false' }};
+        let currentSuggestedPoCode = $('[name="code"]').val() || '';
 
         //TODO use product's konversiDisplay instead
         function konversiDisplay(qty, konversiQty, satuanBesar, satuan) {
@@ -400,13 +414,48 @@
                 });
         }
 
+        function loadPoCodeForSupplier(supplierId, forceApply = false) {
+            if (!supplierId) {
+                return;
+            }
+
+            if (poCodeRequest) {
+                poCodeRequest.abort();
+                poCodeRequest = null;
+            }
+
+            poCodeRequest = $.get('{{ url('/pembelian/next-code') }}/' + supplierId)
+                .done(function(response) {
+                    if (String($('[name="supplier_id"]').val() || '') !== String(supplierId)) {
+                        return;
+                    }
+
+                    currentSuggestedPoCode = response.code || '';
+
+                    if (forceApply || !poCodeManuallyEdited || !$('[name="code"]').val()) {
+                        $('[name="code"]').val(currentSuggestedPoCode);
+                        poCodeManuallyEdited = false;
+                    }
+                })
+                .always(function() {
+                    poCodeRequest = null;
+                });
+        }
+
         // Handle product change on page load for existing rows
         $(document).ready(function() {
             loadProductsForSupplier(selectedSupplierId);
+            if (selectedSupplierId && !poCodeManuallyEdited) {
+                loadPoCodeForSupplier(selectedSupplierId, true);
+            }
 
             $('.harga_beli').each(function() {
                 $(this).trigger('input');
             });
+        });
+
+        $('[name="code"]').on('input', function() {
+            poCodeManuallyEdited = $(this).val() !== currentSuggestedPoCode;
         });
 
         $('[name="supplier_id"]').on('change', function() {
@@ -419,6 +468,7 @@
 
             selectedSupplierId = nextSupplierId;
             loadProductsForSupplier(selectedSupplierId);
+            loadPoCodeForSupplier(selectedSupplierId, true);
         });
 
         $('#kas').prop('disabled', true);

@@ -18,7 +18,7 @@
                                 <td>{{ $pickingList->requestOrder->code }}</td>
                             </tr>
                             <tr>
-                                <th>Owner/Outlet</th>
+                                <th>Owner/Cabang</th>
                                 <td>{{ $pickingList->requestOrder->owner->name }}</td>
                             </tr>
                             <tr>
@@ -110,7 +110,7 @@
                                 <form action="{{ route('delivery-orders.generate', $pickingList->id) }}"
                                     method="post" style="display: inline;">
                                     @csrf
-                                    <button class="btn-sm btn btn-primary">Generate DO & Send to outlet</button>
+                                    <button class="btn-sm btn btn-primary">Generate DO & Kirim ke Cabang</button>
                                 </form>
                             @endif
                         @endif

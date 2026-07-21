@@ -24,7 +24,7 @@ class LaporanPRExport implements FromCollection, WithHeadings, WithTitle
     }
     public function headings(): array
     {
-        return ['No', 'Tanggal PR', 'Kode PR', 'Outlet', 'Kode Barang', 'Nama Barang', 'QTY', 'Satuan', 'Status', 'Kode PO', 'Keterangan'];
+        return ['No', 'Tanggal PR', 'Kode PR', 'Cabang', 'Kode Barang', 'Nama Barang', 'QTY', 'Satuan', 'Status', 'Kode PO', 'Keterangan'];
     }
     public function collection()
     {

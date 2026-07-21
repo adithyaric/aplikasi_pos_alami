@@ -1,247 +1,185 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Sale No : {{ $penjualan->code }}</title>
-</head>
-<style type="text/css" media="all">
-    body {
-        max-width: 400px;
-        margin: 0 auto;
-        text-align: center;
-        color: #000;
-        font-family: Arial, Helvetica, sans-serif;
-        font-size: 12px;
-    }
-
-    #wrapper {
-        min-width: 250px;
-        margin: 0px auto;
-    }
-
-    #wrapper img {
-        max-width: 300px;
-        width: auto;
-    }
-
-    h2,
-    h3,
-    p {
-        margin: 5px 0;
-    }
-
-    .left {
-        width: 100%;
-        float: right;
-        text-align: right;
-        margin-bottom: 3px;
-        margin-top: 3px;
-    }
-
-    .right {
-        width: 40%;
-        float: right;
-        text-align: right;
-        margin-bottom: 3px;
-    }
-
-    .table,
-    .totals {
-        width: 100%;
-        margin: 10px 0;
-    }
-
-    .table th {
-        border-top: 1px solid #000;
-        border-bottom: 1px solid #000;
-        padding-top: 4px;
-        padding-bottom: 4px;
-    }
-
-    .table td {
-        padding: 0;
-    }
-
-    .totals td {
-        width: 24%;
-        padding: 0;
-    }
-
-    .table td:nth-child(2) {
-        overflow: hidden;
-    }
-
-    @media print {
+    <title>Invoice {{ $penjualan->code }}</title>
+    <style>
         body {
-            text-transform: uppercase;
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 24px;
+            color: #111827;
         }
 
-        #buttons {
-            display: none;
+        .header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 24px;
         }
 
-        #wrapper {
+        .title {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0 0 6px;
+        }
+
+        .muted {
+            color: #6b7280;
+        }
+
+        table {
             width: 100%;
-            margin: 0;
-            font-size: 9px;
+            border-collapse: collapse;
         }
 
-        #wrapper img {
-            max-width: 300px;
-            width: 80%;
+        th,
+        td {
+            border: 1px solid #d1d5db;
+            padding: 8px 10px;
+            font-size: 12px;
+            vertical-align: top;
         }
 
-        #bkpos_wrp {
-            display: none;
+        th {
+            background: #f3f4f6;
+            text-align: left;
         }
-    }
-</style>
+
+        .summary {
+            margin-top: 20px;
+            width: 320px;
+            margin-left: auto;
+        }
+
+        .summary td {
+            border: none;
+            padding: 4px 0;
+        }
+
+        .actions {
+            margin-top: 20px;
+        }
+
+        @media print {
+            .actions {
+                display: none;
+            }
+
+            body {
+                margin: 0;
+            }
+        }
+    </style>
+</head>
 
 <body>
-    @if ($penjualan->outlet)
-        <table border="0" style="border-collapse: collapse; width: 100%; height: auto;">
-            <tr>
-                <td width="100%" align="center">
-                    <center>
-                        <img src="{{ asset($penjualan->outlet->logo) }}" style="width: 60px;" />
-                    </center>
-                </td>
-            </tr>
-            <tr>
-                <td width="100%" align="center">
-                    <h2 style="padding-top: 0px; font-size: 24px;"><strong>{{ $penjualan->outlet->name }}</strong></h2>
-                </td>
-            </tr>
-            <tr>
-                <td width="100%">
-                    <span class="left" style="text-align: left;">
-                        Alamat Outlet : {{ $penjualan->outlet->alamat }}
-                    </span>
-                    <span class="left" style="text-align: left;">
-                        Dibuat : {{ $penjualan->created_at->format('Y-m-d') }}
-                    </span>
-                    <span class="left" style="text-align: left;">
-                        Nama Customer : {{ $penjualan->customer->name }}
-                    </span>
-                    <span class="left" style="text-align: left;">{{ $penjualan->outlet->desc }}</span>
-                </td>
-            </tr>
-        </table>
-    @endif
+    <div class="header">
+        <div>
+            <p class="title">INVOICE PENJUALAN</p>
+            <div>ALAMI</div>
+            <div class="muted">Gudang Utama</div>
+        </div>
+        <div>
+            <table>
+                <tr>
+                    <th>No. Invoice</th>
+                    <td>{{ $penjualan->code }}</td>
+                </tr>
+                <tr>
+                    <th>Tanggal</th>
+                    <td>{{ optional($penjualan->sale_date ?? $penjualan->created_at)->format('d M Y') }}</td>
+                </tr>
+                <tr>
+                    <th>Pembayaran</th>
+                    <td>{{ strtoupper($penjualan->payment_type ?? '-') }} / {{ strtoupper($penjualan->payment_status ?? '-') }}</td>
+                </tr>
+                <tr>
+                    <th>Jatuh Tempo</th>
+                    <td>{{ $penjualan->due_date?->format('d M Y') ?? '-' }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
 
-    <div style="clear:both;"></div>
+    <table style="margin-bottom:20px">
+        <tr>
+            <th style="width:180px">Jenis Pembeli</th>
+            <td>{{ $penjualan->buyer_type_label }}</td>
+        </tr>
+        <tr>
+            <th>Pembeli</th>
+            <td>{{ $penjualan->buyer_display_name }}</td>
+        </tr>
+        <tr>
+            <th>Alamat</th>
+            <td>{{ $penjualan->buyer_address ?: '-' }}</td>
+        </tr>
+        <tr>
+            <th>No. Telp</th>
+            <td>{{ $penjualan->buyer_phone ?: '-' }}</td>
+        </tr>
+        <tr>
+            <th>Operator</th>
+            <td>{{ $penjualan->operator?->name ?? '-' }}</td>
+        </tr>
+    </table>
 
-    <table class="table" cellspacing="0" border="0"
-        style="margin-bottom:5px; border-top: 1px solid #000; border-collapse: collapse;">
+    <table>
         <thead>
             <tr>
-                <th width="10%"><em>#</em></th>
-                <th width="35%" align="left">Nama Produk</th>
-                <th width="10%">Banyak</th>
-                <th width="25%">Harga</th>
-                <th width="20%" align="right">Subtotal</th>
+                <th style="width:40px">No</th>
+                <th>Produk</th>
+                <th style="width:130px">Qty Input</th>
+                <th style="width:150px">Qty Database</th>
+                <th style="width:130px">Harga</th>
+                <th style="width:140px">Subtotal</th>
             </tr>
         </thead>
         <tbody>
-            @php $totalCost = 0; @endphp
+            @php $subtotal = 0; @endphp
             @foreach ($penjualan->items as $item)
+                @php $subtotal += (int) $item->subtotal; @endphp
                 <tr>
-                    <td style="text-align:center; width:30px;" valign="top">{{ $loop->iteration }}</td>
-                    <td style="text-align:left; width:130px; padding-bottom: 10px" valign="top"> {{ $item->product->name }}</td>
-                    <td style="text-align:center; width:50px;" valign="top">{{ $item->qty }}</td>
-                    <td style="text-align:center; width:50px;" valign="top">@currency($item->price)</td>
-                    <td style="text-align:right; width:70px;" valign="top">@currency($item->qty * $item->price)</td>
+                    <td>{{ $loop->iteration }}</td>
+                    <td>{{ $item->product?->name ?? '-' }}</td>
+                    <td>
+                        {{ rtrim(rtrim(number_format((float) ($item->qty_input ?? $item->qty), 2, ',', '.'), '0'), ',') }}
+                        {{ $item->unit ?? $item->product?->satuan ?? '' }}
+                    </td>
+                    <td>{{ $item->product?->qtyDisplay((int) $item->qty) ?? $item->qty }}</td>
+                    <td>@currency($item->price) / {{ $item->unit ?? $item->product?->satuan ?? 'unit' }}</td>
+                    <td>@currency($item->subtotal)</td>
                 </tr>
-            @php $totalCost += $item->qty * $item->price; @endphp
             @endforeach
-            <tr style="border-top: 1px solid #000; border-collapse: collapse;">
-                <td style="text-align:center; width:30px;" valign="top">{{ $penjualan->items->count() }}</td>
-                <td style="text-align:left; width:130px; padding-bottom: 10px" valign="top"></td>
-                <td style="text-align:center; width:50px;" valign="top">{{ $penjualan->items->sum('qty') }}</td>
-                <td style="text-align:center; width:50px;" valign="top">@currency($penjualan->items->sum('price'))</td>
-                <td style="text-align:right; width:70px;" valign="top">@currency($penjualan->items->reduce(function ($carry, $item) { return $carry + $item->qty * $item->price; }, 0))</td>
-            </tr>
         </tbody>
     </table>
 
-    <table class="table" cellspacing="0" border="0" style="margin-bottom:5px; border-top: 1px solid #000; border-collapse: collapse;">
-        <tbody>
-            <tr>
-                <td style="text-align:left; padding-top: 5px;"></td>
-                <td style="text-align:right; padding-right:1.5%; border-right: 1px solid #000;font-weight:bold;"></td>
-                <td style="text-align:left; padding-left:1.5%;"></td>
-                <td style="text-align:right;font-weight:bold;">@currency($totalCost)</td>
-            </tr>
-
-            <tr>
-                <td style="text-align:left; padding-top: 5px;"></td>
-                <td style="text-align:right; padding-right:1.5%; border-right: 1px solid #000;font-weight:bold;"></td>
-                <td style="text-align:left; padding-left:1.5%;">Diskon</td>
-                <td style="text-align:right;font-weight:bold;">-@currency($penjualan->discount)</td>
-            </tr>
-
-            <tr>
-                <td colspan="2" style="text-align:left; font-weight:bold; border-top:1px solid #000; padding-top:5px;">Total Keseluruhan</td>
-                <td colspan="2" style="border-top:1px solid #000; padding-top:5px; text-align:right; font-weight:bold;"> @currency($totalCost - $penjualan->discount)</td>
-            </tr>
-
-            <tr>
-                <td style="text-align:left; padding-top: 5px;"></td>
-                <td style="text-align:right; padding-right:1.5%; border-right: 1px solid #000;font-weight:bold;"></td>
-                <td style="text-align:left; padding-left:1.5%;">Total Dibayar</td>
-                <td style="text-align:right;font-weight:bold;">@currency($penjualan->total)</td>
-            </tr>
-
-            <tr>
-                <td style="text-align:left; padding-top: 5px;"></td>
-                <td style="text-align:right; padding-right:1.5%; border-right: 1px solid #000;font-weight:bold;"></td>
-                <td style="text-align:left; padding-left:1.5%;">kembali</td>
-                <td style="text-align:right;font-weight:bold;">
-                    @php $kembali = abs(($totalCost - $penjualan->discount) - $penjualan->total); @endphp
-                    @currency($kembali)
-                </td>
-            </tr>
-
-            <tr>
-                <td style="text-align:left; padding-top: 5px; font-weight: bold; border-top: 1px solid #000;">
-                    Metode Pembayaran
-                </td>
-                <td style="text-align:right; padding-top: 5px; padding-right:1.5%; border-top: 1px solid #000;font-weight:bold;"
-                    colspan="3">
-                    @if ($penjualan->transaction)
-                        {{ $penjualan->transaction->payment->name }}.
-                        {{ $penjualan->transaction->payment->bank_number }}
-                    @else
-                        {{ $penjualan->kas->name }}
-                    @endif
-                </td>
-            </tr>
-        </tbody>
+    <table class="summary">
+        <tr>
+            <td>Subtotal</td>
+            <td style="text-align:right">@currency($subtotal)</td>
+        </tr>
+        <tr>
+            <td>Diskon</td>
+            <td style="text-align:right">@currency($penjualan->discount)</td>
+        </tr>
+        <tr>
+            <td><strong>Total</strong></td>
+            <td style="text-align:right"><strong>@currency($penjualan->total)</strong></td>
+        </tr>
     </table>
 
-    @if ($penjualan->outlet)
-        <div style="border-top:1px solid #000; padding-top:10px;">
-            {!! $penjualan->outlet->footer !!}
+    @if ($penjualan->notes)
+        <div style="margin-top:20px">
+            <strong>Catatan:</strong><br>
+            {{ $penjualan->notes }}
         </div>
     @endif
 
-    <div id="bkpos_wrp">
-        <a href="{{ route('penjualan.index') }}"
-            style="width:100%; display:block; font-size:12px; text-decoration: none; text-align:center; color:#FFF; background-color:#005b8a; border:0px solid #007FFF; padding: 10px 1px; margin: 5px auto 10px auto; font-weight:bold;">
-            Kembali
-        </a>
-    </div>
-
-    <div id="bkpos_wrp">
-        <button type="button" onClick="window.print();return false;"
-            style="width:101%; cursor:pointer; font-size:12px; background-color:#FFA93C; color:#000; text-align: center; border:1px solid #FFA93C; padding: 10px 0px; font-weight:bold;">
-            Print Small
-        </button>
-    </div>
-
+    <div class="actions">
+        <a href="{{ route('penjualan.show', $penjualan) }}">Kembali</a>
+        <button type="button" onclick="window.print()">Print</button>
     </div>
 </body>
 

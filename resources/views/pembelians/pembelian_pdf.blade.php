@@ -31,8 +31,8 @@
         {{-- <td>{!! DNS1D::getBarcodeHTML($pembelian->code, 'C128') !!}</td> --}}
         {{-- </tr> --}}
         <tr>
-            <td>Outlet</td>
-            <td>{{ $pembelian->outlet->name }}</td>
+            <td>Cabang</td>
+            <td>{{ $pembelian->outlet->name ?? '-' }}</td>
         </tr>
         <tr>
             <td>Supplier</td>

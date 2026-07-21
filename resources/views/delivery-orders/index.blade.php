@@ -11,9 +11,9 @@
                     @if (auth()->user()->role !== 'staff-outlet')
                     <div class="box-header">
                         <div class="pull-right" style="display:flex; align-items:center; gap:8px;">
-                            <label class="control-label" style="margin:0;">Filter Outlet:</label>
+                            <label class="control-label" style="margin:0;">Filter Cabang:</label>
                             <select id="outlet-filter" class="select2" style="min-width:220px;">
-                                <option value="">-- Semua Outlet --</option>
+                                <option value="">-- Semua Cabang --</option>
                                 @foreach ($outlets as $outlet)
                                     <option value="{{ $outlet->id }}">{{ $outlet->name }}</option>
                                 @endforeach
@@ -28,7 +28,7 @@
                                     <td>No</td>
                                     <td>Kode DO</td>
                                     <td>Request Order</td>
-                                    <td>Owner/Outlet</td>
+                                    <td>Owner/Cabang</td>
                                     <td>Delivery Date</td>
                                     <td>Status</td>
                                     <td>Aksi</td>

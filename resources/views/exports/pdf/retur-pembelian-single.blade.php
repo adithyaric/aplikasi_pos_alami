@@ -30,6 +30,7 @@
 @php
     $statusClass = $retur->status === 'complete' ? 'badge-success' : 'badge-warning';
     $statusLabel = $retur->status === 'complete' ? 'COMPLETE' : 'PROSES';
+    $groupedItems = $retur->groupedRefundPembelianItems();
 @endphp
 
 <table class="info-table">
@@ -63,36 +64,34 @@
         <tr>
             <th style="width:4%">No</th>
             <th style="width:10%">Kode Barang</th>
-            <th style="width:22%">Nama Barang</th>
-            <th style="width:12%">Batch/SKU</th>
+            <th style="width:26%">Nama Barang</th>
             <th style="width:11%">Qty</th>
             <th style="width:7%">Satuan</th>
             <th style="width:11%">Harga Satuan</th>
             <th style="width:11%">Subtotal</th>
-            <th style="width:12%">Alasan</th>
+            <th style="width:18%">Alasan</th>
         </tr>
     </thead>
     <tbody>
-        @forelse($retur->refundPembelianItems as $i => $item)
+        @forelse($groupedItems as $i => $item)
             @php $k = $item->product?->konversiDisplay($item->qty) ?? '-'; @endphp
             <tr class="{{ $i % 2 == 1 ? 'alt' : '' }}">
                 <td class="tc">{{ $i + 1 }}</td>
                 <td>{{ $item->product->code ?? '-' }}</td>
                 <td>{{ $item->product->name ?? '-' }}</td>
-                <td class="tc">{{ $item->sku ?? '-' }}</td>
                 <td class="tc">{{ $item->qty . ($k && $k !== '-' ? " ({$k})" : '') }}</td>
                 <td class="tc">{{ $item->product->satuan ?? 'PCS' }}</td>
                 <td class="tr">Rp {{ number_format($item->harga ?? 0, 0, ',', '.') }}</td>
-                <td class="tr">Rp {{ number_format($item->qty * ($item->harga ?? 0), 0, ',', '.') }}</td>
+                <td class="tr">Rp {{ number_format($item->subtotal ?? 0, 0, ',', '.') }}</td>
                 <td>{{ $item->alasan }}</td>
             </tr>
         @empty
-            <tr><td colspan="9" class="tc">Tidak ada data</td></tr>
+            <tr><td colspan="8" class="tc">Tidak ada data</td></tr>
         @endforelse
     </tbody>
     <tfoot>
         <tr>
-            <td colspan="7" class="tr" style="font-weight:bold; border-top: 1px solid #333;">Total</td>
+            <td colspan="6" class="tr" style="font-weight:bold; border-top: 1px solid #333;">Total</td>
             <td class="tr" style="font-weight:bold; border-top: 1px solid #333;">Rp {{ number_format($retur->total ?? 0, 0, ',', '.') }}</td>
             <td style="border-top: 1px solid #333;"></td>
         </tr>

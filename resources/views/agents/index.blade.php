@@ -1,12 +1,12 @@
 @extends('layouts.master')
 
-@section('title', 'Agent')
+@section('title', 'Agen')
 
 @section('container')
     <!-- Content Header (Page header) -->
     <section class="content-header">
         <h1>
-            Data Agent
+            Data Agen
         </h1>
     </section>
 
@@ -23,14 +23,28 @@
                             <thead>
                                 <tr>
                                     <td>No</td>
+                                    <td>Kode</td>
                                     <td>Nama</td>
+                                    <td>Telepon</td>
+                                    <td>Termin</td>
+                                    <td>Limit Piutang</td>
+                                    <td>Status</td>
                                     <td>Aksi</td>
                                 </tr>
                             </thead>
                             @foreach ($agents as $value)
                                 <tr>
                                     <td>{{ $loop->iteration }}</td>
+                                    <td>{{ $value->code ?? '-' }}</td>
                                     <td>{{ $value->name }}</td>
+                                    <td>{{ $value->no_telp ?? '-' }}</td>
+                                    <td>{{ $value->termin_days ?? 0 }} hari</td>
+                                    <td>@currency($value->credit_limit ?? 0)</td>
+                                    <td>
+                                        <span class="label label-{{ ($value->is_active ?? true) ? 'success' : 'default' }}">
+                                            {{ ($value->is_active ?? true) ? 'Aktif' : 'Nonaktif' }}
+                                        </span>
+                                    </td>
                                     <td>
                                         <a class="btn btn-warning" href="{{ route('agents.edit', $value->id) }}">Edit</a>
                                         <form action="{{ route('agents.destroy', $value->id) }}" method="post"

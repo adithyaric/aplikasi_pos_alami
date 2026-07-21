@@ -40,6 +40,23 @@
                                 placeholder="Masukkan Nomor Telp">
                             @error('no_telp')<div class="invalid-feedback text-danger">{{ $message }}</div>@enderror
                         </div>
+                        <hr>
+                        <div class="form-group">
+                            <label>Format Prefix Nomor PO</label>
+                            <input type="text" class="form-control" name="po_number_prefix"
+                                value="{{ old('po_number_prefix', 'PO-{SUPPLIER_CODE}-{YYYY}{MM}-') }}"
+                                placeholder="Contoh: PO-{SUPPLIER_CODE}-{YYYY}{MM}-">
+                            <small class="text-muted">
+                                Token yang bisa dipakai: <code>{SUPPLIER_CODE}</code>, <code>{YYYY}</code>, <code>{YY}</code>, <code>{MM}</code>, <code>{DD}</code>.
+                            </small>
+                            @error('po_number_prefix')<div class="invalid-feedback text-danger">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="form-group">
+                            <label>Panjang Nomor Urut PO</label>
+                            <input type="number" min="3" max="10" class="form-control" name="po_number_padding"
+                                value="{{ old('po_number_padding', 5) }}">
+                            @error('po_number_padding')<div class="invalid-feedback text-danger">{{ $message }}</div>@enderror
+                        </div>
                     </div><!-- /.box-body -->
 
                     <div class="box-footer">

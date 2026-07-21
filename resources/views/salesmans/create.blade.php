@@ -15,7 +15,17 @@
                 <!-- form start -->
                 <form action="{{ route('salesman.store') }}" method="POST" enctype="multipart/form-data">
                     @csrf
-                    <div class="box-body">
+                        <div class="box-body">
+                        <div class="form-group">
+                            <label for="">Kode Salesman</label>
+                            <input type="text" class="form-control" name="code" value="{{ old('code') }}"
+                                placeholder="Masukkan Kode Salesman">
+                            @error('code')
+                            <div class="invalid-feedback text-danger">
+                                {{ $message }}
+                            </div>
+                            @enderror
+                        </div>
                         <div class="form-group">
                             <label for="">Nama Salesman</label>
                             <input type="text" class="form-control" name="name" value="{{ old('name') }}"
@@ -41,6 +51,40 @@
                             <input type="number" class="form-control" name="no_telp" value="{{ old('no_telp') }}"
                                 placeholder="Masukkan Nomor Telp">
                             @error('no_telp')
+                            <div class="invalid-feedback text-danger">
+                                {{ $message }}
+                            </div>
+                            @enderror
+                        </div>
+                        <div class="form-group">
+                            <label for="">Cabang</label>
+                            <select class="form-control select2" name="outlet_id" data-placeholder="Pilih Cabang"
+                                style="width: 100%;">
+                                <option value="" selected disabled>Pilih Cabang</option>
+                                @foreach ($outlets as $outlet)
+                                    <option value="{{ $outlet->id }}" {{ old('outlet_id') == $outlet->id ? 'selected' : '' }}>
+                                        {{ $outlet->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('outlet_id')
+                            <div class="invalid-feedback text-danger">
+                                {{ $message }}
+                            </div>
+                            @enderror
+                        </div>
+                        <div class="form-group">
+                            <label for="">Akun User Sales (Opsional)</label>
+                            <select class="form-control select2" name="user_id" data-placeholder="Pilih User Sales"
+                                style="width: 100%;">
+                                <option value="" selected>Pilih User Sales</option>
+                                @foreach ($users as $user)
+                                    <option value="{{ $user->id }}" {{ old('user_id') == $user->id ? 'selected' : '' }}>
+                                        {{ $user->name }} - {{ $user->email }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('user_id')
                             <div class="invalid-feedback text-danger">
                                 {{ $message }}
                             </div>

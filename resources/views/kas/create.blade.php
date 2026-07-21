@@ -27,10 +27,10 @@
                                 @enderror
                             </div>
                             <div class="form-group">
-                                <label>Outlet</label>
-                                <select class="form-control select2" name="outlet_id" data-placeholder="Pilih Outlet"
+                                <label>Cabang</label>
+                                <select class="form-control select2" name="outlet_id" data-placeholder="Pilih Cabang"
                                     style="width: 100%;">
-                                    <option value="" selected disabled>Pilih Outlet</option>
+                                    <option value="" selected disabled>Pilih Cabang</option>
                                     @foreach ($outlets as $outlet)
                                         <option value="{{ $outlet->id }}"
                                             {{ old('outlet_id') == $outlet->id ? 'selected' : '' }}>

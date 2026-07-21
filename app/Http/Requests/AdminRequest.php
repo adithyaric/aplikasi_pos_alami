@@ -16,10 +16,10 @@ class AdminRequest extends FormRequest
         return [
             'name' => 'required',
             'username' => 'required',
-            'outlet_id' => 'nullable',
-            'role' => 'required',
+            'outlet_id' => 'required_if:role,staff-outlet|required_if:role,admin-gudang|required_if:role,sales|nullable|exists:outlets,id',
+            'role' => 'required|in:superadmin,admin-gudang,staff-outlet,sales,owner',
             'status' => 'required',
-            'email' => 'required|email',
+            'email' => 'required|email|unique:users,email',
             'password' => 'required|same:confirm-password',
         ];
     }

@@ -1,90 +1,143 @@
 @extends('layouts.master')
 
-@section('title', 'Penjualan')
+@section('title', 'Detail Penjualan')
 
 @section('container')
-    <!-- Content Header (Page header) -->
     <section class="content-header">
-        <h1>
-            Data Penjualan
-        </h1>
+        <h1>Detail Penjualan</h1>
     </section>
 
-    <!-- Main content -->
     <section class="content">
         <div class="row">
-            <div class="col-xs-12">
+            <div class="col-md-4">
+                <div class="box box-primary">
+                    <div class="box-header with-border">
+                        <h3 class="box-title">Informasi Penjualan</h3>
+                    </div>
+                    <div class="box-body">
+                        <table class="table table-bordered">
+                            <tr>
+                                <th>Kode</th>
+                                <td>{{ $penjualan->code }}</td>
+                            </tr>
+                            <tr>
+                                <th>Tanggal</th>
+                                <td>{{ optional($penjualan->sale_date ?? $penjualan->created_at)->format('d M Y') }}</td>
+                            </tr>
+                            <tr>
+                                <th>Jenis Pembeli</th>
+                                <td>{{ $penjualan->buyer_type_label }}</td>
+                            </tr>
+                            <tr>
+                                <th>Pembeli</th>
+                                <td>{{ $penjualan->buyer_display_name }}</td>
+                            </tr>
+                            <tr>
+                                <th>Alamat</th>
+                                <td>{{ $penjualan->buyer_address ?: '-' }}</td>
+                            </tr>
+                            <tr>
+                                <th>No. Telp</th>
+                                <td>{{ $penjualan->buyer_phone ?: '-' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Pembayaran</th>
+                                <td>
+                                    {{ strtoupper($penjualan->payment_type ?? '-') }}
+                                    /
+                                    {{ strtoupper($penjualan->payment_status ?? '-') }}
+                                    @if (($penjualan->paymentTransaction?->amount ?? 0) > 0)
+                                        <br><small>Dibayar: @currency($penjualan->paymentTransaction->amount)</small>
+                                    @endif
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Jatuh Tempo</th>
+                                <td>{{ $penjualan->due_date?->format('d M Y') ?? '-' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Operator</th>
+                                <td>{{ $penjualan->operator?->name ?? '-' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Catatan</th>
+                                <td>{{ $penjualan->notes ?: '-' }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
                 <div class="box">
+                    <div class="box-header with-border">
+                        <h3 class="box-title">Item Penjualan</h3>
+                    </div>
                     <div class="box-body table-responsive">
-                        <table id="example1" class="table table-bordered table-striped">
+                        <table class="table table-bordered table-striped">
                             <thead>
                                 <tr>
-                                    <td colspan="2">Kode Invoice</td>
-                                    <td colspan="2">{{ $penjualan->code }}</td>
-                                </tr>
-                                <tr>
-                                    <td colspan="2">Customer</td>
-                                    <td colspan="2">{{ $penjualan->customer->name }}</td>
-                                </tr>
-                                <tr>
-                                    <td colspan="2">Kas/Metode Pembayaran</td>
-                                    <td colspan="2">
-                                        {{ $penjualan->kas->name ?? $penjualan->transaction?->payment?->name }}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td colspan="2">Kasir</td>
-                                    <td colspan="2">{{ $penjualan->kasir->name ?? '___customer' }}</td>
-                                </tr>
-                                <tr>
-                                    <td colspan="2">Outlet</td>
-                                    <td colspan="2">{{ $penjualan->outlet->name ?? '___customer' }}</td>
+                                    <th>No</th>
+                                    <th>Produk</th>
+                                    <th>Qty Input</th>
+                                    <th>Qty Database</th>
+                                    <th>Harga</th>
+                                    <th>Subtotal</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr>
-                                    <th>Product</th>
-                                    <th>Banyak</th>
-                                    <th>Harga Jual</th>
-                                    <th>Sub total</th>
-                                </tr>
-                                @php $totalCost = 0; @endphp
+                                @php $subtotal = 0; @endphp
                                 @foreach ($penjualan->items as $item)
+                                    @php $subtotal += (int) $item->subtotal; @endphp
                                     <tr>
-                                        <td>{{ $item->serial_number ? $item->serial_number : $item->product?->code }} - {{ $item->product->name }}</td>
-                                        <td>{{ $item->qty }}</td>
-                                        <td>@currency($item->price)</td>
-                                        <td>@currency($item->qty * $item->price)</td>
+                                        <td>{{ $loop->iteration }}</td>
+                                        <td>{{ $item->product?->name ?? '-' }}</td>
+                                        <td>
+                                            {{ rtrim(rtrim(number_format((float) ($item->qty_input ?? $item->qty), 2, ',', '.'), '0'), ',') }}
+                                            {{ $item->unit ?? $item->product?->satuan ?? '' }}
+                                        </td>
+                                        <td>{{ $item->product?->qtyDisplay((int) $item->qty) ?? $item->qty }}</td>
+                                        <td>
+                                            @currency($item->price)
+                                            <small class="text-muted">/ {{ $item->unit ?? $item->product?->satuan ?? 'unit' }}</small>
+                                        </td>
+                                        <td>@currency($item->subtotal)</td>
                                     </tr>
-                                    @php $totalCost += $item->qty * $item->price; @endphp
                                 @endforeach
-                                @php $kembali = abs(($totalCost - $penjualan->discount - $penjualan->voucher?->value) - $penjualan->total); @endphp
-                                <tr>
-                                    <th colspan="4" class="text-sm text-right">Sub Total : @currency($totalCost)</th>
-                                </tr>
-                                <tr>
-                                    <th colspan="4" class="text-sm text-right">Diskon : -@currency($penjualan->discount)</th>
-                                </tr>
-                                <tr>
-                                    <th colspan="4" class="text-sm text-right">Voucher : -@currency($penjualan->voucher?->value)</th>
-                                </tr>
-                                <tr>
-                                    <th colspan="4" class="text-right">Grand Total : @currency($totalCost - $penjualan->discount - $penjualan->voucher?->value)</th>
-                                </tr>
-                                {{-- <tr> --}}
-                                    {{-- <th colspan="4" class="text-sm text-right">Di Bayar : @currency($penjualan->total)</th> --}}
-                                {{-- </tr> --}}
-                                <tr>
-                                    <th colspan="4" class="text-sm text-right">Hemat: @currency($kembali)</th>
-                                </tr>
                             </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th colspan="5" class="text-right">Subtotal</th>
+                                    <th>@currency($subtotal)</th>
+                                </tr>
+                                <tr>
+                                    <th colspan="5" class="text-right">Diskon</th>
+                                    <th>@currency($penjualan->discount)</th>
+                                </tr>
+                                <tr>
+                                    <th colspan="5" class="text-right">Total</th>
+                                    <th>@currency($penjualan->total)</th>
+                                </tr>
+                            </tfoot>
                         </table>
-                    </div><!-- /.box-body -->
+                    </div>
                     <div class="box-footer">
                         <a href="{{ route('penjualan.index') }}" class="btn btn-default">Kembali</a>
+                        <a href="{{ route('penjualan.edit', $penjualan) }}" class="btn btn-primary">
+                            <i class="fa fa-pencil"></i> Edit
+                        </a>
+                        <a href="{{ route('penjualan.pembayaran.edit', $penjualan) }}" class="btn btn-success">
+                            <i class="fa fa-credit-card"></i> Pembayaran
+                        </a>
+                        <a href="{{ route('penjualan.print', $penjualan) }}" class="btn btn-warning" target="_blank">
+                            <i class="fa fa-print"></i> Invoice
+                        </a>
+                        <a href="{{ route('penjualan.surat-jalan', $penjualan) }}" class="btn btn-info" target="_blank">
+                            <i class="fa fa-truck"></i> Surat Jalan
+                        </a>
                     </div>
-                </div><!-- /.box -->
-            </div><!-- /.col -->
-        </div><!-- /.row -->
-    </section><!-- /.content -->
+                </div>
+            </div>
+        </div>
+    </section>
 @endsection

@@ -4,7 +4,7 @@
             <th>Code</th>
             <th>Customer</th>
             <th>Kasir</th>
-            <th>Outlet</th>
+            <th>Cabang</th>
             <th>Discount</th>
             <th>Total</th>
         </tr>

@@ -33,12 +33,14 @@ class ReturPembelianSingleExport implements FromCollection, WithHeadings, WithMa
 
     public function collection()
     {
-        return $this->retur->refundPembelianItems()->with('product', 'stock.pembelian')->get();
+        $items = $this->retur->refundPembelianItems()->with('product', 'stock.pembelian')->get();
+
+        return RefundPembelian::groupItems($items);
     }
 
     public function headings(): array
     {
-        return ['No', 'Kode Barang', 'Nama Barang', 'Batch/SKU', 'Qty', 'Satuan', 'Harga Satuan', 'Subtotal', 'Alasan', 'Resolusi'];
+        return ['No', 'Kode Barang', 'Nama Barang', 'Qty', 'Satuan', 'Harga Satuan', 'Subtotal', 'Alasan', 'Resolusi'];
     }
 
     public function map($item): array
@@ -57,11 +59,10 @@ class ReturPembelianSingleExport implements FromCollection, WithHeadings, WithMa
             $no,
             $item->product->code ?? '-',
             $item->product->name ?? '-',
-            $item->sku ?? '-',
             $item->qty.($k && $k !== '-' ? " ({$k})" : ''),
             $item->product->satuan ?? 'PCS',
             'Rp '.number_format($item->harga ?? 0, 0, ',', '.'),
-            'Rp '.number_format(($item->qty * ($item->harga ?? 0)), 0, ',', '.'),
+            'Rp '.number_format(($item->subtotal ?? 0), 0, ',', '.'),
             $item->alasan,
             $resolution,
         ];
@@ -84,24 +85,24 @@ class ReturPembelianSingleExport implements FromCollection, WithHeadings, WithMa
         $sheet->getRowDimension(1)->setRowHeight(50);
 
         $sheet->setCellValue('D2', $companyName);
-        $sheet->mergeCells('D2:K2');
+        $sheet->mergeCells('D2:J2');
         $sheet->getStyle('D2')->applyFromArray([
             'font'      => ['bold' => true, 'size' => 14],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
         $sheet->setCellValue('D3', $address);
-        $sheet->mergeCells('D3:K3');
+        $sheet->mergeCells('D3:J3');
         $sheet->setCellValue('D4', $contactInfo);
-        $sheet->mergeCells('D4:K4');
+        $sheet->mergeCells('D4:J4');
         $sheet->getStyle('D3:D4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         $sheet->getRowDimension(5)->setRowHeight(20);
 
-        $sheet->mergeCells('B6:K6');
-        $sheet->getStyle('B6:K6')->getBorders()->getTop()->setBorderStyle(Border::BORDER_THICK);
+        $sheet->mergeCells('B6:J6');
+        $sheet->getStyle('B6:J6')->getBorders()->getTop()->setBorderStyle(Border::BORDER_THICK);
 
         $sheet->setCellValue('B8', 'DOKUMEN RETUR PEMBELIAN (GUDANG → SUPPLIER)');
-        $sheet->mergeCells('B8:K8');
+        $sheet->mergeCells('B8:J8');
         $sheet->getStyle('B8')->applyFromArray([
             'font'      => ['bold' => true, 'size' => 12],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
@@ -122,7 +123,7 @@ class ReturPembelianSingleExport implements FromCollection, WithHeadings, WithMa
         $sheet->setCellValue('C16', 'Detail Item Retur');
         $sheet->getStyle('C16')->getFont()->setBold(true);
 
-        $sheet->getStyle('B17:K17')->applyFromArray([
+        $sheet->getStyle('B17:J17')->applyFromArray([
             'font'      => ['bold' => true],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
             'borders'   => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
@@ -131,32 +132,31 @@ class ReturPembelianSingleExport implements FromCollection, WithHeadings, WithMa
 
         $highestRow = $sheet->getHighestRow();
         if ($highestRow > 17) {
-            $sheet->getStyle('B18:K'.$highestRow)
+            $sheet->getStyle('B18:J'.$highestRow)
                 ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
         }
 
         $sheet->getColumnDimension('B')->setWidth(5);
         $sheet->getColumnDimension('C')->setWidth(18);
         $sheet->getColumnDimension('D')->setWidth(30);
-        $sheet->getColumnDimension('E')->setWidth(20);
-        $sheet->getColumnDimension('F')->setWidth(14);
-        $sheet->getColumnDimension('G')->setWidth(10);
-        $sheet->getColumnDimension('H')->setWidth(16);
-        $sheet->getColumnDimension('I')->setWidth(18);
-        $sheet->getColumnDimension('J')->setWidth(25);
-        $sheet->getColumnDimension('K')->setWidth(15);
+        $sheet->getColumnDimension('E')->setWidth(14);
+        $sheet->getColumnDimension('F')->setWidth(10);
+        $sheet->getColumnDimension('G')->setWidth(16);
+        $sheet->getColumnDimension('H')->setWidth(18);
+        $sheet->getColumnDimension('I')->setWidth(25);
+        $sheet->getColumnDimension('J')->setWidth(15);
 
         $sheet->getStyle('B')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('E')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getStyle('F')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle('G')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('G')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
         $sheet->getStyle('H')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-        $sheet->getStyle('I')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
         $totalRow = $highestRow + 1;
-        $sheet->mergeCells('B'.$totalRow.':H'.$totalRow);
+        $sheet->mergeCells('B'.$totalRow.':G'.$totalRow);
         $sheet->setCellValue('B'.$totalRow, 'Total');
-        $sheet->setCellValue('I'.$totalRow, 'Rp '.number_format($this->retur->total ?? 0, 0, ',', '.'));
-        $sheet->getStyle('B'.$totalRow.':K'.$totalRow)->applyFromArray([
+        $sheet->setCellValue('H'.$totalRow, 'Rp '.number_format($this->retur->total ?? 0, 0, ',', '.'));
+        $sheet->getStyle('B'.$totalRow.':J'.$totalRow)->applyFromArray([
             'borders' => [
                 'top'    => ['borderStyle' => Border::BORDER_MEDIUM],
                 'bottom' => ['borderStyle' => Border::BORDER_THIN],
@@ -168,41 +168,41 @@ class ReturPembelianSingleExport implements FromCollection, WithHeadings, WithMa
             'font'      => ['bold' => true],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_RIGHT],
         ]);
-        $sheet->getStyle('I'.$totalRow)->applyFromArray([
+        $sheet->getStyle('H'.$totalRow)->applyFromArray([
             'font'      => ['bold' => true],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_RIGHT],
         ]);
 
         $row = $totalRow + 4;
         $sheet->mergeCells('B'.$row.':D'.$row);
-        $sheet->mergeCells('F'.$row.':H'.$row);
-        $sheet->mergeCells('J'.$row.':K'.$row);
+        $sheet->mergeCells('F'.$row.':G'.$row);
+        $sheet->mergeCells('I'.$row.':J'.$row);
         $sheet->setCellValue('B'.$row, 'Dibuat Oleh');
         $sheet->setCellValue('F'.$row, 'Diperiksa Oleh');
-        $sheet->setCellValue('J'.$row, 'Disetujui Oleh');
-        $sheet->getStyle('B'.$row.':K'.$row)->applyFromArray([
+        $sheet->setCellValue('I'.$row, 'Disetujui Oleh');
+        $sheet->getStyle('B'.$row.':J'.$row)->applyFromArray([
             'font'      => ['bold' => true],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
 
         $row++;
         $sheet->mergeCells('B'.$row.':D'.$row);
-        $sheet->mergeCells('F'.$row.':H'.$row);
-        $sheet->mergeCells('J'.$row.':K'.$row);
+        $sheet->mergeCells('F'.$row.':G'.$row);
+        $sheet->mergeCells('I'.$row.':J'.$row);
         $sheet->setCellValue('B'.$row, 'Staff Gudang');
         $sheet->setCellValue('F'.$row, 'Supervisor Gudang');
-        $sheet->setCellValue('J'.$row, 'Manager');
-        $sheet->getStyle('B'.$row.':K'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->setCellValue('I'.$row, 'Manager');
+        $sheet->getStyle('B'.$row.':J'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         $row += 5;
         $sheet->mergeCells('B'.$row.':D'.$row);
-        $sheet->mergeCells('F'.$row.':H'.$row);
-        $sheet->mergeCells('J'.$row.':K'.$row);
+        $sheet->mergeCells('F'.$row.':G'.$row);
+        $sheet->mergeCells('I'.$row.':J'.$row);
         $sheet->setCellValue('B'.$row, 'Nama');
         $sheet->setCellValue('F'.$row, 'Nama');
-        $sheet->setCellValue('J'.$row, 'Nama');
-        $sheet->getStyle('B'.$row.':K'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle('B'.($row - 1).':K'.($row - 1))
+        $sheet->setCellValue('I'.$row, 'Nama');
+        $sheet->getStyle('B'.$row.':J'.$row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('B'.($row - 1).':J'.($row - 1))
             ->getBorders()->getBottom()->setBorderStyle(Border::BORDER_THIN);
     }
 

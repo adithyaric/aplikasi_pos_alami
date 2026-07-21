@@ -65,8 +65,8 @@ class RequestOrderController extends Controller
             'extra_notes.*.qty'          => 'required_with:extra_notes|numeric|min:0', // changed to numeric
             'extra_notes.*.nama_pj'      => 'nullable|string|max:255',
         ], [
-            'owner_id.required'                     => 'Outlet harus dipilih.',
-            'owner_id.exists'                       => 'Outlet yang dipilih tidak ditemukan.',
+            'owner_id.required'                     => 'Cabang harus dipilih.',
+            'owner_id.exists'                       => 'Cabang yang dipilih tidak ditemukan.',
             'request_date.required'                 => 'Tanggal permintaan harus diisi.',
             'request_date.date'                     => 'Tanggal permintaan harus berupa tanggal yang valid.',
             'items.required'                        => 'Item harus diisi.',

@@ -1,12 +1,12 @@
 @extends('layouts.master')
 
-@section('title', 'Outlet')
+@section('title', 'Cabang')
 
 @section('container')
     <!-- Content Header (Page header) -->
     <section class="content-header">
         <h1>
-            Data Outlet
+            Data Cabang
         </h1>
     </section>
 
@@ -16,7 +16,7 @@
             <div class="col-xs-12">
                 <div class="box">
                     <div class="box-header">
-                        <a href="{{ route('outlet.create') }}" class="btn btn-md bg-green">Tambah</a>
+                        <a href="{{ route('outlet.create') }}" class="btn btn-md bg-green">Tambah Cabang</a>
                     </div><!-- /.box-header -->
                     <div class="box-body table-responsive">
                         <table id="example1" class="table table-bordered table-striped">

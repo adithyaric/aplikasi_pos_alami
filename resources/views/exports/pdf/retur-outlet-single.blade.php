@@ -25,6 +25,7 @@
 @php
     $statusClass = $retur->status === 'complete' ? 'badge-success' : 'badge-info';
     $statusLabel = $retur->status === 'complete' ? 'COMPLETE' : 'PROSES';
+    $groupedItems = $retur->groupedRefundPembelianItems();
 @endphp
 
 <table class="info-table">
@@ -45,7 +46,7 @@
         <td>{{ $retur->user->name ?? '-' }}</td>
     </tr>
     <tr>
-        <td class="label">Outlet</td>
+        <td class="label">Cabang</td>
         <td class="colon">:</td>
         <td>{{ $retur->outlet->name ?? '-' }}</td>
         <td class="label">No. DO</td>
@@ -61,34 +62,25 @@
         <tr>
             <th style="width:4%">No</th>
             <th style="width:10%">Kode Barang</th>
-            <th style="width:25%">Nama Barang</th>
-            <th style="width:13%">Batch/SKU</th>
-            <th style="width:11%">Expired</th>
+            <th style="width:31%">Nama Barang</th>
             <th style="width:11%">Qty</th>
             <th style="width:7%">Satuan</th>
-            <th style="width:19%">Alasan</th>
+            <th style="width:27%">Alasan</th>
         </tr>
     </thead>
     <tbody>
-        @forelse($retur->refundPembelianItems as $i => $item)
-            @php
-                $k       = $item->product?->konversiDisplay($item->qty) ?? '-';
-                $expired = $item->stock?->expired_at
-                    ? \Carbon\Carbon::parse($item->stock->expired_at)->isoFormat('DD MMM YYYY')
-                    : '-';
-            @endphp
+        @forelse($groupedItems as $i => $item)
+            @php $k = $item->product?->konversiDisplay($item->qty) ?? '-'; @endphp
             <tr class="{{ $i % 2 == 1 ? 'alt' : '' }}">
                 <td class="tc">{{ $i + 1 }}</td>
                 <td>{{ $item->product->code ?? '-' }}</td>
                 <td>{{ $item->product->name ?? '-' }}</td>
-                <td class="tc">{{ $item->sku ?? '-' }}</td>
-                <td class="tc">{{ $expired }}</td>
                 <td class="tc">{{ $item->qty . ($k && $k !== '-' ? " ({$k})" : '') }}</td>
                 <td class="tc">{{ $item->product->satuan ?? 'PCS' }}</td>
                 <td>{{ $item->alasan }}</td>
             </tr>
         @empty
-            <tr><td colspan="8" class="tc">Tidak ada data</td></tr>
+            <tr><td colspan="6" class="tc">Tidak ada data</td></tr>
         @endforelse
     </tbody>
 </table>
@@ -96,7 +88,7 @@
 <div class="signature">
     <div class="sig-col">
         <div><strong>Dibuat Oleh</strong></div>
-        <div>Staff Outlet</div>
+        <div>Staff Cabang</div>
         <div class="sig-line"></div>
         <div><strong>Nama</strong></div>
     </div>

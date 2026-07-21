@@ -17,9 +17,9 @@
                         @csrf
                         <div class="box-body">
                             <div class="form-group">
-                                <label>Owner/Outlet <span class="text-danger">*</span></label>
+                                <label>Owner/Cabang <span class="text-danger">*</span></label>
                                 <select name="owner_id" class="form-control select2" required>
-                                    <option value="">Select Outlet</option>
+                                    <option value="">Select Cabang</option>
                                     @foreach ($outlets as $outlet)
                                         <option value="{{ $outlet->id }}">{{ $outlet->name }}</option>
                                     @endforeach

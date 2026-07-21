@@ -5,6 +5,7 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Supplier extends Model
 {
@@ -18,12 +19,15 @@ class Supplier extends Model
         'deadline_days',
         'deadline_interval_weeks',
         'deadline_reference_date',
+        'po_number_prefix',
+        'po_number_padding',
     ];
 
     protected $casts = [
         'deadline_days'              => 'array',
         'deadline_reference_date'    => 'date',
         'deadline_interval_weeks'    => 'integer',
+        'po_number_padding'          => 'integer',
     ];
 
     public static function generateNextKode(): string
@@ -46,6 +50,37 @@ class Supplier extends Model
     public function pembelians()
     {
         return $this->hasMany(Pembelian::class);
+    }
+
+    public function poNumberPrefix(): string
+    {
+        return $this->po_number_prefix ?: 'PO-{SUPPLIER_CODE}-{YYYY}{MM}-';
+    }
+
+    public function generateNextPoCode(?Carbon $date = null): string
+    {
+        $date = $date ?: now();
+        $padding = max(3, (int) ($this->po_number_padding ?: 5));
+        $prefix = strtr($this->poNumberPrefix(), [
+            '{SUPPLIER_CODE}' => Str::upper((string) ($this->kode_supplier ?: 'SUP')),
+            '{YYYY}' => $date->format('Y'),
+            '{YY}' => $date->format('y'),
+            '{MM}' => $date->format('m'),
+            '{DD}' => $date->format('d'),
+        ]);
+
+        $lastCode = Pembelian::where('supplier_id', $this->id)
+            ->where('code', 'like', $prefix.'%')
+            ->latest('id')
+            ->value('code');
+
+        $nextNumber = 1;
+
+        if ($lastCode && preg_match('/(\d+)$/', $lastCode, $matches)) {
+            $nextNumber = ((int) $matches[1]) + 1;
+        }
+
+        return $prefix.str_pad((string) $nextNumber, $padding, '0', STR_PAD_LEFT);
     }
 
     /**

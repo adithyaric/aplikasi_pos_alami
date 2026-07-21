@@ -44,6 +44,7 @@ Route::middleware(['role:admin-gudang|staff-outlet|owner|superadmin'])->group(fu
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/setting', [DashboardController::class, 'setting'])->name('setting');
     Route::post('/setting-store', [DashboardController::class, 'store'])->name('setting.store');
+    Route::get('/setting/po-template/{format}', [DashboardController::class, 'downloadPoTemplate'])->name('setting.po-template.download');
     Route::get('/get-customer/{penjualan_id}', [CustomerController::class, 'getCustomer']);
     Route::get('/get-penjualan/{outlet_id}', [PenjualanController::class, 'getPenjualan']);
     Route::get('/penjualan-detail/{penjualan_id}/items', [PenjualanController::class, 'getItems']);
@@ -57,6 +58,7 @@ Route::middleware(['role:admin-gudang|staff-outlet|owner|superadmin'])->group(fu
     Route::resource('/outlet', OutletController::class);
     Route::get('/outlet/{outlet_id}/kas', [OutletController::class, 'getKas']);
     Route::resource('/supplier', SupplierController::class);
+    Route::get('/supplier/{supplier}/next-po-code', [SupplierController::class, 'nextPoCode'])->name('supplier.next-po-code');
     Route::resource('/salesman', SalesmanController::class);
     Route::resource('/category', CategoryController::class);
     Route::get('/category-product', [CategoryController::class, 'indexProduct'])->name('category.product.index');
@@ -76,6 +78,7 @@ Route::middleware(['role:admin-gudang|staff-outlet|owner|superadmin'])->group(fu
 
     Route::resource('/pengeluaran', PengeluaranController::class);
     Route::get('/pembelian/cek-stok-produk', [PembelianController::class, 'getAllProducts'])->name('pembelian.all-products');
+    Route::get('/pembelian/next-code/{supplier}', [PembelianController::class, 'nextCode'])->name('pembelian.next-code');
     Route::resource('/pembelian', PembelianController::class);
     Route::post('/pembelian/{pembelian}/owner-approve', [PembelianController::class, 'approveOwner'])->name('pembelian.owner-approve');
     Route::post('/pembelian/{pembelian}/owner-reject', [PembelianController::class, 'rejectOwner'])->name('pembelian.owner-reject');
@@ -105,9 +108,18 @@ Route::middleware(['role:admin-gudang|staff-outlet|owner|superadmin'])->group(fu
 
     Route::resource('/refundPembelian', RefundPembelianController::class);
 
-    // Route::resource('/penjualan', PenjualanController::class);
-    // Route::get('/penjualan/{penjualan}/print', [PenjualanController::class, 'print'])->name('penjualan.print');
-    // Route::get('/penjualan-marketplace', [PenjualanController::class, 'marketplace'])->name('penjualan.marketplace');
+    Route::get('/penjualan', [PenjualanController::class, 'index'])->name('penjualan.index');
+    Route::get('/penjualan/last-price', [PenjualanController::class, 'lastPrice'])->name('penjualan.last-price');
+    Route::get('/penjualan/create', [PenjualanController::class, 'create'])->name('penjualan.create');
+    Route::post('/penjualan/warehouse', [PenjualanController::class, 'storeWarehouseSale'])->name('penjualan.store');
+    Route::get('/penjualan/{penjualan}/edit', [PenjualanController::class, 'edit'])->name('penjualan.edit');
+    Route::put('/penjualan/{penjualan}', [PenjualanController::class, 'updateWarehouseSale'])->name('penjualan.update');
+    Route::get('/penjualan/{penjualan}/pembayaran/edit', [PenjualanController::class, 'editPembayaran'])->name('penjualan.pembayaran.edit');
+    Route::put('/penjualan/{penjualan}/pembayaran', [PenjualanController::class, 'updatePembayaran'])->name('penjualan.pembayaran.update');
+    Route::get('/penjualan/{penjualan}', [PenjualanController::class, 'show'])->name('penjualan.show');
+    Route::get('/penjualan/{penjualan}/print', [PenjualanController::class, 'print'])->name('penjualan.print');
+    Route::get('/penjualan/{penjualan}/surat-jalan', [PenjualanController::class, 'suratJalan'])->name('penjualan.surat-jalan');
+    Route::delete('/penjualan/{penjualan}', [PenjualanController::class, 'destroy'])->name('penjualan.destroy');
 
     // Route::resource('/cart', CartController::class);
     // Route::post('/cart-change-qty', [CartController::class, 'changeQty']);

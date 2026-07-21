@@ -12,6 +12,7 @@ use App\Models\StockMovement;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Collection;
 
 class RefundPembelianController extends Controller
 {
@@ -27,18 +28,27 @@ class RefundPembelianController extends Controller
         $stocks = Stock::whereHas('pembelian', fn ($q) => $q->where('supplier_id', $supplier->id))
             ->where('qty_available', '>', 0)
             ->with(['product', 'pembelian'])
-            ->get()
-            ->map(fn ($s) => [
-                'stock_id'       => $s->id,
-                'product_id'     => $s->product_id,
-                'product_name'   => $s->product->name,
-                'sku'            => $s->sku ?? '-',
-                'qty_available'  => $s->qty_available,
-                'harga_beli'     => $s->harga_beli,
-                'pembelian_code' => $s->pembelian->code ?? '-',
-            ]);
+            ->get();
 
-        return response()->json($stocks->values());
+        $grouped = $stocks->groupBy('product_id')
+            ->map(function (Collection $group) {
+                $first = $group->first();
+
+                return [
+                    'product_id' => $first->product_id,
+                    'product_name' => $first->product->name,
+                    'qty_available' => (int) $group->sum('qty_available'),
+                    'harga_beli' => (int) $first->harga_beli,
+                    'stock_breakdown' => $group->map(fn ($stock) => [
+                        'stock_id' => $stock->id,
+                        'qty_available' => (int) $stock->qty_available,
+                    ])->values()->all(),
+                ];
+            })
+            ->sortBy('product_name')
+            ->values();
+
+        return response()->json($grouped);
     }
 
     /**
@@ -46,27 +56,29 @@ class RefundPembelianController extends Controller
      */
     public function getOutletProducts(Outlet $outlet)
     {
-        $stocks = OwnerStock::where('owner_id', $outlet->id)
+        $ownerStocks = OwnerStock::where('owner_id', $outlet->id)
             ->where('qty', '>', 0)
             ->with(['product', 'stock'])
-            ->get()
-            ->map(function ($ownerStock) use ($outlet) {
-                $doItem = \App\Models\DeliveryOrderItem::where('stock_id', $ownerStock->stock_id)
-                    ->whereHas('deliveryOrder', fn ($q) => $q->where('owner_id', $outlet->id)->where('status', 'delivered'))
-                    ->with('deliveryOrder:id,code')
-                    ->first();
+            ->get();
+
+        $grouped = $ownerStocks->groupBy('product_id')
+            ->map(function (Collection $group) {
+                $first = $group->first();
 
                 return [
-                    'stock_id'      => $ownerStock->stock_id,
-                    'product_id'    => $ownerStock->product_id,
-                    'product_name'  => $ownerStock->product->name,
-                    'sku'           => $ownerStock->stock->sku ?? '-',
-                    'do_code'       => $doItem?->deliveryOrder?->code ?? '-',
-                    'qty_available' => $ownerStock->qty,
+                    'product_id' => $first->product_id,
+                    'product_name' => $first->product->name,
+                    'qty_available' => (int) $group->sum('qty'),
+                    'stock_breakdown' => $group->map(fn ($ownerStock) => [
+                        'stock_id' => $ownerStock->stock_id,
+                        'qty_available' => (int) $ownerStock->qty,
+                    ])->values()->all(),
                 ];
-            });
+            })
+            ->sortBy('product_name')
+            ->values();
 
-        return response()->json($stocks->values());
+        return response()->json($grouped);
     }
 
     // -----------------------------------------------------------------------
@@ -77,6 +89,9 @@ class RefundPembelianController extends Controller
     {
         $user    = auth()->user();
         $isStaff = $user->role === 'staff-outlet';
+        $selectedType = $isStaff
+            ? 'outlet_ke_gudang'
+            : ($request->query('type') === 'outlet_ke_gudang' ? 'outlet_ke_gudang' : 'gudang_ke_supplier');
 
         $query = RefundPembelian::with('user', 'supplier', 'outlet')->latest();
 
@@ -84,24 +99,23 @@ class RefundPembelianController extends Controller
             $query->where('type', 'outlet_ke_gudang')
                 ->where('outlet_id', $user->outlet_id);
         } else {
-            if ($request->filled('type')) {
-                $query->where('type', $request->type);
-            }
-            if ($request->filled('outlet_id')) {
+            $query->where('type', $selectedType);
+
+            if ($selectedType === 'outlet_ke_gudang' && $request->filled('outlet_id')) {
                 $query->where('outlet_id', $request->outlet_id);
             }
         }
 
         return view('refundPembelians.index', [
             'refundPembelians' => $query->get(),
-            'selectedType'     => $isStaff ? 'outlet_ke_gudang' : $request->type,
-            'selectedOutletId' => $isStaff ? $user->outlet_id : $request->outlet_id,
+            'selectedType'     => $selectedType,
+            'selectedOutletId' => $isStaff ? $user->outlet_id : ($selectedType === 'outlet_ke_gudang' ? $request->outlet_id : null),
             'outlets'          => Outlet::orderBy('name')->get(),
             'isStaffOutlet'    => $isStaff,
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $lastRetur  = RefundPembelian::latest('id')->first();
         $nextNumber = $lastRetur ? ((int) substr($lastRetur->code, 3) + 1) : 1;
@@ -109,6 +123,9 @@ class RefundPembelianController extends Controller
 
         $user          = auth()->user();
         $isStaffOutlet = $user->role === 'staff-outlet';
+        $selectedType  = $isStaffOutlet
+            ? 'outlet_ke_gudang'
+            : ($request->query('type') === 'outlet_ke_gudang' ? 'outlet_ke_gudang' : 'gudang_ke_supplier');
 
         return view('refundPembelians.create', [
             'suppliers'     => Supplier::get(),
@@ -116,6 +133,7 @@ class RefundPembelianController extends Controller
             'code'          => $code,
             'isStaffOutlet' => $isStaffOutlet,
             'staffOutletId' => $isStaffOutlet ? $user->outlet_id : null,
+            'selectedType'  => $selectedType,
         ]);
     }
 
@@ -148,7 +166,8 @@ class RefundPembelianController extends Controller
             'product.*.product_id' => 'required|exists:products,id',
             'product.*.qty'        => 'required|integer|min:1',
             'product.*.alasan'     => 'required|string',
-            'product.*.stock_id'   => 'required|exists:stocks,id',
+            'product.*.stock_breakdown' => 'nullable|string',
+            'product.*.stock_id'   => 'nullable|exists:stocks,id',
         ];
 
         if ($type === 'gudang_ke_supplier') {
@@ -163,7 +182,7 @@ class RefundPembelianController extends Controller
             'tanggal.required' => 'Tanggal harus dipilih.',
             'type.required'    => 'Tipe refund wajib dipilih.',
             'supplier_id.required' => 'Supplier wajib diisi untuk retur Gudang ke Supplier.',
-            'outlet_id.required'   => 'Outlet wajib diisi untuk retur Outlet ke Gudang.',
+            'outlet_id.required'   => 'Cabang wajib diisi untuk retur Cabang ke Gudang.',
             'product.required'     => 'Minimal harus ada satu produk.',
             'product.min'          => 'Minimal harus ada satu produk.',
             'product.*.product_id.required' => 'ID Produk tidak valid.',
@@ -195,13 +214,20 @@ class RefundPembelianController extends Controller
             ]);
 
             foreach ($selectedProducts as $product) {
+                $requestedQty = (int) $product['qty'];
+                $breakdown = $this->parseStockBreakdown(
+                    $product['stock_breakdown'] ?? null,
+                    $product['stock_id'] ?? null
+                );
+                $allocations = $type === 'gudang_ke_supplier'
+                    ? $this->allocateSupplierStocks($breakdown, $requestedQty, 'Stok gudang tidak mencukupi.')
+                    : $this->allocateOutletStocks($breakdown, (int) $request->outlet_id, $requestedQty, 'Stok cabang tidak mencukupi.');
 
                 if (! $isOutlet) {
                     // ── Gudang ke Supplier ──────────────────────────────────────
-                    $stock = Stock::findOrFail($product['stock_id']);
-
-                    $harga  = $this->normalizeMoney($product['harga'] ?? $stock->harga_beli);
-                    $total += $harga * $product['qty'];
+                    $firstStock = Stock::findOrFail($allocations[0]['stock_id']);
+                    $harga  = $this->normalizeMoney($product['harga'] ?? $firstStock->harga_beli);
+                    $total += $harga * $requestedQty;
 
                     if ($isReplacement) {
                         StockMovement::create([
@@ -213,78 +239,87 @@ class RefundPembelianController extends Controller
                             'qty_in'         => 0,
                             'qty_out'        => 0,
                             'balance'        => Stock::where('product_id', $product['product_id'])->sum('qty'),
-                            'notes'          => "Retur replacement supplier - {$refundPembelian->code} - SKU: {$stock->sku} - Alasan: {$product['alasan']}",
+                            'notes'          => "Retur replacement supplier - {$refundPembelian->code} - Produk: {$firstStock->product->name} - Alasan: {$product['alasan']}",
                         ]);
-                    } else {
-                        if ($stock->qty_available < $product['qty']) {
-                            throw new \Exception("Stok gudang tidak mencukupi untuk: {$stock->product->name}");
+                    }
+
+                    foreach ($allocations as $allocation) {
+                        $stock = Stock::whereKey($allocation['stock_id'])->lockForUpdate()->firstOrFail();
+
+                        if (! $isReplacement) {
+                            if ($stock->qty_available < $allocation['qty']) {
+                                throw new \Exception("Stok gudang tidak mencukupi untuk: {$stock->product->name}");
+                            }
+
+                            $stock->qty -= $allocation['qty'];
+                            $stock->save();
+
+                            StockMovement::create([
+                                'product_id'     => $product['product_id'],
+                                'user_id'        => auth()->id(),
+                                'type'           => 'out',
+                                'reference_type' => RefundPembelian::class,
+                                'reference_id'   => $refundPembelian->id,
+                                'qty_in'         => 0,
+                                'qty_out'        => $allocation['qty'],
+                                'balance'        => $stock->qty,
+                                'notes'          => "Retur cash refund supplier - {$refundPembelian->code} - Produk: {$stock->product->name} - Alasan: {$product['alasan']}",
+                            ]);
                         }
 
-                        $stock->qty -= $product['qty'];
+                        RefundPembelianItem::create([
+                            'refund_pembelian_id' => $refundPembelian->id,
+                            'product_id'          => $product['product_id'],
+                            'stock_id'            => $stock->id,
+                            'sku'                 => $stock->sku,
+                            'qty'                 => $allocation['qty'],
+                            'harga'               => $harga,
+                            'alasan'              => $product['alasan'],
+                            'resolution'          => $isReplacement ? 'barang' : null,
+                        ]);
+                    }
+                } else {
+                    // ── Outlet ke Gudang ─────────────────────────────────────────
+                    foreach ($allocations as $allocation) {
+                        $stock = Stock::whereKey($allocation['stock_id'])->lockForUpdate()->firstOrFail();
+                        $ownerStock = OwnerStock::where('stock_id', $stock->id)
+                            ->where('owner_id', $request->outlet_id)
+                            ->lockForUpdate()
+                            ->first();
+
+                        if (! $ownerStock || $ownerStock->qty < $allocation['qty']) {
+                            throw new \Exception("Stok cabang tidak mencukupi untuk: {$stock->product->name}");
+                        }
+
+                        $ownerStock->qty -= $allocation['qty'];
+                        $ownerStock->save();
+
+                        $stock->qty += $allocation['qty'];
                         $stock->save();
 
                         StockMovement::create([
                             'product_id'     => $product['product_id'],
                             'user_id'        => auth()->id(),
-                            'type'           => 'out',
+                            'type'           => 'in',
                             'reference_type' => RefundPembelian::class,
                             'reference_id'   => $refundPembelian->id,
-                            'qty_in'         => 0,
-                            'qty_out'        => $product['qty'],
+                            'qty_in'         => $allocation['qty'],
+                            'qty_out'        => 0,
                             'balance'        => $stock->qty,
-                            'notes'          => "Retur cash refund supplier - {$refundPembelian->code} - SKU: {$stock->sku} - Alasan: {$product['alasan']}",
+                            'notes'          => "Retur cabang ke gudang - {$refundPembelian->code} - Produk: {$stock->product->name} - Alasan: {$product['alasan']}",
+                        ]);
+
+                        RefundPembelianItem::create([
+                            'refund_pembelian_id' => $refundPembelian->id,
+                            'product_id'          => $product['product_id'],
+                            'stock_id'            => $stock->id,
+                            'sku'                 => $stock->sku,
+                            'qty'                 => $allocation['qty'],
+                            'harga'               => $stock->harga_beli,
+                            'alasan'              => $product['alasan'],
+                            'resolution'          => 'barang',
                         ]);
                     }
-
-                    RefundPembelianItem::create([
-                        'refund_pembelian_id' => $refundPembelian->id,
-                        'product_id'          => $product['product_id'],
-                        'stock_id'            => $stock->id,
-                        'sku'                 => $stock->sku,
-                        'qty'                 => $product['qty'],
-                        'harga'               => $harga,
-                        'alasan'              => $product['alasan'],
-                        'resolution'          => $isReplacement ? 'barang' : null,
-                    ]);
-                } else {
-                    // ── Outlet ke Gudang ─────────────────────────────────────────
-                    $stock      = Stock::findOrFail($product['stock_id']);
-                    $ownerStock = $stock->ownerStock;
-
-                    if (! $ownerStock || $ownerStock->qty < $product['qty']) {
-                        throw new \Exception("Stok outlet tidak mencukupi untuk: {$stock->product->name}");
-                    }
-
-                    // Reduce outlet stock
-                    $ownerStock->qty -= $product['qty'];
-                    $ownerStock->save();
-
-                    // Restore warehouse stock
-                    $stock->qty += $product['qty'];
-                    $stock->save();
-
-                    StockMovement::create([
-                        'product_id'     => $product['product_id'],
-                        'user_id'        => auth()->id(),
-                        'type'           => 'in',
-                        'reference_type' => RefundPembelian::class,
-                        'reference_id'   => $refundPembelian->id,
-                        'qty_in'         => $product['qty'],
-                        'qty_out'        => 0,
-                        'balance'        => $stock->qty,
-                        'notes'          => "Retur outlet ke gudang - {$refundPembelian->code} - SKU: {$stock->sku} - Alasan: {$product['alasan']}",
-                    ]);
-
-                    RefundPembelianItem::create([
-                        'refund_pembelian_id' => $refundPembelian->id,
-                        'product_id'          => $product['product_id'],
-                        'stock_id'            => $stock->id,
-                        'sku'                 => $stock->sku,
-                        'qty'                 => $product['qty'],
-                        'harga'               => $stock->harga_beli,
-                        'alasan'              => $product['alasan'],
-                        'resolution'          => 'barang', // default for outlet retur
-                    ]);
                 }
             }
 
@@ -303,7 +338,8 @@ class RefundPembelianController extends Controller
     public function show(RefundPembelian $refundPembelian)
     {
         return view('refundPembelians.show', [
-            'refundPembelian' => $refundPembelian->load('refundPembelianItems.product'),
+            'refundPembelian' => $refundPembelian->load('supplier', 'outlet', 'deliveryOrder', 'user', 'refundPembelianItems.product', 'refundPembelianItems.stock'),
+            'groupedItems' => $refundPembelian->groupedRefundPembelianItems(),
         ]);
     }
 
@@ -389,7 +425,8 @@ class RefundPembelianController extends Controller
         }
 
         return view('refundPembelians.terima', [
-            'refundPembelian' => $refundPembelian->load('refundPembelianItems.product', 'supplier'),
+            'refundPembelian' => $refundPembelian->load('refundPembelianItems.product', 'refundPembelianItems.stock', 'supplier'),
+            'groupedItems'    => $refundPembelian->groupedRefundPembelianItems(),
             'kasList'         => Kas::get(),
         ]);
     }
@@ -414,32 +451,39 @@ class RefundPembelianController extends Controller
 
         DB::beginTransaction();
         try {
-            foreach ($request->items as $itemId => $itemData) {
-                $item       = RefundPembelianItem::findOrFail($itemId);
+            foreach ($request->items as $itemIds => $itemData) {
                 $resolution = $itemData['resolution'];
-                $item->update(['resolution' => $resolution]);
+                $ids = collect(explode(',', (string) $itemIds))
+                    ->filter()
+                    ->map(fn ($id) => (int) $id)
+                    ->values();
 
-                if ($resolution === 'barang') {
-                    $stock = Stock::find($item->stock_id);
-                    if ($stock) {
-                        $stock->qty += $item->qty;
-                        $stock->save();
-                        $newBalance = $stock->qty;
-                    } else {
-                        $newBalance = $item->qty;
+                foreach ($ids as $itemId) {
+                    $item = RefundPembelianItem::findOrFail($itemId);
+                    $item->update(['resolution' => $resolution]);
+
+                    if ($resolution === 'barang') {
+                        $stock = Stock::find($item->stock_id);
+                        if ($stock) {
+                            $stock->qty += $item->qty;
+                            $stock->save();
+                            $newBalance = $stock->qty;
+                        } else {
+                            $newBalance = $item->qty;
+                        }
+
+                        StockMovement::create([
+                            'product_id'     => $item->product_id,
+                            'user_id'        => auth()->id(),
+                            'type'           => 'in',
+                            'reference_type' => RefundPembelian::class,
+                            'reference_id'   => $refundPembelian->id,
+                            'qty_in'         => $item->qty,
+                            'qty_out'        => 0,
+                            'balance'        => $newBalance,
+                            'notes'          => "Terima retur barang - {$refundPembelian->code} - Produk: {$item->product->name} - Alasan: {$item->alasan}",
+                        ]);
                     }
-
-                    StockMovement::create([
-                        'product_id'     => $item->product_id,
-                        'user_id'        => auth()->id(),
-                        'type'           => 'in',
-                        'reference_type' => RefundPembelian::class,
-                        'reference_id'   => $refundPembelian->id,
-                        'qty_in'         => $item->qty,
-                        'qty_out'        => 0,
-                        'balance'        => $newBalance,
-                        'notes'          => "Terima retur barang - {$refundPembelian->code} - SKU: {$item->sku} - Alasan: {$item->alasan}",
-                    ]);
                 }
             }
 
@@ -462,5 +506,120 @@ class RefundPembelianController extends Controller
 
             return redirect()->back()->with('toast_error', 'Gagal: '.$e->getMessage());
         }
+    }
+
+    private function parseStockBreakdown($breakdown, $stockId = null): array
+    {
+        if (blank($breakdown) && $stockId) {
+            return [[
+                'stock_id' => (int) $stockId,
+            ]];
+        }
+
+        $decoded = json_decode((string) $breakdown, true);
+
+        if (! is_array($decoded) || empty($decoded)) {
+            throw new \Exception('Data stok retur tidak valid.');
+        }
+
+        return collect($decoded)
+            ->map(function ($row) {
+                return [
+                    'stock_id' => (int) ($row['stock_id'] ?? 0),
+                ];
+            })
+            ->filter(fn ($row) => $row['stock_id'] > 0)
+            ->values()
+            ->all();
+    }
+
+    private function allocateSupplierStocks(array $breakdown, int $requestedQty, string $message): array
+    {
+        $stocks = Stock::whereIn('id', collect($breakdown)->pluck('stock_id')->all())
+            ->get()
+            ->keyBy('id');
+
+        $remaining = $requestedQty;
+        $allocations = [];
+
+        foreach ($breakdown as $row) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $stock = $stocks->get((int) $row['stock_id']);
+            if (! $stock) {
+                continue;
+            }
+
+            $availableQty = max(0, $this->resolveStockAvailableQty($stock));
+            $take = min($remaining, $availableQty);
+
+            if ($take <= 0) {
+                continue;
+            }
+
+            $allocations[] = [
+                'stock_id' => (int) $stock->id,
+                'qty' => $take,
+            ];
+
+            $remaining -= $take;
+        }
+
+        if ($remaining > 0) {
+            throw new \Exception($message);
+        }
+
+        return $allocations;
+    }
+
+    private function allocateOutletStocks(array $breakdown, int $outletId, int $requestedQty, string $message): array
+    {
+        $ownerStocks = OwnerStock::where('owner_id', $outletId)
+            ->whereIn('stock_id', collect($breakdown)->pluck('stock_id')->all())
+            ->get()
+            ->keyBy('stock_id');
+
+        $remaining = $requestedQty;
+        $allocations = [];
+
+        foreach ($breakdown as $row) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $ownerStock = $ownerStocks->get((int) $row['stock_id']);
+            if (! $ownerStock) {
+                continue;
+            }
+
+            $take = min($remaining, max(0, (int) $ownerStock->qty));
+            if ($take <= 0) {
+                continue;
+            }
+
+            $allocations[] = [
+                'stock_id' => (int) $row['stock_id'],
+                'qty' => $take,
+            ];
+
+            $remaining -= $take;
+        }
+
+        if ($remaining > 0) {
+            throw new \Exception($message);
+        }
+
+        return $allocations;
+    }
+
+    private function resolveStockAvailableQty(Stock $stock): int
+    {
+        if ($stock->qty_available !== null) {
+            return (int) $stock->qty_available;
+        }
+
+        return max(0, (int) $stock->qty - (int) ($stock->qty_reserved ?? 0));
     }
 }

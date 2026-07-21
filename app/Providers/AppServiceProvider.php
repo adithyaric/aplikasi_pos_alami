@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Product;
 use App\Models\ProductMinimumAdjustment;
+use App\Models\Stock;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
@@ -21,6 +22,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot()
     {
         Paginator::useBootstrap();
+        View::share('showLegacyDistributionFlow', false);
 
         Blade::directive('currency', function ($expression) {
             return "Rp. <?php echo number_format($expression,0,',','.'); ?>";
@@ -31,7 +33,9 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $loadCompanyLogo = function () {
-            $settings = json_decode(Storage::disk('public')->get('settings.json') ?? '{}', true) ?? [];
+            $settings = Storage::disk('public')->exists('settings.json')
+                ? (json_decode(Storage::disk('public')->get('settings.json'), true) ?? [])
+                : [];
             $logo = $settings['logo'] ?? null;
 
             return $logo ? Storage::url($logo) : asset('img/logo.png');
@@ -52,7 +56,6 @@ class AppServiceProvider extends ServiceProvider
                     ->keyBy('product_id');
 
                 $lowStockCandidates = Product::query()
-                    ->select('id', 'name', 'min_stock')
                     ->where(function ($query) use ($activeAdjs) {
                         $query->where('min_stock', '>', 0);
 
@@ -60,10 +63,20 @@ class AppServiceProvider extends ServiceProvider
                             $query->orWhereIn('id', $activeAdjs->keys());
                         }
                     })
-                    ->withSum('stocks as available_stock_qty', 'qty_available')
+                    ->with(['stocks' => function ($query) {
+                        $query->where('status', 'available')
+                            ->where('qty', '>', 0)
+                            ->orderBy('id');
+                    }])
                     ->get()
                     ->map(function ($product) use ($activeAdjs) {
-                        $current = (int) ($product->available_stock_qty ?? 0);
+                        $current = (int) $product->stocks->sum(function (Stock $stock) {
+                            if ($stock->qty_available !== null) {
+                                return max(0, (int) $stock->qty_available);
+                            }
+
+                            return max(0, (int) $stock->qty - (int) ($stock->qty_reserved ?? 0));
+                        });
                         $adj = $activeAdjs->get($product->id);
                         $product->effective_min_qty = $adj
                             ? (int) ceil($product->min_stock * (1 + $adj->adjustment_percentage / 100))

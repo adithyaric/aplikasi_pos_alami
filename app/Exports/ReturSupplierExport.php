@@ -46,11 +46,13 @@ class ReturSupplierExport implements FromCollection, WithHeadings, WithMapping, 
             ->orderBy('tanggal')
             ->get()
             ->flatMap(function ($retur) {
-                return $retur->refundPembelianItems->map(function ($item) use ($retur) {
+                $items = $retur->refundPembelianItems->map(function ($item) use ($retur) {
                     $item->retur = $retur;
 
                     return $item;
                 });
+
+                return RefundPembelian::groupItems($items);
             });
     }
 
@@ -68,7 +70,7 @@ class ReturSupplierExport implements FromCollection, WithHeadings, WithMapping, 
             [],                            // row 3
             [],                            // row 4
             [],                            // row 5
-            ['No', 'Tanggal', 'Kode Retur', 'Kode PO', 'Supplier', 'Kode Barang', 'Nama Barang', 'Batch', 'Qty Retur', 'Satuan', 'Alasan Retur', 'Status', 'Keterangan'],
+            ['No', 'Tanggal', 'Kode Retur', 'Kode PO', 'Supplier', 'Kode Barang', 'Nama Barang', 'Qty Retur', 'Satuan', 'Alasan Retur', 'Status', 'Keterangan'],
         ];
     }
 
@@ -81,11 +83,10 @@ class ReturSupplierExport implements FromCollection, WithHeadings, WithMapping, 
             $this->no,
             Carbon::parse($retur->tanggal)->isoFormat('DD MMMM YYYY'),
             $retur->code,
-            $item->stock->pembelian->code ?? '-',   // Kode PO dari stock pembelian
+            $item->stock?->pembelian->code ?? '-',
             $retur->supplier->name ?? '-',
             $item->product->code ?? '-',
             $item->product->name ?? '-',
-            $item->sku ?? '-',
             (function () use ($item) {
                 $k = $item->product?->konversiDisplay($item->qty) ?? '-';
 
@@ -107,27 +108,27 @@ class ReturSupplierExport implements FromCollection, WithHeadings, WithMapping, 
         $website     = $this->settings['website'] ?? '';
         $contactInfo = trim("$phone | $email | $website", ' |');
 
-        $sheet->mergeCells('A1:M1');
+        $sheet->mergeCells('A1:L1');
         $sheet->setCellValue('A1', $companyName);
         $sheet->getStyle('A1')->applyFromArray([
             'font' => ['bold' => true, 'size' => 16],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
 
-        $sheet->mergeCells('A2:M2');
+        $sheet->mergeCells('A2:L2');
         $sheet->setCellValue('A2', $address);
         $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        $sheet->mergeCells('A3:M3');
+        $sheet->mergeCells('A3:L3');
         $sheet->setCellValue('A3', $contactInfo);
         $sheet->getStyle('A3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         $periode = Carbon::parse($this->mulai)->isoFormat('DD MMMM YYYY').' s/d '.Carbon::parse($this->selesai)->isoFormat('DD MMMM YYYY');
-        $sheet->mergeCells('A4:M4');
+        $sheet->mergeCells('A4:L4');
         $sheet->setCellValue('A4', 'Periode: '.$periode);
         $sheet->getStyle('A4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        $sheet->getStyle('A6:M6')->applyFromArray([
+        $sheet->getStyle('A6:L6')->applyFromArray([
             'font' => ['bold' => true],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
             'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
@@ -146,11 +147,11 @@ class ReturSupplierExport implements FromCollection, WithHeadings, WithMapping, 
         $sheet->getColumnDimension('J')->setWidth(10);
         $sheet->getColumnDimension('K')->setWidth(20);
         $sheet->getColumnDimension('L')->setWidth(12);
-        $sheet->getColumnDimension('M')->setWidth(20);
+        $sheet->getColumnDimension('L')->setWidth(20);
 
         $highestRow = $sheet->getHighestRow();
         if ($highestRow > 6) {
-            $sheet->getStyle('A7:M'.$highestRow)
+            $sheet->getStyle('A7:L'.$highestRow)
                 ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
         }
 
@@ -158,7 +159,7 @@ class ReturSupplierExport implements FromCollection, WithHeadings, WithMapping, 
         $sheet->getStyle('B')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getStyle('I')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getStyle('J')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle('L')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('K')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
     }
 
     public function properties(): array

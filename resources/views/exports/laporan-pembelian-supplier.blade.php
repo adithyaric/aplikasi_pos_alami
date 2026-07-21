@@ -2,7 +2,7 @@
     <thead>
         <tr>
             <th>Code</th>
-            <th>Outlet</th>
+            <th>Cabang</th>
             <th>Supplier</th>
             <th>Total</th>
         </tr>

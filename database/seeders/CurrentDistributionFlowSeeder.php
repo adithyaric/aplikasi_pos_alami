@@ -233,5 +233,7 @@ class CurrentDistributionFlowSeeder extends Seeder
                 'notes' => 'Piutang pembelian awal supplier ALAMI',
             ]
         );
+
+        $this->call(WarehousePenjualanSeeder::class);
     }
 }

@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Agent;
 use App\Models\Canvas;
 use App\Models\Outlet;
+use App\Models\OwnerStock;
+use App\Models\Penjualan;
 use App\Models\Product;
 use App\Models\Salesman;
 use App\Models\Supplier;
@@ -29,5 +31,10 @@ class CurrentDistributionFlowSeederTest extends TestCase
             ->where('satuan_besar', 'Slop')
             ->where('satuan_terbesar', 'Ball')
             ->count());
+        $this->assertSame(3, Penjualan::warehouseSales()->count());
+        $this->assertTrue(Penjualan::warehouseSales()->where('buyer_type', 'agent')->exists());
+        $this->assertTrue(Penjualan::warehouseSales()->where('buyer_type', 'canvas')->exists());
+        $this->assertTrue(Penjualan::warehouseSales()->where('buyer_type', 'outlet')->exists());
+        $this->assertGreaterThan(0, OwnerStock::count());
     }
 }

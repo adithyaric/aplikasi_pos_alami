@@ -17,21 +17,31 @@
                     enctype="multipart/form-data">
                     @method('PUT')
                     @csrf
-                    <div class="box-body">
-                        <div class="form-group">
-                            <label for="">Kode PO</label>
-                            <input type="text" class="form-control" name="code"
-                                value="{{ old('code', $pembelian->code) }}" placeholder="Masukkan Kode PO">
+                        <div class="box-body">
+                            <div class="form-group">
+                                <label for="">Kode PO</label>
+                                <input type="text" class="form-control" name="code"
+                                    value="{{ old('code', $pembelian->code) }}" placeholder="Masukkan Kode PO">
                             @error('code')
                             <div class="invalid-feedback text-danger">
                                 {{ $message }}
                             </div>
                             @enderror
                         </div>
-                        <div class="form-group">
-                            <label>Supplier</label>
-                            <select class="form-control select2" name="supplier_id" data-placeholder="Pilih Supplier"
-                                style="width: 100%;">
+                            <div class="form-group">
+                                <label for="">Customer PO</label>
+                                <input type="text" class="form-control" name="customer_po"
+                                    value="{{ old('customer_po', $pembelian->customer_po) }}" placeholder="Masukkan Customer PO (opsional)">
+                                @error('customer_po')
+                                <div class="invalid-feedback text-danger">
+                                    {{ $message }}
+                                </div>
+                                @enderror
+                            </div>
+                            <div class="form-group">
+                                <label>Supplier</label>
+                                <select class="form-control select2" name="supplier_id" data-placeholder="Pilih Supplier"
+                                    style="width: 100%;">
                                 <option value="" selected disabled>Pilih Supplier</option>
                                 @foreach ($suppliers as $supplier)
                                 <option value="{{ $supplier->id }}"

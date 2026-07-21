@@ -34,7 +34,7 @@
                                     <td colspan="2">{{ $refund->customer->name }}</td>
                                 </tr>
                                 <tr>
-                                    <td colspan="2">Nama Outlet</td>
+                                    <td colspan="2">Nama Cabang</td>
                                     <td colspan="2">{{ $refund->outlet->name }}</td>
                                 </tr>
                                 <tr>

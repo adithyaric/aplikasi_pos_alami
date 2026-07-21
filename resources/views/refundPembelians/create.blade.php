@@ -1,6 +1,6 @@
 @extends('layouts.master')
 
-@section('title', 'Tambah Retur Pembelian')
+@section('title', $selectedType === 'outlet_ke_gudang' ? 'Tambah Retur Cabang' : 'Tambah Retur Gudang')
 
 @section('container')
     <section class="content">
@@ -8,32 +8,17 @@
             <div class="col-md-12">
                 <div class="box box-primary">
                     <div class="box-header with-border">
-                        <h3 class="box-title">Tambah Retur Pembelian</h3>
+                        <h3 class="box-title">
+                            {{ $selectedType === 'outlet_ke_gudang' ? 'Tambah Retur Cabang ke Gudang' : 'Tambah Retur Gudang ke Supplier' }}
+                        </h3>
                     </div>
 
                     <form action="{{ route('refundPembelian.store') }}" method="POST" id="refund-form">
                         @csrf
 
-                        {{-- Hidden type field, updated when tab changes --}}
-                        <input type="hidden" name="type" id="type" value="{{ $isStaffOutlet ? 'outlet_ke_gudang' : 'gudang_ke_supplier' }}">
+                        <input type="hidden" name="type" id="type" value="{{ $selectedType }}">
 
                         <div class="box-body">
-
-                            {{-- ── Type Tab Selector (hidden for staff-outlet) ── --}}
-                            @if (!$isStaffOutlet)
-                            <ul class="nav nav-tabs" id="typeTab" style="margin-bottom:20px">
-                                <li class="active">
-                                    <a href="#tab-supplier" data-toggle="tab" data-type="gudang_ke_supplier">
-                                        <i class="fa fa-arrow-up"></i> Gudang ke Supplier
-                                    </a>
-                                </li>
-                                <li>
-                                    <a href="#tab-outlet" data-toggle="tab" data-type="outlet_ke_gudang">
-                                        <i class="fa fa-arrow-down"></i> Outlet ke Gudang
-                                    </a>
-                                </li>
-                            </ul>
-                            @endif
 
                             {{-- ── Common Fields ── --}}
                             <div class="row">
@@ -59,13 +44,8 @@
                                 </div>
                             </div>
 
-                            <div class="tab-content">
-
-                                {{-- ══════════════════════════════════════════════
-                            TAB 1: Gudang ke Supplier (hidden for staff-outlet)
-                            ══════════════════════════════════════════════ --}}
-                                <div class="tab-pane {{ $isStaffOutlet ? '' : 'active' }}" id="tab-supplier"
-                                    style="{{ $isStaffOutlet ? 'display:none' : '' }}">
+                            @if ($selectedType === 'gudang_ke_supplier')
+                                <div id="tab-supplier">
                                     <div class="form-group">
                                         <label>Supplier <span class="text-danger">*</span></label>
                                         <select id="supplier_id" class="form-control select2" name="supplier_id"
@@ -104,8 +84,6 @@
                                                             <input type="checkbox" id="chk-all-supplier" style="cursor:pointer" title="Pilih Semua">
                                                         </th>
                                                         <th>Produk</th>
-                                                        <th width="80">SKU/Batch</th>
-                                                        <th width="70">No. PO</th>
                                                         <th width="70">Tersedia</th>
                                                         <th width="80">Qty Retur</th>
                                                         <th width="110">Harga Satuan</th>
@@ -129,17 +107,13 @@
                                         Tidak ada stok gudang untuk supplier ini.
                                     </div>
                                 </div>
-
-                                {{-- ══════════════════════════════════════════════
-                            TAB 2: Outlet ke Gudang
-                            ══════════════════════════════════════════════ --}}
-                                <div class="tab-pane {{ $isStaffOutlet ? 'active' : '' }}" id="tab-outlet">
+                            @else
+                                <div id="tab-outlet">
                                     <div class="form-group">
-                                        <label>Outlet <span class="text-danger">*</span></label>
+                                        <label>Cabang <span class="text-danger">*</span></label>
                                         <select id="outlet_id" class="form-control select2" name="outlet_id"
-                                            data-placeholder="Pilih Outlet" style="width:100%"
-                                            {{ $isStaffOutlet ? '' : 'disabled' }}>
-                                            <option value="" selected>Pilih Outlet</option>
+                                            data-placeholder="Pilih Cabang" style="width:100%">
+                                            <option value="" selected>Pilih Cabang</option>
                                             @foreach ($outlets as $o)
                                                 <option value="{{ $o->id }}"
                                                     {{ (old('outlet_id') ?? $staffOutletId) == $o->id ? 'selected' : '' }}>
@@ -153,9 +127,9 @@
                                     </div>
 
                                     <div id="outlet-product-area" style="display:none">
-                                        <h4>Daftar Produk Outlet</h4>
+                                        <h4>Daftar Produk Cabang</h4>
                                         <div class="text-muted small" style="margin-bottom:8px">
-                                            Produk otomatis dari stok outlet. Hapus baris yang tidak diretur.
+                                            Produk otomatis dari stok cabang. Hapus baris yang tidak diretur.
                                         </div>
                                         <div id="outlet-bulk-bar" style="display:none; margin-bottom:8px">
                                             <button type="button" class="btn btn-danger btn-sm" id="btn-bulk-delete-outlet">
@@ -173,8 +147,6 @@
                                                             <input type="checkbox" id="chk-all-outlet" style="cursor:pointer" title="Pilih Semua">
                                                         </th>
                                                         <th>Produk</th>
-                                                        <th width="80">SKU/Batch</th>
-                                                        <th width="90">No. DO</th>
                                                         <th width="70">Tersedia</th>
                                                         <th width="80">Qty Retur</th>
                                                         <th>Alasan</th>
@@ -189,11 +161,10 @@
                                         <i class="fa fa-spinner fa-spin"></i> Memuat produk...
                                     </div>
                                     <div id="outlet-empty" style="display:none" class="alert alert-warning">
-                                        Tidak ada stok outlet untuk delivery order ini.
+                                        Tidak ada stok cabang yang bisa diretur.
                                     </div>
                                 </div>
-
-                            </div>{{-- end tab-content --}}
+                            @endif
 
                         </div>{{-- end box-body --}}
 
@@ -219,20 +190,6 @@
         var outletSelected   = new Set();
         var supplierXhr = null;
         var outletXhr   = null;
-
-        // ── Tab switching ──────────────────────────────────────────────────────────
-        $('#typeTab a[data-toggle="tab"]').on('shown.bs.tab', function() {
-            var type = $(this).data('type');
-            $('#type').val(type);
-            if (type === 'gudang_ke_supplier') {
-                $('#outlet_id, #delivery_order_id').prop('disabled', true).removeAttr('required');
-                $('#supplier_id').prop('disabled', false);
-            } else {
-                $('#supplier_id').prop('disabled', true).removeAttr('required');
-                $('#outlet_id').prop('disabled', false).attr('required', true);
-            }
-            checkSubmit();
-        });
 
         // ── Numeral mask ──────────────────────────────────────────────────────────
         function applyMask() {
@@ -303,12 +260,12 @@
             var sc  = row.find('.row-check-supplier');
             var oc  = row.find('.row-check-outlet');
             if (sc.length && dtSupplier) {
-                supplierSelected.delete(String(sc.data('stock-id')));
+                supplierSelected.delete(String(sc.data('product-id')));
                 dtSupplier.row(row).remove().draw(false);
                 updateSupplierBulkBar();
                 syncChkAllSupplier();
             } else if (oc.length && dtOutlet) {
-                outletSelected.delete(String(oc.data('stock-id')));
+                outletSelected.delete(String(oc.data('product-id')));
                 dtOutlet.row(row).remove().draw(false);
                 updateOutletBulkBar();
                 syncChkAllOutlet();
@@ -343,7 +300,7 @@
             var total   = visible.count();
             var selCnt  = 0;
             visible.nodes().each(function(node) {
-                if (supplierSelected.has(String($(node).find('.row-check-supplier').data('stock-id')))) selCnt++;
+                if (supplierSelected.has(String($(node).find('.row-check-supplier').data('product-id')))) selCnt++;
             });
             var chk = document.getElementById('chk-all-supplier');
             if (!chk) return;
@@ -364,7 +321,7 @@
             var total   = visible.count();
             var selCnt  = 0;
             visible.nodes().each(function(node) {
-                if (outletSelected.has(String($(node).find('.row-check-outlet').data('stock-id')))) selCnt++;
+                if (outletSelected.has(String($(node).find('.row-check-outlet').data('product-id')))) selCnt++;
             });
             var chk = document.getElementById('chk-all-outlet');
             if (!chk) return;
@@ -379,7 +336,7 @@
             dtSupplier.rows({ search: 'applied' }).nodes().each(function(node) {
                 if (!node) return;
                 var $chk = $(node).find('.row-check-supplier');
-                var id = String($chk.data('stock-id'));
+                var id = String($chk.data('product-id'));
                 if (id && id !== 'undefined') {
                     checked ? supplierSelected.add(id) : supplierSelected.delete(id);
                     $chk.prop('checked', checked).trigger('change');
@@ -391,7 +348,7 @@
 
         // ── SUPPLIER: individual checkbox ─────────────────────────────────────────
         $(document).on('change', '.row-check-supplier', function() {
-            var id = String($(this).data('stock-id'));
+            var id = String($(this).data('product-id'));
             this.checked ? supplierSelected.add(id) : supplierSelected.delete(id);
             syncSelectionRowState($(this));
             updateSupplierBulkBar();
@@ -403,7 +360,7 @@
             var ids = Array.from(supplierSelected);
             ids.forEach(function(id) {
                 dtSupplier.rows(function(idx, data, node) {
-                    return String($(node).find('.row-check-supplier').data('stock-id')) === id;
+                    return String($(node).find('.row-check-supplier').data('product-id')) === id;
                 }).remove();
             });
             supplierSelected.clear();
@@ -429,7 +386,7 @@
             dtOutlet.rows({ search: 'applied' }).nodes().each(function(node) {
                 if (!node) return;
                 var $chk = $(node).find('.row-check-outlet');
-                var id = String($chk.data('stock-id'));
+                var id = String($chk.data('product-id'));
                 if (id && id !== 'undefined') {
                     checked ? outletSelected.add(id) : outletSelected.delete(id);
                     $chk.prop('checked', checked).trigger('change');
@@ -441,7 +398,7 @@
 
         // ── OUTLET: individual checkbox ───────────────────────────────────────────
         $(document).on('change', '.row-check-outlet', function() {
-            var id = String($(this).data('stock-id'));
+            var id = String($(this).data('product-id'));
             this.checked ? outletSelected.add(id) : outletSelected.delete(id);
             syncSelectionRowState($(this));
             updateOutletBulkBar();
@@ -453,7 +410,7 @@
             var ids = Array.from(outletSelected);
             ids.forEach(function(id) {
                 dtOutlet.rows(function(idx, data, node) {
-                    return String($(node).find('.row-check-outlet').data('stock-id')) === id;
+                    return String($(node).find('.row-check-outlet').data('product-id')) === id;
                 }).remove();
             });
             outletSelected.clear();
@@ -470,21 +427,6 @@
             updateOutletBulkBar();
             syncChkAllOutlet();
         });
-
-        // ── Tab switching (disabled for staff-outlet) ─────────────────────────────
-        @if ($isStaffOutlet)
-        // Staff-outlet: lock to outlet tab, enable outlet select, auto-load
-        $('#supplier_id').prop('disabled', true);
-        $('#outlet_id').prop('disabled', false);
-        $(function() {
-            @if ($staffOutletId)
-            // Outlet already pre-selected; trigger load
-            if ($('#outlet_id').val()) {
-                $('#outlet_id').trigger('change');
-            }
-            @endif
-        });
-        @endif
 
         // ── TAB 1: Supplier change → load warehouse stocks ────────────────────────
         $('#supplier_id').on('change', function() {
@@ -515,16 +457,13 @@
                     var row = `
                     <tr>
                         <td class="text-center">
-                            <input type="checkbox" class="row-check-supplier" data-row-key="${i}" data-stock-id="${item.stock_id}" style="cursor:pointer">
+                            <input type="checkbox" class="row-check-supplier" data-row-key="${i}" data-product-id="${item.product_id}" style="cursor:pointer">
                         </td>
                         <td>
                             ${item.product_name}
                             <input type="hidden" name="product[${i}][product_id]" value="${item.product_id}">
-                            <input type="hidden" name="product[${i}][stock_id]" value="${item.stock_id}">
-                            <input type="hidden" name="product[${i}][sku]" value="${item.sku}">
+                            <input type="hidden" name="product[${i}][stock_breakdown]" value='${JSON.stringify(item.stock_breakdown)}'>
                         </td>
-                        <td><span class="label label-default">${item.sku}</span></td>
-                        <td><small class="text-muted">${item.pembelian_code}</small></td>
                         <td><span class="badge bg-blue">${item.qty_available}</span></td>
                         <td>
                             <input type="number" class="form-control input-qty" style="width:70px" name="product[${i}][qty]" value="1"
@@ -559,10 +498,10 @@
                         paginate: { previous: 'Sebelumnya', next: 'Berikutnya' },
                         emptyTable: 'Tidak ada produk'
                     },
-                    columnDefs: [{ orderable: false, targets: [0, 5, 6, 7, 8] }],
+                    columnDefs: [{ orderable: false, targets: [0, 3, 4, 5, 6] }],
                     drawCallback: function() {
                         $('#supplier-repeater .row-check-supplier').each(function() {
-                            $(this).prop('checked', supplierSelected.has(String($(this).data('stock-id'))));
+                            $(this).prop('checked', supplierSelected.has(String($(this).data('product-id'))));
                             syncSelectionRowState($(this));
                         });
                         syncChkAllSupplier();
@@ -610,15 +549,13 @@
                     var row = `
                     <tr>
                         <td class="text-center">
-                            <input type="checkbox" class="row-check-outlet" data-row-key="${i}" data-stock-id="${item.stock_id}" style="cursor:pointer">
+                            <input type="checkbox" class="row-check-outlet" data-row-key="${i}" data-product-id="${item.product_id}" style="cursor:pointer">
                         </td>
                         <td>
                             ${item.product_name}
                             <input type="hidden" name="product[${i}][product_id]" value="${item.product_id}">
-                            <input type="hidden" name="product[${i}][stock_id]" value="${item.stock_id}">
+                            <input type="hidden" name="product[${i}][stock_breakdown]" value='${JSON.stringify(item.stock_breakdown)}'>
                         </td>
-                        <td><span class="label label-default">${item.sku}</span></td>
-                        <td><small class="text-muted">${item.do_code}</small></td>
                         <td><span class="badge bg-green">${item.qty_available}</span></td>
                         <td>
                             <input type="number" class="form-control" style="width:70px"
@@ -650,10 +587,10 @@
                         paginate: { previous: 'Sebelumnya', next: 'Berikutnya' },
                         emptyTable: 'Tidak ada produk'
                     },
-                    columnDefs: [{ orderable: false, targets: [0, 4, 5, 6, 7] }],
+                    columnDefs: [{ orderable: false, targets: [0, 3, 4, 5] }],
                     drawCallback: function() {
                         $('#outlet-repeater .row-check-outlet').each(function() {
-                            $(this).prop('checked', outletSelected.has(String($(this).data('stock-id'))));
+                            $(this).prop('checked', outletSelected.has(String($(this).data('product-id'))));
                             syncSelectionRowState($(this));
                         });
                         syncChkAllOutlet();
@@ -670,11 +607,20 @@
 
         // ── Auto-load on page ready (browser restore / old() after validation) ──────
         $(function() {
+            var type = $('#type').val();
+            if (type === 'gudang_ke_supplier') {
+                $('#supplier_id').prop('disabled', false);
+                $('#outlet_id').prop('disabled', true).removeAttr('required');
+            } else {
+                $('#supplier_id').prop('disabled', true);
+                $('#outlet_id').prop('disabled', false).attr('required', true);
+            }
+
             var sid = $('#supplier_id').val();
             var oid = $('#outlet_id').val();
-            if (sid) {
+            if (type === 'gudang_ke_supplier' && sid) {
                 $('#supplier_id').trigger('change');
-            } else if (oid) {
+            } else if (type === 'outlet_ke_gudang' && oid) {
                 $('#outlet_id').trigger('change');
             }
         });

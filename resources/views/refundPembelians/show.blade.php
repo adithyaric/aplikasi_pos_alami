@@ -65,7 +65,7 @@
                                             @if ($refundPembelian->type === 'gudang_ke_supplier')
                                                 <span class="label label-warning">Gudang → Supplier</span>
                                             @else
-                                                <span class="label label-info">Outlet → Gudang</span>
+                                                <span class="label label-info">Cabang → Gudang</span>
                                             @endif
                                         </td>
                                     </tr>
@@ -98,13 +98,13 @@
                                         @endif
                                     @else
                                         <tr>
-                                            <td class="text-muted" width="40%">Outlet</td>
+                                            <td class="text-muted" width="40%">Cabang</td>
                                             <td>{{ $refundPembelian->outlet->name ?? '-' }}</td>
                                         </tr>
-                                        @if ($refundPembelian->pembelian)
+                                        @if ($refundPembelian->deliveryOrder)
                                             <tr>
-                                                <td class="text-muted">No. PO</td>
-                                                <td>{{ $refundPembelian->pembelian->code }}</td>
+                                                <td class="text-muted">No. DO</td>
+                                                <td>{{ $refundPembelian->deliveryOrder->code }}</td>
                                             </tr>
                                         @endif
                                     @endif
@@ -120,7 +120,6 @@
                                 <tr>
                                     <th>No</th>
                                     <th>Nama Produk</th>
-                                    <th>SKU</th>
                                     <th>Qty</th>
                                     <th>Harga Satuan</th>
                                     <th>Subtotal</th>
@@ -131,14 +130,13 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach ($refundPembelian->refundPembelianItems as $item)
+                                @foreach ($groupedItems as $item)
                                     <tr>
                                         <td>{{ $loop->iteration }}</td>
                                         <td>{{ $item->product->name }}</td>
-                                        <td><span class="label label-default">{{ $item->sku ?? '-' }}</span></td>
                                         <td>{{ $item->qty }}</td>
                                         <td>@currency($item->harga)</td>
-                                        <td>@currency($item->qty * $item->harga)</td>
+                                        <td>@currency($item->subtotal)</td>
                                         <td>{{ $item->alasan }}</td>
                                         @if ($refundPembelian->type === 'gudang_ke_supplier')
                                             <td>
@@ -160,7 +158,7 @@
                             </tbody>
                             <tfoot>
                                 <tr>
-                                    <td colspan="{{ $refundPembelian->type === 'gudang_ke_supplier' ? 5 : 4 }}"
+                                    <td colspan="{{ $refundPembelian->type === 'gudang_ke_supplier' ? 4 : 3 }}"
                                         class="text-right"><strong>Total</strong></td>
                                     <td colspan="1"><strong>@currency($refundPembelian->total)</strong></td>
                                     <td colspan="{{ $refundPembelian->type === 'gudang_ke_supplier' ? 2 : 1 }}"></td>

@@ -6,7 +6,7 @@
     <!-- Content Header (Page header) -->
     <section class="content-header">
         <h1>
-            OUTLET REQUESTS STOCK
+            CABANG REQUESTS STOCK
         </h1>
     </section>
 
@@ -18,9 +18,9 @@
                     <div class="box-header">
                         <a href="{{ route('request-orders.create') }}" class="btn btn-md bg-green">Tambah</a>
                         <div class="pull-right" style="display:flex; align-items:center; gap:8px;">
-                            <label class="control-label" style="margin:0;">Filter Outlet:</label>
+                            <label class="control-label" style="margin:0;">Filter Cabang:</label>
                             <select id="outlet-filter" class="select2" style="min-width:220px;">
-                                <option value="">-- Semua Outlet --</option>
+                                <option value="">-- Semua Cabang --</option>
                                 @foreach ($outlets as $outlet)
                                     <option value="{{ $outlet->id }}">{{ $outlet->name }}</option>
                                 @endforeach
@@ -33,7 +33,7 @@
                                 <tr>
                                     <td>No</td>
                                     <td>Kode Request</td>
-                                    <td>Owner (Outlet)</td>
+                                    <td>Owner (Cabang)</td>
                                     <td>Requested By</td>
                                     <td>Tanggal Request</td>
                                     <td>Status</td>

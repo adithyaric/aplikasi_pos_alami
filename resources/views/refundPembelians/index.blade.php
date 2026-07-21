@@ -1,10 +1,18 @@
 @extends('layouts.master')
 
-@section('title', 'Retur Pembelian')
+@section('title', $isStaffOutlet ? 'Retur Cabang' : ($selectedType === 'outlet_ke_gudang' ? 'Retur Cabang' : 'Retur Gudang'))
 
 @section('container')
     <section class="content-header">
-        <h1>{{ $isStaffOutlet ? 'Riwayat Retur Ke Gudang' : 'Data Retur Pembelian' }}</h1>
+        <h1>
+            @if ($isStaffOutlet)
+                Riwayat Retur Cabang ke Gudang
+            @elseif ($selectedType === 'outlet_ke_gudang')
+                Data Retur Cabang ke Gudang
+            @else
+                Data Retur Gudang ke Supplier
+            @endif
+        </h1>
     </section>
 
     <section class="content">
@@ -15,9 +23,27 @@
                         <div class="row align-items-center">
 
                             <div class="col-md-4 col-sm-12 mb-2 mb-md-0">
-                                <a href="{{ route('refundPembelian.create') }}" class="btn btn-sm bg-green">
-                                    <i class="fa fa-plus"></i> Tambah Retur
-                                </a>
+                                @if ($isStaffOutlet)
+                                    <a href="{{ route('refundPembelian.create', ['type' => 'outlet_ke_gudang']) }}" class="btn btn-sm bg-green">
+                                        <i class="fa fa-plus"></i> Tambah Retur Cabang
+                                    </a>
+                                @else
+                                    @if ($selectedType === 'outlet_ke_gudang')
+                                        <a href="{{ route('refundPembelian.create', ['type' => 'outlet_ke_gudang']) }}" class="btn btn-sm bg-green">
+                                            <i class="fa fa-plus"></i> Tambah Retur Cabang
+                                        </a>
+                                        <a href="{{ route('refundPembelian.index', ['type' => 'gudang_ke_supplier']) }}" class="btn btn-sm btn-default">
+                                            <i class="fa fa-exchange"></i> Lihat Retur Gudang
+                                        </a>
+                                    @else
+                                        <a href="{{ route('refundPembelian.create', ['type' => 'gudang_ke_supplier']) }}" class="btn btn-sm bg-green">
+                                            <i class="fa fa-plus"></i> Tambah Retur Gudang
+                                        </a>
+                                        <a href="{{ route('refundPembelian.index', ['type' => 'outlet_ke_gudang']) }}" class="btn btn-sm btn-default">
+                                            <i class="fa fa-exchange"></i> Lihat Retur Cabang
+                                        </a>
+                                    @endif
+                                @endif
                             </div>
 
                             <div class="col-md-8 col-sm-12">
@@ -39,36 +65,28 @@
                                         </div>
                                     </form>
                                 @else
-                                    {{-- Admin: export with type + outlet filter --}}
-                                    <form method="GET" action="{{ route('laporan.retur-supplier') }}" id="exportForm">
+                                    <form method="GET"
+                                        action="{{ $selectedType === 'outlet_ke_gudang' ? route('laporan.retur-outlet') : route('laporan.retur-supplier') }}">
                                         <div class="row g-0" style="gap:4px 0">
-                                            <div class="col-xs-3">
+                                            <div class="col-xs-4">
                                                 <input type="date" name="tanggal_mulai" class="form-control input-sm" required>
                                             </div>
-                                            <div class="col-xs-3">
+                                            <div class="col-xs-4">
                                                 <input type="date" name="tanggal_selesai" class="form-control input-sm" required>
                                             </div>
-                                            <div class="col-xs-3">
-                                                <select name="type" id="typeSelect" class="form-control input-sm"
-                                                    onchange="updateTypeFilter(this.value)">
-                                                    <option value="" {{ $selectedType === null ? 'selected' : '' }}>Tampil Semua</option>
-                                                    <option value="gudang_ke_supplier" {{ $selectedType === 'gudang_ke_supplier' ? 'selected' : '' }}>Gudang ke Supplier</option>
-                                                    <option value="outlet_ke_gudang" {{ $selectedType === 'outlet_ke_gudang' ? 'selected' : '' }}>Retur Outlet</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-xs-3">
-                                                <button type="submit" id="exportButton" class="btn btn-success btn-sm w-100">
+                                            <div class="col-xs-4">
+                                                <button type="submit" class="btn btn-success btn-sm w-100">
                                                     <i class="fa fa-file-excel-o"></i> Export
                                                 </button>
                                             </div>
                                         </div>
                                     </form>
-                                    {{-- Outlet filter (separate, URL-based) --}}
+                                    @if ($selectedType === 'outlet_ke_gudang')
                                     <div class="row" style="margin-top:6px">
                                         <div class="col-xs-6">
                                             <select id="outlet-filter" class="form-control input-sm select2"
                                                 style="width:100%" onchange="updateOutletFilter(this.value)">
-                                                <option value="">-- Filter Outlet --</option>
+                                                <option value="">-- Filter Cabang --</option>
                                                 @foreach ($outlets as $outlet)
                                                     <option value="{{ $outlet->id }}"
                                                         {{ (string)($selectedOutletId ?? '') === (string)$outlet->id ? 'selected' : '' }}>
@@ -78,6 +96,7 @@
                                             </select>
                                         </div>
                                     </div>
+                                    @endif
                                 @endif
                             </div>
                         </div>
@@ -91,7 +110,7 @@
                                     @if (!$isStaffOutlet)
                                         <th>Jenis</th>
                                     @endif
-                                    <th>{{ $isStaffOutlet ? 'Outlet' : 'Supplier / Outlet' }}</th>
+                                    <th>{{ $isStaffOutlet ? 'Cabang' : 'Supplier / Cabang' }}</th>
                                     <th>Tanggal</th>
                                     @if (!$isStaffOutlet)
                                         <th>Total</th>
@@ -111,7 +130,7 @@
                                                 @if ($value->type === 'gudang_ke_supplier')
                                                     <span class="label label-warning">Gudang → Supplier</span>
                                                 @else
-                                                    <span class="label label-info">Outlet → Gudang</span>
+                                                    <span class="label label-info">Cabang → Gudang</span>
                                                 @endif
                                             </td>
                                         @endif
@@ -188,16 +207,6 @@
 
 @section('page-script')
     <script>
-        function updateTypeFilter(type) {
-            var url = new URL(window.location.href);
-            if (type) {
-                url.searchParams.set('type', type);
-            } else {
-                url.searchParams.delete('type');
-            }
-            window.location.href = url.toString();
-        }
-
         function updateOutletFilter(outletId) {
             var url = new URL(window.location.href);
             if (outletId) {

@@ -24,7 +24,7 @@
                                 <tr>
                                     <td>No</td>
                                     <td>Nama</td>
-                                    <td>Nama Outlet</td>
+                                    <td>Nama Cabang</td>
                                     <td>Nominal</td>
                                     <td>Aksi</td>
                                 </tr>

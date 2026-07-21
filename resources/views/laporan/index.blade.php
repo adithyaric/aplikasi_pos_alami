@@ -21,11 +21,11 @@
     </div>
     @endif
 
-    {{-- Laporan PR (Permintaan Outlet) --}}
+    {{-- Laporan PR (Permintaan Cabang) --}}
     @if (in_array($role, ['superadmin', 'staff-outlet']))
     <div class="col-md-4 col-sm-6">
         <div class="box box-primary">
-            <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-file-text-o"></i> Laporan PR (Permintaan Outlet)</h3></div>
+            <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-file-text-o"></i> Laporan PR (Permintaan Cabang)</h3></div>
             <div class="box-footer">
                 <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_pr"><i class="fa fa-bar-chart"></i> Lihat Laporan</button>
             </div>
@@ -165,11 +165,11 @@
     </div>
     @endif
 
-    {{-- Laporan Retur Outlet --}}
+    {{-- Laporan Retur Cabang --}}
     @if (in_array($role, ['superadmin', 'staff-outlet', 'owner']))
     <div class="col-md-4 col-sm-6">
         <div class="box box-danger">
-            <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-undo"></i> Laporan Retur Outlet</h3></div>
+            <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-undo"></i> Laporan Retur Cabang</h3></div>
             <div class="box-footer">
                 <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_retur_outlet"><i class="fa fa-bar-chart"></i> Lihat Laporan</button>
             </div>
@@ -183,7 +183,7 @@
 @php
 $modals = [
     ['id'=>'po',          'title'=>'Laporan PO',                           'pdf'=>'laporan.pdf.po',        'xls'=>'laporan.export.po',        'date'=>true],
-    ['id'=>'pr',          'title'=>'Laporan PR (Permintaan Outlet)',        'pdf'=>'laporan.pdf.pr',        'xls'=>'laporan.export.pr',        'date'=>true],
+    ['id'=>'pr',          'title'=>'Laporan PR (Permintaan Cabang)',        'pdf'=>'laporan.pdf.pr',        'xls'=>'laporan.export.pr',        'date'=>true],
     ['id'=>'masuk',       'title'=>'Laporan Barang Masuk',                 'pdf'=>'laporan.pdf.barang-masuk',  'xls'=>'laporan.export.barang-masuk',  'date'=>true],
     ['id'=>'keluar',      'title'=>'Laporan Barang Keluar',                'pdf'=>'laporan.pdf.barang-keluar', 'xls'=>'laporan.export.barang-keluar', 'date'=>true],
     ['id'=>'stok',        'title'=>'Laporan Stok Barang',                  'pdf'=>'laporan.pdf.stok',      'xls'=>'laporan.stock',            'date'=>false],
@@ -195,7 +195,7 @@ $modals = [
     ['id'=>'opname',      'title'=>'Laporan Stok Opname &amp; Adjusment',  'pdf'=>'laporan.pdf.opname',    'xls'=>'laporan.stock-opname',     'date'=>true],
     ['id'=>'pergerakan',  'title'=>'Laporan Pergerakan &amp; Kebutuhan Stok','pdf'=>'laporan.pdf.pergerakan','xls'=>'laporan.export.pergerakan','date'=>false],
     ['id'=>'retur_supplier','title'=>'Laporan Retur Ke Supplier',          'pdf'=>'laporan.pdf.retur-supplier','xls'=>'laporan.retur-supplier','date'=>true],
-    ['id'=>'retur_outlet',  'title'=>'Laporan Retur Outlet',               'pdf'=>'laporan.pdf.retur-outlet',  'xls'=>'laporan.retur-outlet',  'date'=>true],
+    ['id'=>'retur_outlet',  'title'=>'Laporan Retur Cabang',               'pdf'=>'laporan.pdf.retur-outlet',  'xls'=>'laporan.retur-outlet',  'date'=>true],
 ];
 @endphp
 

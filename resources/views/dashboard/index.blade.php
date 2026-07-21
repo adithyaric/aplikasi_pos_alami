@@ -21,12 +21,13 @@
 
     <section class="content">
         @if($isStaffOutletDashboard ?? false)
+        @if($showLegacyDistributionFlow)
         <div class="row">
             <div class="col-md-6">
                 <div class="small-box bg-aqua">
                     <div class="inner">
                         <h3>{{ number_format($outletRequestTotal ?? 0) }}</h3>
-                        <p>Total Jumlah Data Outlet Minta Gudang</p>
+                        <p>Total Jumlah Data Cabang Minta Gudang</p>
                     </div>
                     <div class="icon"><i class="fa fa-list-alt"></i></div>
                     <a href="{{ route('request-orders.index') }}" class="small-box-footer">
@@ -38,7 +39,7 @@
                 <div class="small-box bg-yellow">
                     <div class="inner">
                         <h3>{{ number_format($outletRequestPending ?? 0) }}</h3>
-                        <p>Total Outlet Minta Gudang Status Pending</p>
+                        <p>Total Cabang Minta Gudang Status Pending</p>
                     </div>
                     <div class="icon"><i class="fa fa-clock-o"></i></div>
                     <a href="{{ route('request-orders.index') }}" class="small-box-footer">
@@ -47,6 +48,11 @@
                 </div>
             </div>
         </div>
+        @else
+        <div class="alert alert-info">
+            Flow lama <strong>Request Cabang / Picking / Delivery</strong> sudah disembunyikan dari menu utama.
+        </div>
+        @endif
         @else
         <!-- Baris 1: STAT CARDS -->
         <div class="row">
@@ -62,6 +68,7 @@
                     </a>
                 </div>
             </div>
+            @if($showLegacyDistributionFlow)
             <div class="col-md-6">
                 <div class="small-box bg-yellow">
                     <div class="inner">
@@ -86,6 +93,7 @@
                     </a>
                 </div>
             </div>
+            @endif
             <div class="col-md-6">
                 <div class="small-box bg-red">
                     <div class="inner">
@@ -119,7 +127,7 @@
             <div class="col-md-6">
                 <div class="box box-success">
                     <div class="box-header with-border">
-                        <h3 class="box-title"><i class="fa fa-star"></i> Produk Terlaris (Top 5 Terkirim ke Outlet)</h3>
+                        <h3 class="box-title"><i class="fa fa-star"></i> Produk Terlaris (Top 5 Terkirim ke Cabang)</h3>
                         <div class="box-tools pull-right">
                             <button type="button" class="btn btn-box-tool" data-widget="collapse"><i class="fa fa-minus"></i></button>
                         </div>
@@ -134,6 +142,7 @@
 
         <!-- Baris 3: PESANAN TERBARU + SLOW MOVING -->
         <div class="row">
+            @if($showLegacyDistributionFlow)
             <div class="col-md-6">
                 <div class="box box-default">
                     <div class="box-header with-border">
@@ -147,7 +156,7 @@
                             <thead>
                                 <tr>
                                     <th>ID Pesanan</th>
-                                    <th>Outlet</th>
+                                    <th>Cabang</th>
                                     <th>Status</th>
                                     <th>Tanggal</th>
                                 </tr>
@@ -179,6 +188,7 @@
                     </div>
                 </div>
             </div>
+            @endif
             <div class="col-md-6">
                 <div class="box box-info">
                     <div class="box-header with-border">

@@ -103,7 +103,7 @@ class RequestOrderSingleExport implements FromCollection, WithHeadings, WithMapp
         $sheet->setCellValue('B11', 'Tanggal :');
         $sheet->setCellValue('D11', Carbon::parse($this->requestOrder->request_date)->isoFormat('DD MMMM YYYY'));
         $sheet->getStyle('B11')->getFont()->setBold(true);
-        $sheet->setCellValue('B12', 'Nama Outlet :');
+        $sheet->setCellValue('B12', 'Nama Cabang :');
         $sheet->setCellValue('D12', $this->requestOrder->owner->name ?? '-');
         $sheet->getStyle('B12')->getFont()->setBold(true);
         $sheet->setCellValue('B13', 'Pemohon :');

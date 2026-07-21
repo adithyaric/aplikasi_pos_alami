@@ -30,6 +30,7 @@
                                 <th>Nama</th>
                                 <th>Alamat</th>
                                 <th>Nomor Telp</th>
+                                <th>Format PO</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
@@ -41,6 +42,11 @@
                                 <td>{{ $value->name }}</td>
                                 <td>{{ $value->alamat }}</td>
                                 <td>{{ $value->no_telp }}</td>
+                                <td>
+                                    <code>{{ $value->po_number_prefix ?: 'PO-{SUPPLIER_CODE}-{YYYY}{MM}-' }}</code>
+                                    <br>
+                                    <small class="text-muted">Digit: {{ $value->po_number_padding ?: 5 }}</small>
+                                </td>
 
                                 <td>
                                     <a class="btn btn-warning btn-xs" href="{{ route('supplier.edit', $value->id) }}">Edit</a>

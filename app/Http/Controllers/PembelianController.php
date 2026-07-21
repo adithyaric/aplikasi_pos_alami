@@ -168,9 +168,9 @@ class PembelianController extends Controller
 
     public function create()
     {
-        $lastPembelian = Pembelian::latest('id')->first();
-        $nextNumber = $lastPembelian ? ((int) substr($lastPembelian->code, 4) + 1) : 1;
-        $code = 'PO'.str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+        $supplierId = request('supplier_id');
+        $supplier = $supplierId ? Supplier::find($supplierId) : null;
+        $code = $supplier?->generateNextPoCode() ?: $this->generateDefaultPoCode();
 
         return view('pembelians.create', [
             'suppliers' => Supplier::get(),
@@ -186,9 +186,12 @@ class PembelianController extends Controller
         }
 
         $request->validated();
+        $supplier = Supplier::findOrFail($request->supplier_id);
+        $code = trim((string) $request->code);
 
         $pembelian = Pembelian::create([
-            'code' => $request->code,
+            'code' => $code !== '' ? $code : $supplier->generateNextPoCode(),
+            'customer_po' => $request->customer_po,
             // 'outlet_id' => $request->outlet_id,
             'supplier_id' => $request->supplier_id,
             // 'kas_id' => $request->kas_id,
@@ -202,12 +205,13 @@ class PembelianController extends Controller
 
         $this->updateStock($request, $pembelian);
 
-        $supplier = Supplier::find($request->supplier_id);
         PembelianTransaction::create([
             'pembelian_id' => $pembelian->id,
             'payment_date' => null,
             'payment_method' => 'bank_transfer',
-            'payment_reference' => $supplier->bank_no_rek.'-'.$supplier->bank_nama ?? 'TRX-'.now(),
+            'payment_reference' => (($supplier->bank_no_rek ?? null) && ($supplier->bank_nama ?? null))
+                ? $supplier->bank_no_rek.'-'.$supplier->bank_nama
+                : 'TRX-'.now()->format('YmdHis'),
             // 'amount' => $grandTotal,
             'amount' => 0,
             'status' => 'unpaid',
@@ -765,10 +769,10 @@ class PembelianController extends Controller
 
             DB::commit();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Pembayaran berhasil disimpan'
-            ]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Pembayaran berhasil disimpan'
+        ]);
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -777,6 +781,13 @@ class PembelianController extends Controller
                 'message' => 'Terjadi kesalahan: '.$e->getMessage()
             ], 500);
         }
+    }
+
+    public function nextCode(Supplier $supplier)
+    {
+        return response()->json([
+            'code' => $supplier->generateNextPoCode(),
+        ]);
     }
 
     public function approveOwner(Request $request, Pembelian $pembelian)
@@ -818,5 +829,13 @@ class PembelianController extends Controller
         ]);
 
         return redirect()->back()->with('toast_success', 'PO ditolak owner dan dikembalikan ke draft revisi.');
+    }
+
+    private function generateDefaultPoCode(): string
+    {
+        $lastPembelian = Pembelian::latest('id')->first();
+        $nextNumber = $lastPembelian ? ($lastPembelian->id + 1) : 1;
+
+        return 'PO'.str_pad((string) $nextNumber, 5, '0', STR_PAD_LEFT);
     }
 }

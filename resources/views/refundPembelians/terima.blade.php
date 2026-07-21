@@ -57,7 +57,6 @@
                                     <tr>
                                         <th>No</th>
                                         <th>Nama Produk</th>
-                                        <th>SKU</th>
                                         <th>Qty</th>
                                         <th>Harga Satuan</th>
                                         <th>Subtotal</th>
@@ -66,27 +65,27 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach ($refundPembelian->refundPembelianItems as $i => $item)
+                                    @foreach ($groupedItems as $i => $item)
+                                        @php $itemKey = implode(',', $item->item_ids); @endphp
                                         <tr>
                                             <td>{{ $i + 1 }}</td>
                                             <td>{{ $item->product->name }}</td>
-                                            <td><span class="label label-default">{{ $item->sku ?? '-' }}</span></td>
                                             <td>{{ $item->qty }}</td>
                                             <td>@currency($item->harga)</td>
-                                            <td class="item-subtotal" data-subtotal="{{ $item->qty * $item->harga }}">
-                                                @currency($item->qty * $item->harga)
+                                            <td class="item-subtotal" data-subtotal="{{ $item->subtotal }}">
+                                                @currency($item->subtotal)
                                             </td>
                                             <td>{{ $item->alasan }}</td>
                                             <td>
-                                                <div class="btn-group resolution-group" data-item="{{ $item->id }}"
-                                                    data-subtotal="{{ $item->qty * $item->harga }}">
+                                                <div class="btn-group resolution-group" data-item="{{ $itemKey }}"
+                                                    data-subtotal="{{ $item->subtotal }}">
                                                     <label class="btn btn-sm btn-default resolution-btn" data-val="barang">
-                                                        <input type="radio" name="items[{{ $item->id }}][resolution]"
+                                                        <input type="radio" name="items[{{ $itemKey }}][resolution]"
                                                             value="barang" required>
                                                         <i class="fa fa-cube"></i> Retur Barang
                                                     </label>
                                                     <label class="btn btn-sm btn-default resolution-btn" data-val="uang">
-                                                        <input type="radio" name="items[{{ $item->id }}][resolution]"
+                                                        <input type="radio" name="items[{{ $itemKey }}][resolution]"
                                                             value="uang">
                                                         <i class="fa fa-money"></i> Ganti Uang
                                                     </label>
@@ -147,7 +146,7 @@
             reverse: true
         });
 
-        var totalItems = {{ $refundPembelian->refundPembelianItems->count() }};
+        var totalItems = {{ $groupedItems->count() }};
 
         // Track resolution per item
         var resolutions = {};

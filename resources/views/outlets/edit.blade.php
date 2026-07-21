@@ -1,6 +1,6 @@
 @extends('layouts.master')
 
-@section('title', 'Edit Outlet')
+@section('title', 'Edit Cabang')
 
 @section('container')
     <section class="content">
@@ -10,7 +10,7 @@
                 <!-- general form elements -->
                 <div class="box box-primary">
                     <div class="box-header with-border">
-                        <h3 class="box-title">Edit Outlet</h3>
+                        <h3 class="box-title">Edit Cabang</h3>
                     </div><!-- /.box-header -->
                     <!-- form start -->
                     <form action="{{ route('outlet.update', $outlet->id) }}" method="POST" enctype="multipart/form-data">
@@ -18,9 +18,9 @@
                         @csrf
                         <div class="box-body">
                             <div class="form-group">
-                                <label for="">Nama Outlet</label>
+                                <label for="">Nama Cabang</label>
                                 <input type="text" class="form-control" name="name"
-                                    value="{{ old('name', $outlet->name) }}" placeholder="Masukkan Nama Outlet">
+                                    value="{{ old('name', $outlet->name) }}" placeholder="Masukkan Nama Cabang">
                                 @error('name')
                                     <div class="invalid-feedback text-danger">
                                         {{ $message }}
@@ -28,9 +28,9 @@
                                 @enderror
                             </div>
                             <div class="form-group">
-                                <label for="">Jenis Outlet</label>
+                                <label for="">Jenis Cabang / Outlet</label>
                                 <select class="form-control" name="jenis_outlet" required>
-                                    <option value="" disabled {{ old('jenis_outlet', $outlet->jenis_outlet) ? '' : 'selected' }}>Pilih Jenis Outlet</option>
+                                    <option value="" disabled {{ old('jenis_outlet', $outlet->jenis_outlet) ? '' : 'selected' }}>Pilih Jenis Cabang / Outlet</option>
                                     @foreach ($jenisOutletOptions as $value => $label)
                                         <option value="{{ $value }}" {{ old('jenis_outlet', $outlet->jenis_outlet) === $value ? 'selected' : '' }}>
                                             {{ $label }}

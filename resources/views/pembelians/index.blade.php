@@ -142,6 +142,7 @@
                                 <tr>
                                     <th width="40">No</th>
                                     <th>Kode PO</th>
+                                    <th>Customer PO</th>
                                     <th>Supplier</th>
                                     <th>Items</th>
                                     <th>Total</th>
@@ -163,6 +164,7 @@
                                     <tr>
                                         <td>{{ $loop->iteration }}</td>
                                         <td><strong>{{ $value->code }}</strong></td>
+                                        <td>{{ $value->customer_po ?: '-' }}</td>
                                         <td>{{ $value->supplier?->name }}</td>
                                         <td>
                                             @php $totalItems = $value->pembelianProducts->count(); @endphp

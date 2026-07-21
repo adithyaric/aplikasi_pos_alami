@@ -23,7 +23,7 @@
                                     <td>Kode Invoice</td>
                                     <td>Customer</td>
                                     <td>Kas/Metode Pembayaran</td>
-                                    <td>Outlet</td>
+                                    <td>Cabang</td>
                                     <td>Kasir</td>
                                     <td>Detail</td>
                                     <td>Aksi</td>

@@ -55,6 +55,7 @@ class PembelianRequest extends FormRequest
     {
         return [
             'code'                         => 'required',
+            'customer_po'                  => 'nullable|string|max:255',
             'supplier_id'                  => 'required|exists:suppliers,id',
             'subtotal'                     => 'nullable',
             'total'                        => 'nullable',
@@ -73,6 +74,8 @@ class PembelianRequest extends FormRequest
     {
         return [
             'code.required'                      => 'Kode pembelian wajib diisi.',
+            'customer_po.string'                => 'Customer PO harus berupa teks.',
+            'customer_po.max'                   => 'Customer PO maksimal 255 karakter.',
             'supplier_id.required'               => 'Supplier wajib dipilih.',
             'supplier_id.exists'                 => 'Supplier yang dipilih tidak valid.',
             'product.required'                   => 'Produk wajib diisi.',
