@@ -46,7 +46,7 @@
                                     <tr>
                                         <th>Produk</th>
                                         <th>Qty Input</th>
-                                        <th class="text-right">Harga</th>
+                                        <th class="text-right">Harga / Satuan Dasar</th>
                                         <th class="text-right">Subtotal</th>
                                     </tr>
                                 </thead>
@@ -58,7 +58,10 @@
                                                 {{ rtrim(rtrim(number_format((float) ($item->qty_input ?? $item->qty), 2, ',', '.'), '0'), ',') }}
                                                 {{ $item->unit ?? $item->product?->satuan ?? '' }}
                                             </td>
-                                            <td class="text-right">@currency($item->price)</td>
+                                            <td class="text-right">
+                                                @currency($item->price)
+                                                <div class="text-muted small">/ {{ $item->product?->satuan ?? 'unit' }}</div>
+                                            </td>
                                             <td class="text-right">@currency($item->subtotal)</td>
                                         </tr>
                                     @endforeach

@@ -96,8 +96,6 @@ class PenjualanController extends Controller
                 'sale_date' => $request->sale_date,
                 'payment_type' => $request->payment_type,
                 'payment_status' => $request->payment_status,
-                'due_date' => $request->due_date,
-                'notes' => $request->notes,
                 'discount' => (int) ($request->discount ?? 0),
                 'items' => collect($request->items)->map(fn ($item) => [
                     'product_id' => (int) $item['product_id'],
@@ -128,8 +126,6 @@ class PenjualanController extends Controller
                 'sale_date' => $request->sale_date,
                 'payment_type' => $request->payment_type,
                 'payment_status' => $request->payment_status,
-                'due_date' => $request->due_date,
-                'notes' => $request->notes,
                 'discount' => (int) ($request->discount ?? 0),
                 'items' => collect($request->items)->map(fn ($item) => [
                     'product_id' => (int) $item['product_id'],
@@ -332,6 +328,7 @@ class PenjualanController extends Controller
     private function warehouseSaleFormData(?Penjualan $penjualan = null): array
     {
         $converter = app(ProductUnitConverter::class);
+        $unitChannel = $this->warehouseSaleUnitChannel();
         $products = Product::with(['stocks' => function ($query) {
             $query->where('status', 'available')
                 ->where('qty', '>', 0)
@@ -349,7 +346,7 @@ class PenjualanController extends Controller
                 'satuan_terbesar',
                 'konversi_qty_terbesar',
             ])
-            ->map(function (Product $product) use ($converter) {
+            ->map(function (Product $product) use ($converter, $unitChannel) {
                 $availableQty = (int) $product->stocks->sum(function ($stock) {
                     return $this->resolveStockAvailableQty($stock);
                 });
@@ -360,9 +357,11 @@ class PenjualanController extends Controller
                     'name' => $product->name,
                     'harga_jual' => (int) ($product->harga_jual ?? 0),
                     'available_stock_qty' => $availableQty,
+                    'base_unit' => $product->satuan ?: 'PCS',
                     'stock_summary' => $converter->stockSummaryDisplay($product, $availableQty),
-                    'default_unit' => $converter->defaultInputUnit($product, 'distribution'),
-                    'units' => $this->productUnits($product),
+                    'default_unit' => $converter->defaultInputUnit($product, $unitChannel),
+                    'unit_factors' => $converter->unitMultipliers($product),
+                    'units' => $converter->inputUnits($product, $unitChannel),
                 ];
             })
             ->filter(fn (array $product) => $product['available_stock_qty'] > 0)
@@ -388,21 +387,13 @@ class PenjualanController extends Controller
         ];
     }
 
-    private function productUnits(Product $product): array
+    private function warehouseSaleUnitChannel(): string
     {
-        return collect([
-            $product->satuan,
-            $product->satuan_besar,
-            $product->satuan_terbesar,
-        ])
-            ->filter()
-            ->unique()
-            ->values()
-            ->map(fn ($unit) => [
-                'value' => $unit,
-                'label' => $unit,
-            ])
-            ->all();
+        return match (auth()->user()?->role) {
+            'sales' => 'sales',
+            'staff-outlet' => 'branch',
+            default => 'distribution',
+        };
     }
 
     private function generateWarehouseSaleCode(): string

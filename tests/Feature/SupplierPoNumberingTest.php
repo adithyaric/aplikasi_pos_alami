@@ -49,4 +49,41 @@ class SupplierPoNumberingTest extends TestCase
 
         Carbon::setTestNow();
     }
+
+    public function test_supplier_next_po_code_supports_roman_month_and_front_sequence(): void
+    {
+        Carbon::setTestNow('2026-07-21 10:00:00');
+
+        $user = User::factory()->create([
+            'role' => 'superadmin',
+            'username' => 'supplier-po-number-roman-admin',
+            'email' => 'supplier-po-number-roman-admin@alami.test',
+        ]);
+
+        $supplier = Supplier::create([
+            'kode_supplier' => 'S00088',
+            'name' => 'Supplier PO Roman Test',
+            'alamat' => 'Bandung',
+            'no_telp' => '081298765432',
+            'po_number_prefix' => '{SEQ}/PO/{SUPPLIER_CODE}/{YYYY}{ROMAN_MM}',
+            'po_number_padding' => 4,
+        ]);
+
+        Pembelian::create([
+            'code' => '0001/PO/S00088/2026VII',
+            'supplier_id' => $supplier->id,
+            'total' => 0,
+            'is_published' => false,
+            'owner_approval_status' => 'approved',
+        ]);
+
+        $response = $this->actingAs($user)->get(route('pembelian.next-code', $supplier));
+
+        $response->assertOk()
+            ->assertJson([
+                'code' => '0002/PO/S00088/2026VII',
+            ]);
+
+        Carbon::setTestNow();
+    }
 }

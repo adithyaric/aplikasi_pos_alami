@@ -94,10 +94,6 @@
                     <th>Pembayaran</th>
                     <td>{{ strtoupper($penjualan->payment_type ?? '-') }} / {{ strtoupper($penjualan->payment_status ?? '-') }}</td>
                 </tr>
-                <tr>
-                    <th>Jatuh Tempo</th>
-                    <td>{{ $penjualan->due_date?->format('d M Y') ?? '-' }}</td>
-                </tr>
             </table>
         </div>
     </div>
@@ -148,7 +144,7 @@
                         {{ $item->unit ?? $item->product?->satuan ?? '' }}
                     </td>
                     <td>{{ $item->product?->qtyDisplay((int) $item->qty) ?? $item->qty }}</td>
-                    <td>@currency($item->price) / {{ $item->unit ?? $item->product?->satuan ?? 'unit' }}</td>
+                    <td>@currency($item->price) / {{ $item->product?->satuan ?? 'unit' }}</td>
                     <td>@currency($item->subtotal)</td>
                 </tr>
             @endforeach
@@ -169,13 +165,6 @@
             <td style="text-align:right"><strong>@currency($penjualan->total)</strong></td>
         </tr>
     </table>
-
-    @if ($penjualan->notes)
-        <div style="margin-top:20px">
-            <strong>Catatan:</strong><br>
-            {{ $penjualan->notes }}
-        </div>
-    @endif
 
     <div class="actions">
         <a href="{{ route('penjualan.show', $penjualan) }}">Kembali</a>

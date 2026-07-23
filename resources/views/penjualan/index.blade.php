@@ -26,7 +26,6 @@
                                     <th>Jenis</th>
                                     <th>Pembeli</th>
                                     <th>Pembayaran</th>
-                                    <th>Jatuh Tempo</th>
                                     <th>Operator</th>
                                     <th>Total</th>
                                     <th>Aksi</th>
@@ -50,7 +49,6 @@
                                                 <br><small>Dibayar: @currency($penjualan->paymentTransaction->amount)</small>
                                             @endif
                                         </td>
-                                        <td>{{ $penjualan->due_date?->format('d M Y') ?? '-' }}</td>
                                         <td>{{ $penjualan->operator?->name ?? '-' }}</td>
                                         <td>@currency($penjualan->total)</td>
                                         <td class="text-nowrap">
@@ -62,6 +60,9 @@
                                             </a>
                                             <a class="btn btn-success btn-xs" href="{{ route('penjualan.pembayaran.edit', $penjualan) }}">
                                                 <i class="fa fa-credit-card"></i> Pembayaran
+                                            </a>
+                                            <a class="btn btn-danger btn-xs" href="{{ route('refund.create', ['penjualan_id' => $penjualan->id]) }}">
+                                                <i class="fa fa-undo"></i> Retur
                                             </a>
                                             <a class="btn btn-warning btn-xs" href="{{ route('penjualan.print', $penjualan) }}" target="_blank">
                                                 <i class="fa fa-print"></i> Invoice

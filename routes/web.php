@@ -8,6 +8,7 @@ use App\Http\Controllers\CartController;
 use App\Http\Controllers\CartUserController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\CustomerPoController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\KasController;
 use App\Http\Controllers\LaporanController;
@@ -58,6 +59,9 @@ Route::middleware(['role:admin-gudang|staff-outlet|owner|superadmin'])->group(fu
     Route::resource('/outlet', OutletController::class);
     Route::get('/outlet/{outlet_id}/kas', [OutletController::class, 'getKas']);
     Route::resource('/supplier', SupplierController::class);
+    Route::get('/customer-po-options', [CustomerPoController::class, 'options'])->name('customer-po.options');
+    Route::get('/pembelian/customer-po-options', [CustomerPoController::class, 'pembelianOptions'])->name('pembelian.customer-po-options');
+    Route::resource('/customer-po', CustomerPoController::class)->except(['show']);
     Route::get('/supplier/{supplier}/next-po-code', [SupplierController::class, 'nextPoCode'])->name('supplier.next-po-code');
     Route::resource('/salesman', SalesmanController::class);
     Route::resource('/category', CategoryController::class);
@@ -96,7 +100,7 @@ Route::middleware(['role:admin-gudang|staff-outlet|owner|superadmin'])->group(fu
     Route::get('/pembelian/{id}/destroy', [PembelianController::class, 'stockDestroy'])->name('pembelian.stock.destroy');
     Route::get('/supplier/{supplier}/products', [App\Http\Controllers\PembelianController::class, 'getProductsBySupplier'])->name('supplier.products');
 
-    // Route::resource('/refund', RefundController::class);
+    Route::resource('/refund', RefundController::class);
 
     // AJAX helpers for retur — must be BEFORE the resource
     Route::get('/retur/supplier/{supplier}/products', [RefundPembelianController::class, 'getSupplierProducts'])->name('retur.supplier.products');

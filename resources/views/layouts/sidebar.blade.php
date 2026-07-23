@@ -39,12 +39,15 @@
         @endif
 
         @if ($canSeeProcurement)
-        <li class="treeview {{ request()->is('pembelian*') || request()->is('penerimaan*') || request()->is('supplier*') ? 'active' : '' }}">
+        <li class="treeview {{ request()->is('pembelian*') || request()->is('penerimaan*') || request()->is('supplier*') || request()->is('customer-po*') ? 'active' : '' }}">
             <a href="#"><i class="fa fa-shopping-cart"></i><span>Pembelian</span><i class="fa fa-angle-left pull-right"></i></a>
             <ul class="treeview-menu">
                 @if ($isWarehouse)
                 <li class="{{ request()->is('supplier*') ? 'active' : '' }}">
                     <a href="/supplier"><i class="fa fa-archive"></i><span>Supplier</span></a>
+                </li>
+                <li class="{{ request()->is('customer-po*') ? 'active' : '' }}">
+                    <a href="/customer-po"><i class="fa fa-users"></i><span>Customer PO</span></a>
                 </li>
                 @endif
                 <li class="{{ request()->is('pembelian*') && !request()->is('pembelian/*/penerimaan') ? 'active' : '' }}">

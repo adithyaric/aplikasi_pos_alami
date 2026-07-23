@@ -106,10 +106,6 @@
             <th>No. Telp</th>
             <td>{{ $penjualan->buyer_phone ?: '-' }}</td>
         </tr>
-        <tr>
-            <th>Catatan</th>
-            <td>{{ $penjualan->notes ?: '-' }}</td>
-        </tr>
     </table>
 
     <table>

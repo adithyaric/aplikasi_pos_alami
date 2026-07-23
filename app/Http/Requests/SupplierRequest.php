@@ -42,8 +42,8 @@ class SupplierRequest extends FormRequest
             'no_telp.required' => 'Nomor telepon supplier wajib diisi.',
             'no_telp.string' => 'Nomor telepon harus berupa teks.',
 
-            'po_number_prefix.string' => 'Prefix nomor PO harus berupa teks.',
-            'po_number_prefix.max' => 'Prefix nomor PO maksimal 255 karakter.',
+            'po_number_prefix.string' => 'Format nomor PO harus berupa teks.',
+            'po_number_prefix.max' => 'Format nomor PO maksimal 255 karakter.',
             'po_number_padding.integer' => 'Panjang nomor urut PO harus berupa angka.',
             'po_number_padding.min' => 'Panjang nomor urut PO minimal 3 digit.',
             'po_number_padding.max' => 'Panjang nomor urut PO maksimal 10 digit.',

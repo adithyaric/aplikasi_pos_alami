@@ -58,6 +58,17 @@
                                 @enderror
                             </div>
                             <div class="form-group">
+                                <label for="">Email Login</label>
+                                <input type="email" class="form-control" name="email"
+                                    value="{{ old('email', $salesman->user?->email) }}"
+                                    placeholder="Masukkan email login (opsional, bisa login pakai no telp)">
+                                @error('email')
+                                    <div class="invalid-feedback text-danger">
+                                        {{ $message }}
+                                    </div>
+                                @enderror
+                            </div>
+                            <div class="form-group">
                                 <label for="">Cabang</label>
                                 <select class="form-control select2" name="outlet_id" data-placeholder="Pilih Cabang"
                                     style="width: 100%;">
@@ -75,24 +86,29 @@
                                     </div>
                                 @enderror
                             </div>
+                            <hr>
                             <div class="form-group">
-                                <label for="">Akun User Sales (Opsional)</label>
-                                <select class="form-control select2" name="user_id" data-placeholder="Pilih User Sales"
-                                    style="width: 100%;">
-                                    <option value="">Pilih User Sales</option>
-                                    @foreach ($users as $user)
-                                        <option value="{{ $user->id }}"
-                                            {{ old('user_id', $salesman->user_id) == $user->id ? 'selected' : '' }}>
-                                            {{ $user->name }} - {{ $user->email }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                @error('user_id')
+                                <label for="">Password Login</label>
+                                <input type="password" class="form-control" name="password"
+                                    placeholder="Kosongkan jika tidak ingin mengganti password">
+                                @error('password')
                                     <div class="invalid-feedback text-danger">
                                         {{ $message }}
                                     </div>
                                 @enderror
                             </div>
+                            <div class="form-group">
+                                <label for="">Konfirmasi Password</label>
+                                <input type="password" class="form-control" name="confirm-password"
+                                    placeholder="Ulangi password baru">
+                            </div>
+                            <p class="text-muted">
+                                @if ($salesman->user)
+                                    Akun login sales sudah terhubung. Login memakai email atau nomor telp.
+                                @else
+                                    Salesman ini belum punya akun login. Isi password untuk membuat akun sales.
+                                @endif
+                            </p>
                         </div><!-- /.box-body -->
 
                         <div class="box-footer">

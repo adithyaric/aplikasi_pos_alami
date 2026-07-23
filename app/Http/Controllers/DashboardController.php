@@ -284,10 +284,11 @@ class DashboardController extends Controller
 
         $settings = $this->getSettingsData();
         $template = $this->resolvePoTemplateMeta($settings, $format);
+        $downloadName = $this->resolvePoTemplateDownloadName($template['download_name'], $format);
 
         abort_unless($template['absolute_path'] && file_exists($template['absolute_path']), 404);
 
-        return response()->download($template['absolute_path'], $template['download_name']);
+        return response()->download($template['absolute_path'], $downloadName);
     }
 
     private function getSettingsData(): array
@@ -329,6 +330,24 @@ class DashboardController extends Controller
         $extension = $file->getClientOriginalExtension();
 
         return $file->storeAs('templates/po', "po-template-{$type}.{$extension}", 'public');
+    }
+
+    private function resolvePoTemplateDownloadName(string $defaultName, string $format): string
+    {
+        $requestedName = trim((string) request('filename'));
+
+        if ('' === $requestedName) {
+            return $defaultName;
+        }
+
+        $requestedName = basename($requestedName);
+        $extension = '.'.$format;
+
+        if (! str_ends_with(strtolower($requestedName), $extension)) {
+            $requestedName .= $extension;
+        }
+
+        return $requestedName;
     }
 
     private function deletePublicFile(?string $path): void

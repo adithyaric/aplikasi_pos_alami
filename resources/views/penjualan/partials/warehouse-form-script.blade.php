@@ -3,6 +3,7 @@
     var products = @json($products);
     var oldItems = @json($initialItems);
     var rowIndex = 0;
+    var productChecklistTable = null;
 
     function moneyMask() {
         $('.numeral-mask').mask('#,##0', { reverse: true });
@@ -24,6 +25,102 @@
         return products.find(function(product) {
             return String(product.id) === String(productId);
         });
+    }
+
+    function normalizeUnitKey(unit) {
+        return String(unit || '').trim().toLowerCase();
+    }
+
+    function unitFactorFor(product, unit) {
+        if (!product) {
+            return 1;
+        }
+
+        var factors = product.unit_factors || {};
+        return parseInt(factors[normalizeUnitKey(unit)] || 1, 10) || 1;
+    }
+
+    function baseUnitLabel(product) {
+        return product && product.base_unit ? product.base_unit : 'PCS';
+    }
+
+    function formatQty(value) {
+        var normalizedValue = Number(value || 0);
+
+        return normalizedValue.toLocaleString('id-ID', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2
+        });
+    }
+
+    function normalizedQtyFor(product, qty, unit) {
+        return Math.round((parseFloat(qty) || 0) * unitFactorFor(product, unit));
+    }
+
+    function updateConversionHint($row, product, qty, unit) {
+        var hint = '';
+
+        if (product && unit) {
+            var normalizedQty = normalizedQtyFor(product, qty, unit);
+            hint = '= ' + formatQty(normalizedQty) + ' ' + baseUnitLabel(product);
+        }
+
+        $row.find('.item-unit-help').text(hint);
+    }
+
+    function defaultUnitLabel(product) {
+        if (!product) {
+            return '-';
+        }
+
+        var selected = (product.units || []).find(function(unit) {
+            return String(unit.value) === String(product.default_unit);
+        });
+
+        return selected ? selected.label : (product.default_unit || '-');
+    }
+
+    function selectedProductIds() {
+        var ids = {};
+
+        $('#items-body .item-product').each(function() {
+            var value = $(this).val();
+            if (value) {
+                ids[String(value)] = true;
+            }
+        });
+
+        return ids;
+    }
+
+    function findExistingRowByProduct(productId) {
+        return $('#items-body tr').filter(function() {
+            return String($(this).find('.item-product').val() || '') === String(productId);
+        }).first();
+    }
+
+    function resetChecklistModal() {
+        $('#checkAllPenjualan').prop('checked', false);
+
+        if (productChecklistTable) {
+            productChecklistTable.destroy();
+            productChecklistTable = null;
+        }
+
+        $('#cekBarangPenjualanBody').empty();
+    }
+
+    function ensureEmptyRowRemoved() {
+        var $rows = $('#items-body tr');
+        if ($rows.length !== 1) {
+            return;
+        }
+
+        var $firstRow = $rows.first();
+        if (!($firstRow.find('.item-product').val() || '')) {
+            $firstRow.find('.item-product').select2('destroy');
+            $firstRow.remove();
+        }
     }
 
     function selectedBuyerPayload() {
@@ -91,6 +188,7 @@
             '    <select class="form-control item-unit" name="items[' + currentIndex + '][unit]" required>' +
                     buildUnitOptions(selectedProduct, item.unit) +
             '    </select>' +
+            '    <div class="text-muted small item-unit-help"></div>' +
             '  </td>' +
             '  <td>' +
             '    <input type="number" min="1" step="1" class="form-control item-qty" name="items[' + currentIndex + '][qty]" value="' + qtyValue + '" required>' +
@@ -111,12 +209,18 @@
         $row.data('price-source', item.price ? 'manual' : 'default');
         moneyMask();
         recalcRow($row);
+
+        return $row;
     }
 
     function recalcRow($row) {
+        var product = findProduct($row.find('.item-product').val());
         var qty = parseFloat($row.find('.item-qty').val()) || 0;
+        var unit = $row.find('.item-unit').val();
+        var normalizedQty = normalizedQtyFor(product, qty, unit);
         var price = parseMoney($row.find('.item-price').val());
-        $row.find('.item-subtotal').text(formatMoney(Math.round(qty * price)));
+        updateConversionHint($row, product, qty, unit);
+        $row.find('.item-subtotal').text(formatMoney(Math.round(normalizedQty * price)));
         recalcTotals();
     }
 
@@ -181,40 +285,19 @@
         });
     }
 
-    function selectedBuyerTermDays() {
-        var buyerType = $('#buyer_type').val();
-        var selector = buyerType === 'agent'
-            ? '#agent_id'
-            : buyerType === 'canvas'
-                ? '#canvas_id'
-                : '#outlet_target_id';
-        var option = $(selector + ' option:selected');
-
-        return parseInt(option.data('termin-days'), 10) || 0;
-    }
-
-    function updateDueDate() {
+    function updatePaymentStatusField() {
         var paymentType = $('#payment_type').val();
-        var saleDate = $('input[name="sale_date"]').val();
 
-        if (!paymentType || !saleDate) {
+        if (!paymentType) {
             return;
         }
 
         if (paymentType === 'cash') {
             $('#payment_status').val('paid').prop('disabled', true);
-            $('#due_date').val('').prop('disabled', true);
             return;
         }
 
         $('#payment_status').prop('disabled', false);
-        $('#due_date').prop('disabled', false);
-
-        if (!$('#due_date').val()) {
-            var dueDate = new Date(saleDate + 'T00:00:00');
-            dueDate.setDate(dueDate.getDate() + selectedBuyerTermDays());
-            $('#due_date').val(dueDate.toISOString().slice(0, 10));
-        }
     }
 
     function updateBuyerFields() {
@@ -226,7 +309,7 @@
             $('.buyer-' + buyerType).show().find('select').prop('disabled', false);
         }
 
-        updateDueDate();
+        updatePaymentStatusField();
     }
 
     $(document).on('change', '.item-product', function() {
@@ -240,7 +323,7 @@
         applySuggestedPrice($row, true);
     });
 
-    $(document).on('input change', '.item-qty, .item-price, #discount', function() {
+    $(document).on('input change', '.item-qty, .item-price, .item-unit, #discount', function() {
         if ($(this).hasClass('item-price') && $(this).is(':focus')) {
             $(this).closest('tr').data('price-source', 'manual');
         }
@@ -264,6 +347,134 @@
         recalcTotals();
     });
 
+    $('#modalCekBarangPenjualan').on('show.bs.modal', function() {
+        resetChecklistModal();
+
+        if (!products.length) {
+            alert('Belum ada produk dengan stok tersedia.');
+            return false;
+        }
+
+        var takenProductIds = selectedProductIds();
+        var sortedProducts = products.slice().sort(function(a, b) {
+            return String(a.name || '').localeCompare(String(b.name || ''), 'id');
+        });
+        var $tbody = $('#cekBarangPenjualanBody');
+
+        sortedProducts.forEach(function(product) {
+            var alreadySelected = !!takenProductIds[String(product.id)];
+            var $row = $('<tr>');
+            var $checkbox = $('<input>', {
+                type: 'checkbox',
+                class: 'cek-product-penjualan',
+                value: product.id,
+                disabled: alreadySelected
+            }).data('qty', 1);
+            var $qtyInput = $('<input>', {
+                type: 'number',
+                min: 1,
+                value: 1,
+                class: 'form-control input-sm cek-qty-penjualan',
+                disabled: alreadySelected
+            }).css('width', '70px');
+            var $statusBadge = $('<span>')
+                .addClass('label ' + (alreadySelected ? 'label-default' : 'label-success'))
+                .text(alreadySelected ? 'Sudah dipilih' : 'Siap dipilih');
+
+            $row.append(
+                $('<td>').addClass('text-center').append($checkbox),
+                $('<td>').text(product.code || '-'),
+                $('<td>').text(product.name || '-'),
+                $('<td>').text(product.stock_summary || '-'),
+                $('<td>').text(defaultUnitLabel(product)),
+                $('<td>').html(formatMoney(product.harga_jual || 0) + ' / ' + escapeHtml(baseUnitLabel(product))),
+                $('<td>').addClass('text-center').append($statusBadge),
+                $('<td>').append($qtyInput)
+            );
+
+            $tbody.append($row);
+        });
+
+        if ($.fn.DataTable) {
+            productChecklistTable = $('#tableCekBarangPenjualan').DataTable({
+                retrieve: false,
+                destroy: true,
+                pageLength: 10,
+                order: [],
+                columnDefs: [
+                    { orderable: false, targets: [0, 6, 7] }
+                ],
+                language: {
+                    search: 'Cari:',
+                    lengthMenu: 'Tampilkan _MENU_ baris',
+                    info: 'Menampilkan _START_-_END_ dari _TOTAL_ produk',
+                    paginate: { previous: 'Prev', next: 'Next' },
+                    zeroRecords: 'Tidak ada produk ditemukan'
+                }
+            });
+        }
+    });
+
+    $(document).on('change', '#checkAllPenjualan', function() {
+        var checked = $(this).prop('checked');
+        var $checkboxes = productChecklistTable
+            ? $(productChecklistTable.rows().nodes()).find('.cek-product-penjualan:not(:disabled)')
+            : $('#cekBarangPenjualanBody .cek-product-penjualan:not(:disabled)');
+
+        $checkboxes.prop('checked', checked);
+    });
+
+    $('#btnTambahkanPenjualan').on('click', function() {
+        var selected = [];
+        var $rows = productChecklistTable
+            ? $(productChecklistTable.rows().nodes())
+            : $('#cekBarangPenjualanBody tr');
+
+        $rows.each(function() {
+            var $row = $(this);
+            var $checkbox = $row.find('.cek-product-penjualan:checked');
+
+            if (!$checkbox.length) {
+                return;
+            }
+
+            var product = findProduct($checkbox.val());
+            if (!product || findExistingRowByProduct(product.id).length) {
+                return;
+            }
+
+            selected.push({
+                product_id: product.id,
+                qty: parseInt($row.find('.cek-qty-penjualan').val(), 10) || 1,
+                unit: product.default_unit,
+            });
+        });
+
+        if (!selected.length) {
+            alert('Pilih minimal satu produk yang belum ada di tabel.');
+            return;
+        }
+
+        ensureEmptyRowRemoved();
+
+        selected.forEach(function(item) {
+            var $row = addRow({
+                product_id: item.product_id,
+                qty: item.qty,
+                unit: item.unit,
+                price: '',
+            });
+
+            applySuggestedPrice($row, true);
+        });
+
+        $('#modalCekBarangPenjualan').modal('hide');
+    });
+
+    $('#modalCekBarangPenjualan').on('hidden.bs.modal', function() {
+        resetChecklistModal();
+    });
+
     $('#add-row').on('click', function() {
         addRow({
             product_id: '',
@@ -273,11 +484,11 @@
         });
     });
 
-    $('#buyer_type, #agent_id, #canvas_id, #outlet_target_id, #payment_type, input[name="sale_date"]').on('change', function() {
+    $('#buyer_type, #agent_id, #canvas_id, #outlet_target_id, #payment_type').on('change', function() {
         if (this.id === 'buyer_type') {
             updateBuyerFields();
         } else {
-            updateDueDate();
+            updatePaymentStatusField();
         }
 
         if (this.id === 'buyer_type' || this.id === 'agent_id' || this.id === 'canvas_id' || this.id === 'outlet_target_id') {
@@ -289,7 +500,6 @@
 
     $('#warehouse-sale-form').on('submit', function() {
         $('#payment_status').prop('disabled', false);
-        $('#due_date').prop('disabled', false);
     });
 
     $(function() {

@@ -49,7 +49,7 @@ class WarehousePenjualanManager
     {
         return DB::transaction(function () use ($payload, $operatorId) {
             $buyer = $this->resolveBuyer($payload['buyer_type'], (int) $payload['buyer_id']);
-            [$saleDate, $paymentStatus, $dueDate] = $this->resolvePaymentFields($payload, $buyer);
+            [$saleDate, $paymentStatus, $dueDate] = $this->resolvePaymentFields($payload);
 
             $penjualan = Penjualan::create([
                 'code' => $payload['code'],
@@ -62,7 +62,7 @@ class WarehousePenjualanManager
                 'payment_type' => $payload['payment_type'],
                 'payment_status' => $paymentStatus,
                 'due_date' => $dueDate?->toDateString(),
-                'notes' => $payload['notes'] ?? null,
+                'notes' => null,
                 'discount' => (int) ($payload['discount'] ?? 0),
                 'total' => 0,
             ]);
@@ -85,7 +85,7 @@ class WarehousePenjualanManager
             $this->purgeSaleItems($penjualan);
 
             $buyer = $this->resolveBuyer($payload['buyer_type'], (int) $payload['buyer_id']);
-            [$saleDate, $paymentStatus, $dueDate] = $this->resolvePaymentFields($payload, $buyer);
+            [$saleDate, $paymentStatus, $dueDate] = $this->resolvePaymentFields($payload);
 
             $penjualan->update([
                 'buyer_type' => $payload['buyer_type'],
@@ -96,7 +96,7 @@ class WarehousePenjualanManager
                 'payment_type' => $payload['payment_type'],
                 'payment_status' => $paymentStatus,
                 'due_date' => $dueDate?->toDateString(),
-                'notes' => $payload['notes'] ?? null,
+                'notes' => null,
                 'discount' => (int) ($payload['discount'] ?? 0),
                 'total' => 0,
             ]);
@@ -116,18 +116,14 @@ class WarehousePenjualanManager
         });
     }
 
-    private function resolvePaymentFields(array $payload, array $buyer): array
+    private function resolvePaymentFields(array $payload): array
     {
         $saleDate = Carbon::parse($payload['sale_date']);
         $paymentType = $payload['payment_type'];
         $paymentStatus = $paymentType === 'cash'
             ? 'paid'
             : ($payload['payment_status'] ?: 'unpaid');
-        $dueDate = $paymentType === 'termin'
-            ? Carbon::parse(
-                $payload['due_date'] ?: $saleDate->copy()->addDays((int) ($buyer['termin_days'] ?? 0))->format('Y-m-d')
-            )
-            : null;
+        $dueDate = null;
 
         return [$saleDate, $paymentStatus, $dueDate];
     }
@@ -148,7 +144,7 @@ class WarehousePenjualanManager
 
             $allocations = $this->allocateWarehouseStock($product, $qty);
             $price = (int) $itemData['price'];
-            $lineSubtotal = (int) round($inputQty * $price);
+            $lineSubtotal = (int) round($qty * $price);
             $subtotal += $lineSubtotal;
 
             $saleItem = $penjualan->items()->create([

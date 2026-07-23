@@ -22,6 +22,7 @@ class SupplierController extends Controller
     {
         return view('suppliers.create', [
             'nextKode' => Supplier::generateNextKode(),
+            'poBuilderConfig' => (new Supplier)->poNumberBuilderConfig(),
         ]);
     }
 
@@ -43,6 +44,7 @@ class SupplierController extends Controller
     {
         return view('suppliers.edit', [
             'supplier' => $supplier,
+            'poBuilderConfig' => $supplier->poNumberBuilderConfig(),
         ]);
     }
 
@@ -50,7 +52,7 @@ class SupplierController extends Controller
     {
         return response()->json([
             'code' => $supplier->generateNextPoCode(),
-            'prefix' => $supplier->poNumberPrefix(),
+            'prefix' => $supplier->poNumberFormat(),
             'padding' => (int) ($supplier->po_number_padding ?: 5),
         ]);
     }

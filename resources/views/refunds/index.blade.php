@@ -23,7 +23,10 @@
                             <thead>
                                 <tr>
                                     <td>No</td>
-                                    <td>Nama</td>
+                                    <td>Kode</td>
+                                    <td>Invoice</td>
+                                    <td>Jenis Pembeli</td>
+                                    <td>Pembeli</td>
                                     <td>Nama Operator</td>
                                     <td>Total</td>
                                     <td>Aksi</td>
@@ -33,6 +36,9 @@
                                 <tr>
                                     <td>{{ $loop->iteration }}</td>
                                     <td>{{ $value->code }}</td>
+                                    <td>{{ $value->penjualan?->code ?? '-' }}</td>
+                                    <td>{{ $value->buyer_type_label }}</td>
+                                    <td>{{ $value->buyer_display_name }}</td>
                                     <td>{{ $value->user->name }}</td>
                                     <td>@currency($value->total)</td>
                                     <td>

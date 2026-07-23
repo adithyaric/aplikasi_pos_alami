@@ -27,15 +27,33 @@
                                     </div>
                                 @enderror
                             </div>
+                            @php
+                                $selectedCustomerPo = old('customer_po', '');
+                            @endphp
                             <div class="form-group">
                                 <label for="">Customer PO</label>
-                                <input type="text" class="form-control" name="customer_po" value="{{ old('customer_po') }}"
-                                    placeholder="Masukkan Customer PO (opsional)">
+                                <div class="clearfix" style="margin-bottom:6px;">
+                                    <button type="button" class="btn btn-success btn-xs pull-right" data-toggle="modal" data-target="#modalCustomerPo" style="margin-left:6px;">
+                                        <i class="fa fa-plus"></i> Tambah Customer PO
+                                    </button>
+                                    <a href="{{ route('customer-po.index') }}" class="btn btn-default btn-xs pull-right">
+                                        Manage Customer PO
+                                    </a>
+                                </div>
+                                <select class="form-control customer-po-select"
+                                    name="customer_po"
+                                    data-placeholder="Pilih Customer PO"
+                                    data-options-url="{{ route('pembelian.customer-po-options') }}"
+                                    data-selected-customer-po="{{ $selectedCustomerPo }}"
+                                    style="width:100%;">
+                                    <option value=""></option>
+                                </select>
                                 @error('customer_po')
                                     <div class="invalid-feedback text-danger">
                                         {{ $message }}
                                     </div>
                                 @enderror
+                                <small class="text-muted">Pilih dari master Customer PO. Klik Tambah Customer PO untuk membuat data baru tanpa meninggalkan halaman.</small>
                             </div>
                             <div class="form-group">
                                 <label>Supplier</label>
@@ -153,6 +171,38 @@
                             </div>
                         </div>
                     </form>
+
+                    <!-- Modal Customer PO -->
+                    <div class="modal fade" id="modalCustomerPo" tabindex="-1" role="dialog" aria-labelledby="modalCustomerPoLabel">
+                        <div class="modal-dialog" role="document">
+                            <form id="customerPoModalForm" action="{{ route('customer-po.store') }}" method="POST">
+                                @csrf
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                            <span aria-hidden="true">&times;</span>
+                                        </button>
+                                        <h4 class="modal-title" id="modalCustomerPoLabel">
+                                            <i class="fa fa-plus"></i> Tambah Customer PO
+                                        </h4>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="form-group">
+                                            <label for="customer_po_name">Nama Customer PO</label>
+                                            <input type="text" class="form-control" id="customer_po_name" name="name" placeholder="Masukkan Nama Customer PO">
+                                            <span class="help-block text-danger customer-po-error" style="display:none;"></span>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-default" data-dismiss="modal">Batal</button>
+                                        <button type="submit" class="btn btn-primary" id="btnSaveCustomerPo">
+                                            <i class="fa fa-save"></i> Simpan
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 </div><!-- /.box -->
             </div>
         </div>
@@ -168,6 +218,244 @@
         let poCodeRequest = null;
         let poCodeManuallyEdited = {{ old('code') ? 'true' : 'false' }};
         let currentSuggestedPoCode = $('[name="code"]').val() || '';
+
+        function normalizeCustomerPoName(name) {
+            return $.trim(name || '');
+        }
+
+        function appendAndSelectCustomerPo($select, name) {
+            var normalized = normalizeCustomerPoName(name);
+
+            if (normalized === '') {
+                $select.val('').trigger('change');
+                return;
+            }
+
+            var matchingValue = null;
+            $select.find('option').each(function() {
+                if (normalizeCustomerPoName(this.value).toLowerCase() === normalized.toLowerCase()) {
+                    matchingValue = this.value;
+                    return false;
+                }
+            });
+
+            if (matchingValue === null) {
+                $select.append($('<option>', {
+                    value: normalized,
+                    text: normalized
+                }));
+                matchingValue = normalized;
+            }
+
+            $select.val(matchingValue).trigger('change');
+        }
+
+        function extractCustomerPoItems(response) {
+            if ($.isArray(response)) {
+                return response;
+            }
+
+            if (response && $.isArray(response.results)) {
+                return response.results;
+            }
+
+            if (response && $.isArray(response.data)) {
+                return response.data;
+            }
+
+            return [];
+        }
+
+        function customerPoItemName(item) {
+            if (typeof item === 'string') {
+                return normalizeCustomerPoName(item);
+            }
+
+            return normalizeCustomerPoName(item && (item.name || item.text || item.value || item.id));
+        }
+
+        function notifyCustomerPo(icon, message) {
+            if (window.Swal && typeof window.Swal.fire === 'function') {
+                window.Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: icon,
+                    title: message,
+                    showConfirmButton: false,
+                    timer: 2200,
+                    timerProgressBar: true
+                });
+                return;
+            }
+
+            alert(message);
+        }
+
+        function initializeCustomerPoSelectWidget($select) {
+            $select.select2({
+                width: '100%',
+                allowClear: true,
+                placeholder: $select.data('placeholder') || 'Pilih Customer PO'
+            });
+        }
+
+        function loadCustomerPoOptions(selectedName) {
+            var $select = $('.customer-po-select');
+            var selected = normalizeCustomerPoName(selectedName || $select.val());
+            var optionsUrl = $select.data('options-url');
+
+            if (!optionsUrl) {
+                appendAndSelectCustomerPo($select, selected);
+                return $.Deferred().resolve().promise();
+            }
+
+            return $.getJSON(optionsUrl, { q: '' })
+                .done(function(response) {
+                    var seen = {};
+
+                    if ($select.data('select2')) {
+                        $select.select2('destroy');
+                    }
+
+                    $select.find('option:not([value=""])').remove();
+
+                    $.each(extractCustomerPoItems(response), function(_, item) {
+                        var value = customerPoItemName(item);
+                        var key = value.toLowerCase();
+
+                        if (value === '' || seen[key]) {
+                            return;
+                        }
+
+                        seen[key] = true;
+
+                        $select.append($('<option>', {
+                            value: value,
+                            text: value
+                        }));
+                    });
+
+                    initializeCustomerPoSelectWidget($select);
+                    appendAndSelectCustomerPo($select, selected);
+                })
+                .fail(function() {
+                    if (!$select.data('select2')) {
+                        initializeCustomerPoSelectWidget($select);
+                    }
+
+                    appendAndSelectCustomerPo($select, selected);
+                    notifyCustomerPo('error', 'Gagal memuat daftar Customer PO.');
+                });
+        }
+
+        function initializeCustomerPoSelect() {
+            var $select = $('.customer-po-select');
+
+            if (!$select.length) {
+                return;
+            }
+
+            loadCustomerPoOptions($select.data('selected-customer-po'));
+        }
+
+        function resetCustomerPoModal() {
+            $('#customer_po_name').val('');
+            $('.customer-po-error').hide().text('');
+        }
+
+        function closeCustomerPoModal() {
+            var $modal = $('#modalCustomerPo');
+
+            $modal.modal('hide');
+
+            setTimeout(function() {
+                if ($modal.is(':visible')) {
+                    $modal.removeClass('in').hide().attr('aria-hidden', 'true');
+                    $('body').removeClass('modal-open');
+                    $('.modal-backdrop').remove();
+                }
+            }, 200);
+        }
+
+        initializeCustomerPoSelect();
+
+        $('#modalCustomerPo').on('shown.bs.modal', function() {
+            $('#customer_po_name').focus();
+        });
+
+        $('#modalCustomerPo').on('hidden.bs.modal', function() {
+            resetCustomerPoModal();
+        });
+
+        $('#customerPoModalForm').on('submit', function(event) {
+            event.preventDefault();
+
+            var $form = $(this);
+            var $button = $('#btnSaveCustomerPo');
+            var $error = $('.customer-po-error');
+            var name = normalizeCustomerPoName($form.find('[name="name"]').val());
+
+            $error.hide().text('');
+
+            if (name === '') {
+                $error.text('Nama Customer PO wajib diisi.').show();
+                return;
+            }
+
+            $form.find('[name="name"]').val(name);
+
+            if (!$button.data('original-text')) {
+                $button.data('original-text', $button.html());
+            }
+
+            $button.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Menyimpan');
+
+            $.ajax({
+                url: $form.attr('action'),
+                method: 'POST',
+                dataType: 'json',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                data: $form.serialize() + '&_ajax=1'
+            })
+                .done(function(response) {
+                    var savedName = response && response.data && response.data.name
+                        ? response.data.name
+                        : name;
+
+                    closeCustomerPoModal();
+                    loadCustomerPoOptions(savedName);
+                    notifyCustomerPo('success', 'Customer PO berhasil disimpan.');
+                })
+                .fail(function(xhr) {
+                    var message = 'Gagal menyimpan Customer PO.';
+
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        closeCustomerPoModal();
+                        loadCustomerPoOptions(name);
+                        notifyCustomerPo('success', 'Customer PO berhasil disimpan.');
+                        return;
+                    }
+
+                    if (xhr.responseJSON) {
+                        if (xhr.responseJSON.errors && xhr.responseJSON.errors.name && xhr.responseJSON.errors.name[0]) {
+                            message = xhr.responseJSON.errors.name[0];
+                        } else if (xhr.responseJSON.message) {
+                            message = xhr.responseJSON.message;
+                        }
+                    }
+
+                    $error.text(message).show();
+                    notifyCustomerPo('error', message);
+                })
+                .always(function() {
+                    $button.prop('disabled', false).html($button.data('original-text'));
+                });
+        });
+    </script>
+    <script>
 
         //TODO use product's konversiDisplay instead
         function konversiDisplay(qty, konversiQty, satuanBesar, satuan) {

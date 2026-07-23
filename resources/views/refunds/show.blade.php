@@ -30,12 +30,20 @@
                                     <td colspan="2">{{ $refund->penjualan->code }}</td>
                                 </tr>
                                 <tr>
-                                    <td colspan="2">Nama Customer</td>
-                                    <td colspan="2">{{ $refund->customer->name }}</td>
+                                    <td colspan="2">Jenis Pembeli</td>
+                                    <td colspan="2">{{ $refund->buyer_type_label }}</td>
                                 </tr>
                                 <tr>
-                                    <td colspan="2">Nama Cabang</td>
-                                    <td colspan="2">{{ $refund->outlet->name }}</td>
+                                    <td colspan="2">Nama Pembeli</td>
+                                    <td colspan="2">{{ $refund->buyer_display_name }}</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">Customer Retail</td>
+                                    <td colspan="2">{{ $refund->customer?->name ?? '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">Cabang</td>
+                                    <td colspan="2">{{ $refund->outlet?->name ?? '-' }}</td>
                                 </tr>
                                 <tr>
                                     <td colspan="2">Tanggal</td>

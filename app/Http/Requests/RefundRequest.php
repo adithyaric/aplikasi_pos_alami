@@ -14,13 +14,15 @@ class RefundRequest extends FormRequest
     public function rules()
     {
         return [
-            'code' => 'required',
-            'kas_id' => 'required',
-            'penjualan_id' => 'required',
-            'customer_id' => 'required',
-            'outlet_id' => 'required',
-            'tanggal' => 'required',
+            'code' => 'required|string|max:255',
+            'kas_id' => 'nullable|exists:kas,id',
+            'penjualan_id' => 'required|exists:penjualans,id',
+            'tanggal' => 'required|date',
             'total' => 'required',
+            'product' => 'required|array|min:1',
+            'product.*.product_id' => 'required|exists:products,id',
+            'product.*.qty' => 'required|integer|min:1',
+            'product.*.alasan' => 'nullable|string|max:255',
         ];
     }
 }

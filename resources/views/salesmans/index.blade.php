@@ -26,7 +26,7 @@
                                     <td>Kode</td>
                                     <td>Nama</td>
                                     <td>Cabang</td>
-                                    <td>Akun User</td>
+                                    <td>Login</td>
                                     <td>Alamat</td>
                                     <td>Nomor Telp</td>
                                     <td>Aksi</td>
@@ -38,7 +38,7 @@
                                     <td>{{ $value->code ?? '-' }}</td>
                                     <td>{{ $value->name }}</td>
                                     <td>{{ $value->outlet?->name ?? '-' }}</td>
-                                    <td>{{ $value->user?->name ?? '-' }}</td>
+                                    <td>{{ $value->user?->email ?: ($value->user?->no_telp ?? '-') }}</td>
                                     <td>{{ $value->alamat }}</td>
                                     <td>{{ $value->no_telp }}</td>
                                     <td>

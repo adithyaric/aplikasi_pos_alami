@@ -148,7 +148,7 @@
                                     <th>Total</th>
                                     <th width="120">Status PO</th>
                                     <th width="120">Status Bayar</th>
-                                    <th width="200">Aksi</th>
+                                    <th width="260">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -228,11 +228,14 @@
                                                 <i class="fa fa-credit-card"></i> Pembayaran
                                             </a>
 
-                                            @if ($value->canBeEditedBy(auth()->user()))
+                                            {{-- @if ($value->canBeEditedBy(auth()->user())) --}}
                                                 <a href="{{ route('pembelian.edit', $value->id) }}"
                                                     class="btn btn-xs btn-warning" title="Edit">
-                                                    <i class="fa fa-pencil"></i>
+                                                    <i class="fa fa-pencil"></i> Edit
                                                 </a>
+                                            {{-- @endif --}}
+
+                                            {{-- @if ($value->canBeEditedBy(auth()->user())) --}}
                                                 @if (auth()->user()->role !== 'owner')
                                                     <form action="{{ route('pembelian.destroy', $value->id) }}" method="post"
                                                         style="display:inline">
@@ -245,12 +248,16 @@
                                                         </button>
                                                     </form>
                                                 @endif
-                                            @endif
+                                            {{-- @endif --}}
 
                                             {{-- Export PO --}}
                                             <a href="{{ route('laporan.pembelian', $value->id) }}"
-                                                class="btn btn-xs btn-success" title="Export PO">
-                                                <i class="fa fa-file-excel-o"></i> PO
+                                                class="btn btn-xs btn-success" title="Export XLSX PO">
+                                                <i class="fa fa-file-excel-o"></i> XLSX
+                                            </a>
+                                            <a href="{{ route('setting.po-template.download', ['format' => 'docx', 'filename' => 'Dokumen_PO-'.$value->code.'.docx']) }}"
+                                                class="btn btn-xs btn-primary" title="Download Template DOCX Aktif">
+                                                <i class="fa fa-file-word-o"></i> DOCX
                                             </a>
                                         </td>
                                     </tr>

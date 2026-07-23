@@ -43,7 +43,9 @@
                                 <td>{{ $value->alamat }}</td>
                                 <td>{{ $value->no_telp }}</td>
                                 <td>
-                                    <code>{{ $value->po_number_prefix ?: 'PO-{SUPPLIER_CODE}-{YYYY}{MM}-' }}</code>
+                                    <code>{{ $value->poNumberFormat() }}</code>
+                                    <br>
+                                    <small class="text-muted">Contoh: {{ $value->previewPoCode() }}</small>
                                     <br>
                                     <small class="text-muted">Digit: {{ $value->po_number_padding ?: 5 }}</small>
                                 </td>

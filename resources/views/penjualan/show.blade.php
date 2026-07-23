@@ -52,16 +52,8 @@
                                 </td>
                             </tr>
                             <tr>
-                                <th>Jatuh Tempo</th>
-                                <td>{{ $penjualan->due_date?->format('d M Y') ?? '-' }}</td>
-                            </tr>
-                            <tr>
                                 <th>Operator</th>
                                 <td>{{ $penjualan->operator?->name ?? '-' }}</td>
-                            </tr>
-                            <tr>
-                                <th>Catatan</th>
-                                <td>{{ $penjualan->notes ?: '-' }}</td>
                             </tr>
                         </table>
                     </div>
@@ -99,7 +91,7 @@
                                         <td>{{ $item->product?->qtyDisplay((int) $item->qty) ?? $item->qty }}</td>
                                         <td>
                                             @currency($item->price)
-                                            <small class="text-muted">/ {{ $item->unit ?? $item->product?->satuan ?? 'unit' }}</small>
+                                            <small class="text-muted">/ {{ $item->product?->satuan ?? 'unit' }}</small>
                                         </td>
                                         <td>@currency($item->subtotal)</td>
                                     </tr>
@@ -128,6 +120,9 @@
                         </a>
                         <a href="{{ route('penjualan.pembayaran.edit', $penjualan) }}" class="btn btn-success">
                             <i class="fa fa-credit-card"></i> Pembayaran
+                        </a>
+                        <a href="{{ route('refund.create', ['penjualan_id' => $penjualan->id]) }}" class="btn btn-danger">
+                            <i class="fa fa-undo"></i> Retur
                         </a>
                         <a href="{{ route('penjualan.print', $penjualan) }}" class="btn btn-warning" target="_blank">
                             <i class="fa fa-print"></i> Invoice

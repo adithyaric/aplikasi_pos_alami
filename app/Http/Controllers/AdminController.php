@@ -11,23 +11,24 @@ use Illuminate\Support\Facades\Hash;
 
 class AdminController extends Controller
 {
+    private const MANAGED_ROLES = [
+        'superadmin',
+        'admin-gudang',
+        'staff-outlet',
+        'owner',
+    ];
+
     public function index()
     {
         return view('admins.index', [
-            'users' => User::whereNot('role', 'customer')->get(),
+            'users' => User::whereNotIn('role', ['customer', 'sales'])->get(),
         ]);
     }
 
     public function create()
     {
         return view('admins.create', [
-            'roles' => [
-                'superadmin',
-                'admin-gudang',
-                'staff-outlet',
-                'sales',
-                'owner',
-            ],
+            'roles' => self::MANAGED_ROLES,
             'outlets' => Outlet::get(),
         ]);
     }
@@ -49,15 +50,11 @@ class AdminController extends Controller
 
     public function edit(User $admin)
     {
+        abort_if($admin->role === 'sales', 404);
+
         return view('admins.edit', [
             'admin' => $admin,
-            'roles' => [
-                'superadmin',
-                'admin-gudang',
-                'staff-outlet',
-                'sales',
-                'owner',
-            ],
+            'roles' => self::MANAGED_ROLES,
             'outlets' => Outlet::get(),
         ]);
     }
@@ -67,8 +64,8 @@ class AdminController extends Controller
         $this->validate($request, [
             'name' => 'required',
             'username' => 'required',
-            'outlet_id' => 'required_if:role,staff-outlet|required_if:role,admin-gudang|required_if:role,sales',
-            'role' => 'required',
+            'outlet_id' => 'required_if:role,staff-outlet|required_if:role,admin-gudang|nullable|exists:outlets,id',
+            'role' => 'required|in:'.implode(',', self::MANAGED_ROLES),
             'status' => 'required',
             'email' => 'required|email|unique:users,email,'.$admin->id,
             'password' => 'same:confirm-password',

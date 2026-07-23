@@ -42,11 +42,62 @@ class ProductUnitConverter
 
     public function defaultInputUnit(Product $product, string $channel = 'warehouse'): string
     {
-        return match ($channel) {
-            'warehouse', 'supplier', 'distribution' => $product->satuan_besar ?: ($product->satuan ?: 'PCS'),
-            'branch', 'sales', 'customer' => $product->satuan ?: 'PCS',
-            default => $product->satuan ?: 'PCS',
+        $units = $this->inputUnits($product, $channel);
+
+        return $units[0]['value'] ?? ($product->satuan ?: 'PCS');
+    }
+
+    public function inputUnits(Product $product, string $channel = 'warehouse'): array
+    {
+        $baseUnit = $product->satuan ?: 'PCS';
+        $orderedUnits = match ($channel) {
+            'warehouse', 'supplier', 'distribution' => [
+                $product->satuan_besar,
+                $product->satuan_terbesar,
+                $baseUnit,
+            ],
+            'branch', 'sales', 'customer' => [$baseUnit],
+            default => [
+                $baseUnit,
+                $product->satuan_besar,
+                $product->satuan_terbesar,
+            ],
         };
+
+        $options = [];
+        $seen = [];
+
+        foreach ($orderedUnits as $unit) {
+            if (! $unit) {
+                continue;
+            }
+
+            $key = $this->normalizeUnitName($unit);
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $options[] = [
+                'value' => $unit,
+                'label' => $this->inputUnitLabel($product, $unit),
+            ];
+        }
+
+        return $options;
+    }
+
+    public function inputUnitLabel(Product $product, ?string $unit): string
+    {
+        $resolvedUnit = $unit ?: ($product->satuan ?: 'PCS');
+        $baseUnit = $product->satuan ?: 'PCS';
+        $factor = $this->factorForUnit($product, $resolvedUnit);
+
+        if ($factor <= 1 || $this->normalizeUnitName($resolvedUnit) === $this->normalizeUnitName($baseUnit)) {
+            return $resolvedUnit;
+        }
+
+        return sprintf('%s (1 = %s %s)', $resolvedUnit, number_format($factor, 0, ',', '.'), $baseUnit);
     }
 
     public function display(Product $product, int|float $qty): string

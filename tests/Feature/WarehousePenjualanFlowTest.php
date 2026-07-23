@@ -31,6 +31,7 @@ class WarehousePenjualanFlowTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Tambah Penjualan');
+        $response->assertSee('Cek Barang');
     }
 
     public function test_warehouse_sale_edit_page_renders(): void
@@ -59,6 +60,7 @@ class WarehousePenjualanFlowTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Edit Penjualan');
+        $response->assertSee('Cek Barang');
     }
 
     public function test_warehouse_sale_to_agent_reduces_stock_and_stores_base_unit_qty(): void
@@ -131,7 +133,7 @@ class WarehousePenjualanFlowTest extends TestCase
         $this->assertSame('warehouse', $penjualan->sale_channel);
         $this->assertSame('agent', $penjualan->buyer_type);
         $this->assertSame($agent->id, $penjualan->buyer_id);
-        $this->assertSame(440000, (int) $penjualan->total);
+        $this->assertSame(4400000, (int) $penjualan->total);
         $this->assertSame(30, (int) $stock->qty);
 
         $this->assertDatabaseHas('penjualan_items', [
@@ -141,7 +143,7 @@ class WarehousePenjualanFlowTest extends TestCase
             'qty_input' => 2,
             'unit' => 'Slop',
             'price' => 220000,
-            'subtotal' => 440000,
+            'subtotal' => 4400000,
         ]);
 
         $this->assertDatabaseHas('stock_movements', [
@@ -287,6 +289,7 @@ class WarehousePenjualanFlowTest extends TestCase
         $ownerStock = OwnerStock::firstOrFail();
 
         $this->assertSame('outlet', $penjualan->buyer_type);
+        $this->assertSame(1800000, (int) $penjualan->total);
         $this->assertSame(20, (int) $stock->qty);
         $this->assertSame($outlet->id, (int) $ownerStock->owner_id);
         $this->assertSame($product->id, (int) $ownerStock->product_id);
@@ -425,7 +428,7 @@ class WarehousePenjualanFlowTest extends TestCase
         $this->assertSame($outlet->id, $penjualan->buyer_id);
         $this->assertSame(50, (int) $stockA->qty);
         $this->assertSame(20, (int) $stockB->qty);
-        $this->assertSame(580000, (int) $penjualan->total);
+        $this->assertSame(5800000, (int) $penjualan->total);
 
         $this->assertDatabaseCount('penjualan_items', 2);
         $this->assertDatabaseHas('owner_stocks', [

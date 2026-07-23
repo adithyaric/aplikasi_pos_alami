@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\PembelianRequest;
+use App\Models\CustomerPo;
 use App\Models\Kas;
 use App\Models\Outlet;
 use App\Models\Pembelian;
@@ -188,10 +189,11 @@ class PembelianController extends Controller
         $request->validated();
         $supplier = Supplier::findOrFail($request->supplier_id);
         $code = trim((string) $request->code);
+        $customerPo = $this->syncCustomerPoMaster($request->customer_po);
 
         $pembelian = Pembelian::create([
             'code' => $code !== '' ? $code : $supplier->generateNextPoCode(),
-            'customer_po' => $request->customer_po,
+            'customer_po' => $customerPo,
             // 'outlet_id' => $request->outlet_id,
             'supplier_id' => $request->supplier_id,
             // 'kas_id' => $request->kas_id,
@@ -240,7 +242,7 @@ class PembelianController extends Controller
     {
         if (! $pembelian->canBeEditedBy(auth()->user())) {
             return redirect()->route('pembelian.index')
-                ->with('toast_error', 'PO ini belum bisa diedit. Admin gudang hanya bisa edit setelah ACC, sedangkan owner dan superadmin bisa edit kapan saja sebelum published.');
+                ->with('toast_error', 'Anda tidak memiliki akses edit PO.');
         }
 
         return view('pembelians.edit', [
@@ -256,10 +258,11 @@ class PembelianController extends Controller
     {
         if (! $pembelian->canBeEditedBy(auth()->user())) {
             return redirect()->route('pembelian.index')
-                ->with('toast_error', 'PO ini belum bisa diedit. Admin gudang hanya bisa edit setelah ACC, sedangkan owner dan superadmin bisa edit kapan saja sebelum published.');
+                ->with('toast_error', 'Anda tidak memiliki akses edit PO.');
         }
 
         $data = $request->validated();
+        $data['customer_po'] = $this->syncCustomerPoMaster($request->customer_po);
         $pembelian->update($data);
         $this->updateStock($request, $pembelian);
 
@@ -488,125 +491,101 @@ class PembelianController extends Controller
 
     private function updateStock($request, $pembelian)
     {
-        if ($pembelian->is_published) {
-            foreach ($request as $productData) {
-                $product = Product::find($productData->product_id);
-                if ($product->is_serialized && ! empty($productData->serial_numbers)) {
-                    $serialNumbers = is_array($productData->serial_numbers)
-                        ? $productData->serial_numbers
-                        : explode("\n", trim($productData->serial_numbers));
+        foreach ($request->input('product', []) as $productData) {
+            $product = Product::find($productData['product_id']);
 
-                    foreach ($serialNumbers as $serial) {
-                        $serial = trim($serial);
-                        if (! empty($serial)) {
-                            // Create market stock
-                            Stock::updateOrCreate(
-                                [
-                                    'pembelian_id' => $pembelian->id,
-                                    'product_id' => $productData->product_id,
-                                    'serial_number' => $serial
-                                ],
-                                [
-                                    'harga_beli' => $this->normalizeMoney($productData->harga_beli),
-                                    'qty' => 1, // Always 1 for serialized items
-                                    'subtotal' => $this->normalizeMoney($productData->harga_beli),
-                                    'expired_at' => $productData->expired_at ?? null,
-                                    'condition' => 'new',
-                                ]
-                            );
-
-                            // Decrease StockPembelian quantity
-                            StockPembelian::where([
-                                'pembelian_id' => $pembelian->id,
-                                'product_id' => $productData->product_id,
-                                'serial_number' => $serial
-                            ])->decrement('qty', 1);
-                        }
-                    }
-                } else {
-                    // For bulk items
-                    $qty = (int) $productData->qty;
-
-                    // Create market stock
-                    Stock::updateOrCreate(
-                        ['pembelian_id' => $pembelian->id, 'product_id' => $productData->product_id],
-                        [
-                            'harga_beli' => $this->normalizeMoney($productData->harga_beli),
-                            'qty' => $qty,
-                            'subtotal' => $this->normalizeMoney($productData->subtotal),
-                            'expired_at' => $productData->expired_at ?? null,
-                            'condition' => 'new',
-                        ]
-                    );
-
-                    // Decrease StockPembelian quantity
-                    StockPembelian::where([
-                        'pembelian_id' => $pembelian->id,
-                        'product_id' => $productData->product_id
-                    ])->decrement('qty', $qty);
-                }
-
-                $product->update(['harga_beli' => $this->normalizeMoney($productData->harga_beli)]);
+            if (! $product) {
+                continue;
             }
-        } else {
-            if (isset($request->product)) {
-                foreach ($request->product as $productData) {
-                    $product = Product::find($productData['product_id']);
-                    // Process serial numbers for PembelianProduct
-                    $serialNumbers = null;
-                    if (isset($productData['serial_numbers']) && ! empty($productData['serial_numbers'])) {
-                        $serialNumbers = is_array($productData['serial_numbers'])
-                            ? $productData['serial_numbers']
-                            : array_filter(array_map('trim', explode("\n", $productData['serial_numbers'])));
-                    }
 
-                    PembelianProduct::updateOrCreate(
-                        ['pembelian_id' => $pembelian->id, 'product_id' => $productData['product_id']],
-                        [
-                            'harga_beli' => $this->normalizeMoney($productData['harga_beli']),
-                            'qty' => (int) $productData['qty'],
-                            'subtotal' => $this->normalizeMoney($productData['subtotal']),
-                            // 'expired_at' => $productData['expired'] ?? null,
-                            'serial_numbers' => $serialNumbers,
-                        ]
-                    );
+            $hargaBeli = $this->normalizeMoney($productData['harga_beli'] ?? 0);
+            $qty = (int) ($productData['qty'] ?? 0);
+            $subtotal = $this->normalizeMoney($productData['subtotal'] ?? 0);
+            $expiredAt = $productData['expired_at'] ?? $productData['expired'] ?? null;
+            $serialNumbers = null;
 
-                    // Add StockPembelian for non-published products
-                    if (Product::find($productData['product_id'])->is_serialized && ! empty($serialNumbers)) {
-                        foreach ($serialNumbers as $serial) {
-                            StockPembelian::updateOrCreate(
-                                [
-                                    'pembelian_id' => $pembelian->id,
-                                    'product_id' => $productData['product_id'],
-                                    'serial_number' => $serial
-                                ],
-                                [
-                                    'harga_beli' => $this->normalizeMoney($productData['harga_beli']),
-                                    'qty' => 1,
-                                    'subtotal' => $this->normalizeMoney($productData['harga_beli']),
-                                    // 'expired_at' => $productData['expired'] ?? null,
-                                    'condition' => 'new',
-                                    'status' => 'available',
-                                ]
-                            );
-                        }
-                    } else {
-                        StockPembelian::updateOrCreate(
-                            ['pembelian_id' => $pembelian->id, 'product_id' => $productData['product_id']],
+            if (! empty($productData['serial_numbers'])) {
+                $serialNumbers = is_array($productData['serial_numbers'])
+                    ? array_filter(array_map('trim', $productData['serial_numbers']))
+                    : array_filter(array_map('trim', explode("\n", $productData['serial_numbers'])));
+            }
+
+            PembelianProduct::updateOrCreate(
+                ['pembelian_id' => $pembelian->id, 'product_id' => $productData['product_id']],
+                [
+                    'harga_beli' => $hargaBeli,
+                    'qty' => $qty,
+                    'subtotal' => $subtotal,
+                    'expired_at' => $expiredAt,
+                    'serial_numbers' => $serialNumbers,
+                ]
+            );
+
+            if ($pembelian->is_published) {
+                if ($product->is_serialized && ! empty($serialNumbers)) {
+                    foreach ($serialNumbers as $serial) {
+                        Stock::updateOrCreate(
                             [
-                                'harga_beli' => $this->normalizeMoney($productData['harga_beli']),
-                                'qty' => (int) $productData['qty'],
-                                'subtotal' => $this->normalizeMoney($productData['subtotal']),
-                                // 'expired_at' => $productData['expired'] ?? null,
+                                'pembelian_id' => $pembelian->id,
+                                'product_id' => $productData['product_id'],
+                                'serial_number' => $serial,
+                            ],
+                            [
+                                'harga_beli' => $hargaBeli,
+                                'qty' => 1,
+                                'subtotal' => $hargaBeli,
+                                'expired_at' => $expiredAt,
                                 'condition' => 'new',
                                 'status' => 'available',
                             ]
                         );
                     }
-
-                    $product->update(['harga_beli' => $this->normalizeMoney($productData['harga_beli'])]);
+                } else {
+                    Stock::updateOrCreate(
+                        ['pembelian_id' => $pembelian->id, 'product_id' => $productData['product_id']],
+                        [
+                            'harga_beli' => $hargaBeli,
+                            'qty' => $qty,
+                            'subtotal' => $subtotal,
+                            'expired_at' => $expiredAt,
+                            'condition' => 'new',
+                            'status' => 'available',
+                        ]
+                    );
                 }
+            } elseif ($product->is_serialized && ! empty($serialNumbers)) {
+                foreach ($serialNumbers as $serial) {
+                    StockPembelian::updateOrCreate(
+                        [
+                            'pembelian_id' => $pembelian->id,
+                            'product_id' => $productData['product_id'],
+                            'serial_number' => $serial,
+                        ],
+                        [
+                            'harga_beli' => $hargaBeli,
+                            'qty' => 1,
+                            'subtotal' => $hargaBeli,
+                            'expired_at' => $expiredAt,
+                            'condition' => 'new',
+                            'status' => 'available',
+                        ]
+                    );
+                }
+            } else {
+                StockPembelian::updateOrCreate(
+                    ['pembelian_id' => $pembelian->id, 'product_id' => $productData['product_id']],
+                    [
+                        'harga_beli' => $hargaBeli,
+                        'qty' => $qty,
+                        'subtotal' => $subtotal,
+                        'expired_at' => $expiredAt,
+                        'condition' => 'new',
+                        'status' => 'available',
+                    ]
+                );
             }
+
+            $product->update(['harga_beli' => $hargaBeli]);
         }
     }
 
@@ -838,4 +817,36 @@ class PembelianController extends Controller
 
         return 'PO'.str_pad((string) $nextNumber, 5, '0', STR_PAD_LEFT);
     }
+
+    private function syncCustomerPoMaster(?string $customerPo): ?string
+    {
+        $normalized = trim((string) $customerPo);
+
+        if ('' === $normalized) {
+            return null;
+        }
+
+        $existing = CustomerPo::withTrashed()
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($normalized)])
+            ->first();
+
+        if ($existing) {
+            if ($existing->trashed()) {
+                $existing->restore();
+            }
+
+            if ($existing->name !== $normalized) {
+                $existing->update(['name' => $normalized]);
+            }
+
+            return $normalized;
+        }
+
+        CustomerPo::create([
+            'name' => $normalized,
+        ]);
+
+        return $normalized;
+    }
+
 }

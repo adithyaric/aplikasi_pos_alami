@@ -102,9 +102,7 @@
                                     <select class="form-control select2" id="outlet_target_id" name="outlet_target_id" style="width:100%">
                                         <option value="">Pilih Cabang</option>
                                         @foreach ($outlets as $outlet)
-                                            <option value="{{ $outlet->id }}"
-                                                data-termin-days="0"
-                                                {{ (string) $selectedOutletId === (string) $outlet->id ? 'selected' : '' }}>
+                                            <option value="{{ $outlet->id }}" {{ (string) $selectedOutletId === (string) $outlet->id ? 'selected' : '' }}>
                                                 {{ $outlet->name }}
                                             </option>
                                         @endforeach
@@ -115,7 +113,7 @@
                                 </div>
                             </div>
 
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Tipe Pembayaran</label>
                                     <select class="form-control" id="payment_type" name="payment_type" required>
@@ -128,7 +126,7 @@
                                 </div>
                             </div>
 
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Status Pembayaran</label>
                                     <select class="form-control" id="payment_status" name="payment_status">
@@ -141,25 +139,14 @@
                                     @enderror
                                 </div>
                             </div>
-
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label>Jatuh Tempo</label>
-                                    <input type="date" class="form-control" id="due_date" name="due_date"
-                                        value="{{ old('due_date', optional($penjualan?->due_date)->format('Y-m-d')) }}">
-                                    @error('due_date')
-                                        <div class="text-danger">{{ $message }}</div>
-                                    @enderror
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Catatan</label>
-                            <textarea class="form-control" name="notes" rows="2" placeholder="Catatan tambahan (opsional)">{{ old('notes', $penjualan?->notes) }}</textarea>
                         </div>
 
                         <hr>
+
+                        <div class="alert alert-info">
+                            Harga diisi per satuan dasar produk. Jika qty dimasukkan dalam Slop atau Ball, sistem akan
+                            mengonversinya ke satuan dasar terlebih dahulu sebelum menghitung subtotal.
+                        </div>
 
                         <div class="table-responsive">
                             <table class="table table-bordered" id="items-table">
@@ -169,7 +156,7 @@
                                         <th style="width:14%">Stok Tersedia</th>
                                         <th style="width:12%">Satuan</th>
                                         <th style="width:10%">Qty</th>
-                                        <th style="width:16%">Harga</th>
+                                        <th style="width:16%">Harga / Satuan Dasar</th>
                                         <th style="width:14%">Subtotal</th>
                                         <th style="width:6%">Aksi</th>
                                     </tr>
@@ -182,9 +169,14 @@
                             <div class="text-danger">{{ $message }}</div>
                         @enderror
 
-                        <button type="button" class="btn btn-default" id="add-row">
-                            <i class="fa fa-plus"></i> Tambah Produk
-                        </button>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#modalCekBarangPenjualan">
+                                <i class="fa fa-search"></i> Cek Barang
+                            </button>
+                            <button type="button" class="btn btn-default" id="add-row">
+                                <i class="fa fa-plus"></i> Tambah Produk
+                            </button>
+                        </div>
 
                         <div class="row" style="margin-top:20px">
                             <div class="col-md-4 col-md-offset-8">
@@ -213,6 +205,47 @@
                         <button type="submit" class="btn btn-primary">
                             <i class="fa fa-save"></i> {{ $submitLabel }}
                         </button>
+                    </div>
+
+                    <div class="modal fade" id="modalCekBarangPenjualan" tabindex="-1" role="dialog" aria-labelledby="modalCekBarangPenjualanLabel">
+                        <div class="modal-dialog modal-lg" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                    <h4 class="modal-title" id="modalCekBarangPenjualanLabel">
+                                        <i class="fa fa-search"></i> Pilih Produk Penjualan
+                                    </h4>
+                                </div>
+                                <div class="modal-body">
+                                    <p class="text-muted">
+                                        Checklist produk yang ingin ditambahkan. Produk yang sudah ada di tabel akan otomatis dikunci.
+                                    </p>
+                                    <table id="tableCekBarangPenjualan" class="table table-bordered table-striped table-hover" style="width:100%">
+                                        <thead>
+                                            <tr>
+                                                <th width="30"><input type="checkbox" id="checkAllPenjualan"></th>
+                                                <th>Kode</th>
+                                                <th>Nama Produk</th>
+                                                <th>Stok Tersedia</th>
+                                                <th>Satuan Input</th>
+                                                <th>Harga / Satuan Dasar</th>
+                                                <th>Status</th>
+                                                <th width="90">Qty</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="cekBarangPenjualanBody"></tbody>
+                                    </table>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-default" data-dismiss="modal">Tutup</button>
+                                    <button type="button" class="btn btn-primary" id="btnTambahkanPenjualan">
+                                        <i class="fa fa-check"></i> Tambahkan ke Penjualan
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </form>
             </div>
