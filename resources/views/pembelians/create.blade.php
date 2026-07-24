@@ -54,6 +54,32 @@
                                     </div>
                                 @enderror
                                 <small class="text-muted">Pilih dari master Customer PO. Klik Tambah Customer PO untuk membuat data baru tanpa meninggalkan halaman.</small>
+                                <div class="well well-sm customer-po-detail-card" style="display:none; margin-top:10px; margin-bottom:0;">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <strong>Nama</strong>
+                                            <div id="customer_po_detail_name">-</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <strong>Nama Perusahaan</strong>
+                                            <div id="customer_po_detail_company">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="row" style="margin-top:10px;">
+                                        <div class="col-md-6">
+                                            <strong>Phone</strong>
+                                            <div id="customer_po_detail_phone">-</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <strong>Email</strong>
+                                            <div id="customer_po_detail_email">-</div>
+                                        </div>
+                                    </div>
+                                    <div style="margin-top:10px;">
+                                        <strong>Alamat</strong>
+                                        <div id="customer_po_detail_address">-</div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label>Supplier</label>
@@ -188,9 +214,29 @@
                                     </div>
                                     <div class="modal-body">
                                         <div class="form-group">
-                                            <label for="customer_po_name">Nama Customer PO</label>
-                                            <input type="text" class="form-control" id="customer_po_name" name="name" placeholder="Masukkan Nama Customer PO">
-                                            <span class="help-block text-danger customer-po-error" style="display:none;"></span>
+                                            <label for="customer_po_name">Nama</label>
+                                            <input type="text" class="form-control" id="customer_po_name" name="name" placeholder="Masukkan Nama">
+                                            <span class="help-block text-danger customer-po-error" data-field="name" style="display:none;"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="customer_po_company_name">Nama Perusahaan</label>
+                                            <input type="text" class="form-control" id="customer_po_company_name" name="company_name" placeholder="Masukkan Nama Perusahaan">
+                                            <span class="help-block text-danger customer-po-error" data-field="company_name" style="display:none;"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="customer_po_address">Alamat</label>
+                                            <textarea class="form-control" id="customer_po_address" name="address" rows="3" placeholder="Masukkan Alamat"></textarea>
+                                            <span class="help-block text-danger customer-po-error" data-field="address" style="display:none;"></span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="customer_po_phone">Phone</label>
+                                            <input type="text" class="form-control" id="customer_po_phone" name="phone" placeholder="Masukkan Phone">
+                                            <span class="help-block text-danger customer-po-error" data-field="phone" style="display:none;"></span>
+                                        </div>
+                                        <div class="form-group" style="margin-bottom:0;">
+                                            <label for="customer_po_email">Email</label>
+                                            <input type="email" class="form-control" id="customer_po_email" name="email" placeholder="Masukkan Email">
+                                            <span class="help-block text-danger customer-po-error" data-field="email" style="display:none;"></span>
                                         </div>
                                     </div>
                                     <div class="modal-footer">
@@ -219,8 +265,97 @@
         let poCodeManuallyEdited = {{ old('code') ? 'true' : 'false' }};
         let currentSuggestedPoCode = $('[name="code"]').val() || '';
 
+        var customerPoDirectory = {};
+
         function normalizeCustomerPoName(name) {
             return $.trim(name || '');
+        }
+
+        function normalizeCustomerPoField(value) {
+            return $.trim(value || '');
+        }
+
+        function customerPoOptionKey(name) {
+            return normalizeCustomerPoName(name).toLowerCase();
+        }
+
+        function extractCustomerPoItems(response) {
+            if ($.isArray(response)) {
+                return response;
+            }
+
+            if (response && $.isArray(response.results)) {
+                return response.results;
+            }
+
+            if (response && $.isArray(response.data)) {
+                return response.data;
+            }
+
+            return [];
+        }
+
+        function customerPoItemDetails(item) {
+            if (typeof item === 'string') {
+                return {
+                    name: normalizeCustomerPoName(item),
+                    company_name: '',
+                    address: '',
+                    phone: '',
+                    email: ''
+                };
+            }
+
+            return {
+                name: normalizeCustomerPoName(item && (item.name || item.text || item.value || item.id)),
+                company_name: normalizeCustomerPoField(item && item.company_name),
+                address: normalizeCustomerPoField(item && item.address),
+                phone: normalizeCustomerPoField(item && item.phone),
+                email: normalizeCustomerPoField(item && item.email)
+            };
+        }
+
+        function customerPoItemLabel(item) {
+            var details = customerPoItemDetails(item);
+
+            return details.company_name
+                ? details.name + ' - ' + details.company_name
+                : details.name;
+        }
+
+        function rememberCustomerPoItem(item) {
+            var details = customerPoItemDetails(item);
+            var key = customerPoOptionKey(details.name);
+
+            if (key === '') {
+                return;
+            }
+
+            if (!customerPoDirectory[key]) {
+                customerPoDirectory[key] = details;
+                return;
+            }
+
+            ['company_name', 'address', 'phone', 'email'].forEach(function(field) {
+                if (!customerPoDirectory[key][field] && details[field]) {
+                    customerPoDirectory[key][field] = details[field];
+                }
+            });
+        }
+
+        function appendCustomerPoOption($select, item) {
+            var details = customerPoItemDetails(item);
+
+            if (details.name === '') {
+                return;
+            }
+
+            rememberCustomerPoItem(details);
+
+            $select.append($('<option>', {
+                value: details.name,
+                text: customerPoItemLabel(details)
+            }));
         }
 
         function appendAndSelectCustomerPo($select, name) {
@@ -240,38 +375,32 @@
             });
 
             if (matchingValue === null) {
-                $select.append($('<option>', {
-                    value: normalized,
-                    text: normalized
-                }));
+                appendCustomerPoOption($select, {
+                    name: normalized
+                });
                 matchingValue = normalized;
             }
 
             $select.val(matchingValue).trigger('change');
         }
 
-        function extractCustomerPoItems(response) {
-            if ($.isArray(response)) {
-                return response;
+        function renderCustomerPoDetails(name) {
+            var normalized = normalizeCustomerPoName(name);
+            var details = customerPoDirectory[customerPoOptionKey(normalized)] || customerPoItemDetails({
+                name: normalized
+            });
+
+            if (normalized === '') {
+                $('.customer-po-detail-card').hide();
+                return;
             }
 
-            if (response && $.isArray(response.results)) {
-                return response.results;
-            }
-
-            if (response && $.isArray(response.data)) {
-                return response.data;
-            }
-
-            return [];
-        }
-
-        function customerPoItemName(item) {
-            if (typeof item === 'string') {
-                return normalizeCustomerPoName(item);
-            }
-
-            return normalizeCustomerPoName(item && (item.name || item.text || item.value || item.id));
+            $('#customer_po_detail_name').text(details.name || '-');
+            $('#customer_po_detail_company').text(details.company_name || '-');
+            $('#customer_po_detail_address').text(details.address || '-');
+            $('#customer_po_detail_phone').text(details.phone || '-');
+            $('#customer_po_detail_email').text(details.email || '-');
+            $('.customer-po-detail-card').show();
         }
 
         function notifyCustomerPo(icon, message) {
@@ -292,10 +421,20 @@
         }
 
         function initializeCustomerPoSelectWidget($select) {
-            $select.select2({
-                width: '100%',
-                allowClear: true,
-                placeholder: $select.data('placeholder') || 'Pilih Customer PO'
+            $select.each(function() {
+                var $currentSelect = $(this);
+
+                if ($currentSelect.data('select2')) {
+                    $currentSelect.select2('destroy');
+                }
+
+                $currentSelect.nextAll('.select2-container').remove();
+
+                $currentSelect.select2({
+                    width: '100%',
+                    allowClear: true,
+                    placeholder: $currentSelect.data('placeholder') || 'Pilih Customer PO'
+                });
             });
         }
 
@@ -306,33 +445,27 @@
 
             if (!optionsUrl) {
                 appendAndSelectCustomerPo($select, selected);
+                renderCustomerPoDetails(selected);
                 return $.Deferred().resolve().promise();
             }
 
             return $.getJSON(optionsUrl, { q: '' })
                 .done(function(response) {
                     var seen = {};
-
-                    if ($select.data('select2')) {
-                        $select.select2('destroy');
-                    }
+                    customerPoDirectory = {};
 
                     $select.find('option:not([value=""])').remove();
 
                     $.each(extractCustomerPoItems(response), function(_, item) {
-                        var value = customerPoItemName(item);
-                        var key = value.toLowerCase();
+                        var details = customerPoItemDetails(item);
+                        var key = customerPoOptionKey(details.name);
 
-                        if (value === '' || seen[key]) {
+                        if (details.name === '' || seen[key]) {
                             return;
                         }
 
                         seen[key] = true;
-
-                        $select.append($('<option>', {
-                            value: value,
-                            text: value
-                        }));
+                        appendCustomerPoOption($select, details);
                     });
 
                     initializeCustomerPoSelectWidget($select);
@@ -344,6 +477,7 @@
                     }
 
                     appendAndSelectCustomerPo($select, selected);
+                    renderCustomerPoDetails(selected);
                     notifyCustomerPo('error', 'Gagal memuat daftar Customer PO.');
                 });
         }
@@ -355,11 +489,15 @@
                 return;
             }
 
+            $select.on('change', function() {
+                renderCustomerPoDetails($(this).val());
+            });
+
             loadCustomerPoOptions($select.data('selected-customer-po'));
         }
 
         function resetCustomerPoModal() {
-            $('#customer_po_name').val('');
+            $('#customerPoModalForm')[0].reset();
             $('.customer-po-error').hide().text('');
         }
 
@@ -392,17 +530,20 @@
 
             var $form = $(this);
             var $button = $('#btnSaveCustomerPo');
-            var $error = $('.customer-po-error');
-            var name = normalizeCustomerPoName($form.find('[name="name"]').val());
+            var firstMessage = '';
 
-            $error.hide().text('');
+            $('.customer-po-error').hide().text('');
 
-            if (name === '') {
-                $error.text('Nama Customer PO wajib diisi.').show();
+            $form.find('[name="name"]').val(normalizeCustomerPoName($form.find('[name="name"]').val()));
+            $form.find('[name="company_name"]').val(normalizeCustomerPoField($form.find('[name="company_name"]').val()));
+            $form.find('[name="address"]').val(normalizeCustomerPoField($form.find('[name="address"]').val()));
+            $form.find('[name="phone"]').val(normalizeCustomerPoField($form.find('[name="phone"]').val()));
+            $form.find('[name="email"]').val(normalizeCustomerPoField($form.find('[name="email"]').val()));
+
+            if ($form.find('[name="name"]').val() === '') {
+                $('[data-field="name"]').text('Nama Customer PO wajib diisi.').show();
                 return;
             }
-
-            $form.find('[name="name"]').val(name);
 
             if (!$button.data('original-text')) {
                 $button.data('original-text', $button.html());
@@ -423,7 +564,11 @@
                 .done(function(response) {
                     var savedName = response && response.data && response.data.name
                         ? response.data.name
-                        : name;
+                        : $form.find('[name="name"]').val();
+
+                    if (response && response.data) {
+                        rememberCustomerPoItem(response.data);
+                    }
 
                     closeCustomerPoModal();
                     loadCustomerPoOptions(savedName);
@@ -434,20 +579,30 @@
 
                     if (xhr.status >= 200 && xhr.status < 300) {
                         closeCustomerPoModal();
-                        loadCustomerPoOptions(name);
+                        loadCustomerPoOptions($form.find('[name="name"]').val());
                         notifyCustomerPo('success', 'Customer PO berhasil disimpan.');
                         return;
                     }
 
-                    if (xhr.responseJSON) {
-                        if (xhr.responseJSON.errors && xhr.responseJSON.errors.name && xhr.responseJSON.errors.name[0]) {
-                            message = xhr.responseJSON.errors.name[0];
-                        } else if (xhr.responseJSON.message) {
-                            message = xhr.responseJSON.message;
-                        }
+                    if (xhr.responseJSON && xhr.responseJSON.errors) {
+                        $.each(xhr.responseJSON.errors, function(field, messages) {
+                            var fieldMessage = messages && messages[0] ? messages[0] : '';
+
+                            if (fieldMessage !== '') {
+                                $('.customer-po-error[data-field="' + field + '"]').text(fieldMessage).show();
+
+                                if (firstMessage === '') {
+                                    firstMessage = fieldMessage;
+                                }
+                            }
+                        });
                     }
 
-                    $error.text(message).show();
+                    if (firstMessage === '' && xhr.responseJSON && xhr.responseJSON.message) {
+                        firstMessage = xhr.responseJSON.message;
+                    }
+
+                    message = firstMessage || message;
                     notifyCustomerPo('error', message);
                 })
                 .always(function() {

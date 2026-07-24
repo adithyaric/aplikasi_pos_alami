@@ -24,7 +24,16 @@ class WarehousePenjualanRequest extends FormRequest
             ->values()
             ->all();
 
+        $paymentType = (string) ($this->input('payment_type') ?: 'termin');
+        $paymentStatus = (string) $this->input('payment_status');
+
+        if ($paymentStatus === '') {
+            $paymentStatus = $paymentType === 'cash' ? 'paid' : 'unpaid';
+        }
+
         $this->merge([
+            'payment_type' => $paymentType,
+            'payment_status' => $paymentStatus,
             'discount' => $this->cleanNumeric($this->input('discount')),
             'items' => $items,
         ]);

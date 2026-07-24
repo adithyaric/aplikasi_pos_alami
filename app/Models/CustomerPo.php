@@ -11,5 +11,9 @@ class CustomerPo extends Model
 
     protected $fillable = [
         'name',
+        'company_name',
+        'address',
+        'phone',
+        'email',
     ];
 }

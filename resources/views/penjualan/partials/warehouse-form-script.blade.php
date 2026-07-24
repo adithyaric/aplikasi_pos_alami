@@ -286,18 +286,13 @@
     }
 
     function updatePaymentStatusField() {
-        var paymentType = $('#payment_type').val();
+        var paymentType = $('#payment_type').val() || 'termin';
 
-        if (!paymentType) {
-            return;
+        $('#payment_type').val(paymentType);
+
+        if (!$('#payment_status').val()) {
+            $('#payment_status').val(paymentType === 'cash' ? 'paid' : 'unpaid');
         }
-
-        if (paymentType === 'cash') {
-            $('#payment_status').val('paid').prop('disabled', true);
-            return;
-        }
-
-        $('#payment_status').prop('disabled', false);
     }
 
     function updateBuyerFields() {
@@ -484,11 +479,9 @@
         });
     });
 
-    $('#buyer_type, #agent_id, #canvas_id, #outlet_target_id, #payment_type').on('change', function() {
+    $('#buyer_type, #agent_id, #canvas_id, #outlet_target_id').on('change', function() {
         if (this.id === 'buyer_type') {
             updateBuyerFields();
-        } else {
-            updatePaymentStatusField();
         }
 
         if (this.id === 'buyer_type' || this.id === 'agent_id' || this.id === 'canvas_id' || this.id === 'outlet_target_id') {
@@ -496,10 +489,6 @@
                 applySuggestedPrice($(this), false);
             });
         }
-    });
-
-    $('#warehouse-sale-form').on('submit', function() {
-        $('#payment_status').prop('disabled', false);
     });
 
     $(function() {

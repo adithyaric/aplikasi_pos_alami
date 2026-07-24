@@ -14,10 +14,34 @@
                     @csrf
                     <div class="box-body">
                         <div class="form-group">
-                            <label>Nama Customer PO</label>
+                            <label>Nama</label>
                             <input type="text" class="form-control" name="name" value="{{ old('name') }}"
-                                placeholder="Masukkan Nama Customer PO">
+                                placeholder="Masukkan Nama">
                             @error('name')<div class="invalid-feedback text-danger">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="form-group">
+                            <label>Nama Perusahaan</label>
+                            <input type="text" class="form-control" name="company_name" value="{{ old('company_name') }}"
+                                placeholder="Masukkan Nama Perusahaan">
+                            @error('company_name')<div class="invalid-feedback text-danger">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="form-group">
+                            <label>Alamat</label>
+                            <textarea class="form-control" name="address" rows="3"
+                                placeholder="Masukkan Alamat">{{ old('address') }}</textarea>
+                            @error('address')<div class="invalid-feedback text-danger">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="form-group">
+                            <label>Phone</label>
+                            <input type="text" class="form-control" name="phone" value="{{ old('phone') }}"
+                                placeholder="Masukkan Phone">
+                            @error('phone')<div class="invalid-feedback text-danger">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" class="form-control" name="email" value="{{ old('email') }}"
+                                placeholder="Masukkan Email">
+                            @error('email')<div class="invalid-feedback text-danger">{{ $message }}</div>@enderror
                         </div>
                     </div>
 

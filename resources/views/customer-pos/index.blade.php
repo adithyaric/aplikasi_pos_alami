@@ -19,7 +19,11 @@
                         <thead>
                             <tr>
                                 <th width="60">No</th>
-                                <th>Nama Customer PO</th>
+                                <th>Nama</th>
+                                <th>Nama Perusahaan</th>
+                                <th>Alamat</th>
+                                <th>Phone</th>
+                                <th>Email</th>
                                 <th width="180">Aksi</th>
                             </tr>
                         </thead>
@@ -28,6 +32,10 @@
                                 <tr>
                                     <td>{{ $loop->iteration }}</td>
                                     <td>{{ $customerPo->name }}</td>
+                                    <td>{{ $customerPo->company_name ?: '-' }}</td>
+                                    <td>{{ $customerPo->address ?: '-' }}</td>
+                                    <td>{{ $customerPo->phone ?: '-' }}</td>
+                                    <td>{{ $customerPo->email ?: '-' }}</td>
                                     <td>
                                         <a class="btn btn-warning btn-xs" href="{{ route('customer-po.edit', $customerPo) }}">Edit</a>
                                         <form action="{{ route('customer-po.destroy', $customerPo) }}" method="post" style="display:inline">

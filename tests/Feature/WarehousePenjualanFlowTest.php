@@ -32,6 +32,10 @@ class WarehousePenjualanFlowTest extends TestCase
         $response->assertOk();
         $response->assertSee('Tambah Penjualan');
         $response->assertSee('Cek Barang');
+        $response->assertSee('type="hidden" id="payment_type" name="payment_type" value="termin"', false);
+        $response->assertSee('type="hidden" id="payment_status" name="payment_status" value="unpaid"', false);
+        $response->assertDontSee('Tipe Pembayaran');
+        $response->assertDontSee('Status Pembayaran');
     }
 
     public function test_warehouse_sale_edit_page_renders(): void
@@ -61,6 +65,75 @@ class WarehousePenjualanFlowTest extends TestCase
         $response->assertOk();
         $response->assertSee('Edit Penjualan');
         $response->assertSee('Cek Barang');
+        $response->assertSee('type="hidden" id="payment_type" name="payment_type" value="cash"', false);
+        $response->assertSee('type="hidden" id="payment_status" name="payment_status" value="paid"', false);
+        $response->assertDontSee('Tipe Pembayaran');
+        $response->assertDontSee('Status Pembayaran');
+    }
+
+    public function test_warehouse_sale_defaults_payment_type_and_status_when_not_submitted(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'superadmin',
+            'username' => 'warehouse-sales-default-payment-admin',
+            'email' => 'warehouse-sales-default-payment-admin@alami.test',
+        ]);
+
+        $category = Category::create([
+            'name' => 'Rokok',
+            'type' => 'product',
+        ]);
+
+        $agent = Agent::create([
+            'name' => 'Agen Default Payment',
+            'code' => 'AGN-DEFAULT-001',
+            'termin_days' => 14,
+            'credit_limit' => 5000000,
+            'is_active' => true,
+        ]);
+
+        $product = Product::create([
+            'code' => 'ALM-SALE-DEFAULT-001',
+            'name' => 'ALAMI Default Payment Test',
+            'category_id' => $category->id,
+            'is_serialized' => false,
+            'harga_beli' => 18000,
+            'harga_jual' => 220000,
+            'status_produk' => 'sudah',
+            'satuan' => 'Pack',
+            'satuan_besar' => 'Slop',
+            'konversi_qty' => 10,
+        ]);
+
+        Stock::create([
+            'product_id' => $product->id,
+            'sku' => 'SALE-DEFAULT-BATCH-001',
+            'subtotal' => 900000,
+            'harga_beli' => 18000,
+            'qty' => 50,
+            'condition' => 'new',
+            'status' => 'available',
+        ]);
+
+        $response = $this->actingAs($user)->post(route('penjualan.store'), [
+            'sale_date' => now()->toDateString(),
+            'buyer_type' => 'agent',
+            'agent_id' => $agent->id,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'qty' => 1,
+                    'unit' => 'Slop',
+                    'price' => '220000',
+                ],
+            ],
+        ]);
+
+        $penjualan = Penjualan::firstOrFail();
+
+        $response->assertRedirect(route('penjualan.show', $penjualan));
+        $this->assertSame('termin', $penjualan->payment_type);
+        $this->assertSame('unpaid', $penjualan->payment_status);
     }
 
     public function test_warehouse_sale_to_agent_reduces_stock_and_stores_base_unit_qty(): void

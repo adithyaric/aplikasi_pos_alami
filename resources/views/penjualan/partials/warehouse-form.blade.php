@@ -3,6 +3,8 @@
     $selectedAgentId = old('agent_id', $selectedBuyerType === 'agent' ? $penjualan?->buyer_id : '');
     $selectedCanvasId = old('canvas_id', $selectedBuyerType === 'canvas' ? $penjualan?->buyer_id : '');
     $selectedOutletId = old('outlet_target_id', $selectedBuyerType === 'outlet' ? $penjualan?->buyer_id : '');
+    $selectedPaymentType = old('payment_type', $penjualan?->payment_type ?? 'termin');
+    $selectedPaymentStatus = old('payment_status', $penjualan?->payment_status ?? ($selectedPaymentType === 'cash' ? 'paid' : 'unpaid'));
 @endphp
 
 <section class="content-header">
@@ -22,6 +24,8 @@
                     @if ($formMethod !== 'POST')
                         @method($formMethod)
                     @endif
+                    <input type="hidden" id="payment_type" name="payment_type" value="{{ $selectedPaymentType }}">
+                    <input type="hidden" id="payment_status" name="payment_status" value="{{ $selectedPaymentStatus }}">
 
                     <div class="box-body">
                         <div class="row">
@@ -113,32 +117,6 @@
                                 </div>
                             </div>
 
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Tipe Pembayaran</label>
-                                    <select class="form-control" id="payment_type" name="payment_type" required>
-                                        <option value="cash" {{ old('payment_type', $penjualan?->payment_type ?? 'cash') === 'cash' ? 'selected' : '' }}>Cash</option>
-                                        <option value="termin" {{ old('payment_type', $penjualan?->payment_type) === 'termin' ? 'selected' : '' }}>Termin</option>
-                                    </select>
-                                    @error('payment_type')
-                                        <div class="text-danger">{{ $message }}</div>
-                                    @enderror
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Status Pembayaran</label>
-                                    <select class="form-control" id="payment_status" name="payment_status">
-                                        <option value="paid" {{ old('payment_status', $penjualan?->payment_status ?? 'paid') === 'paid' ? 'selected' : '' }}>Paid</option>
-                                        <option value="unpaid" {{ old('payment_status', $penjualan?->payment_status) === 'unpaid' ? 'selected' : '' }}>Unpaid</option>
-                                        <option value="partial" {{ old('payment_status', $penjualan?->payment_status) === 'partial' ? 'selected' : '' }}>Partial</option>
-                                    </select>
-                                    @error('payment_status')
-                                        <div class="text-danger">{{ $message }}</div>
-                                    @enderror
-                                </div>
-                            </div>
                         </div>
 
                         <hr>

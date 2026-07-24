@@ -21,23 +21,39 @@ class CustomerPoCrudTest extends TestCase
 
         $createResponse = $this->actingAs($user)->post(route('customer-po.store'), [
             'name' => 'PT Contoh Customer',
+            'company_name' => 'PT Contoh Perusahaan',
+            'address' => 'Jl. Malioboro No. 1',
+            'phone' => '08123456789',
+            'email' => 'customer@example.com',
         ]);
 
         $createResponse->assertRedirect(route('customer-po.index'));
         $this->assertDatabaseHas('customer_pos', [
             'name' => 'PT Contoh Customer',
+            'company_name' => 'PT Contoh Perusahaan',
+            'address' => 'Jl. Malioboro No. 1',
+            'phone' => '08123456789',
+            'email' => 'customer@example.com',
         ]);
 
         $customerPo = CustomerPo::firstOrFail();
 
         $updateResponse = $this->actingAs($user)->put(route('customer-po.update', $customerPo), [
             'name' => 'PT Customer Update',
+            'company_name' => 'PT Update Perusahaan',
+            'address' => 'Jl. Update No. 2',
+            'phone' => '08987654321',
+            'email' => 'update@example.com',
         ]);
 
         $updateResponse->assertRedirect(route('customer-po.index'));
         $this->assertDatabaseHas('customer_pos', [
             'id' => $customerPo->id,
             'name' => 'PT Customer Update',
+            'company_name' => 'PT Update Perusahaan',
+            'address' => 'Jl. Update No. 2',
+            'phone' => '08987654321',
+            'email' => 'update@example.com',
         ]);
     }
 
@@ -57,6 +73,10 @@ class CustomerPoCrudTest extends TestCase
 
         $response = $this->actingAs($user)->postJson(route('customer-po.store'), [
             'name' => '  pt existing customer  ',
+            'company_name' => 'PT Existing Company',
+            'address' => 'Alamat Existing',
+            'phone' => '0800000000',
+            'email' => 'existing@example.com',
         ]);
 
         $response->assertCreated()
@@ -64,6 +84,10 @@ class CustomerPoCrudTest extends TestCase
                 'data' => [
                     'id' => $existing->id,
                     'name' => 'pt existing customer',
+                    'company_name' => 'PT Existing Company',
+                    'address' => 'Alamat Existing',
+                    'phone' => '0800000000',
+                    'email' => 'existing@example.com',
                 ],
             ]);
 
@@ -71,6 +95,10 @@ class CustomerPoCrudTest extends TestCase
         $this->assertDatabaseHas('customer_pos', [
             'id' => $existing->id,
             'name' => 'pt existing customer',
+            'company_name' => 'PT Existing Company',
+            'address' => 'Alamat Existing',
+            'phone' => '0800000000',
+            'email' => 'existing@example.com',
             'deleted_at' => null,
         ]);
     }
@@ -86,17 +114,29 @@ class CustomerPoCrudTest extends TestCase
         $response = $this->actingAs($user)->post(route('customer-po.store'), [
             '_ajax' => 1,
             'name' => 'PT Modal Customer',
+            'company_name' => 'PT Modal Company',
+            'address' => 'Alamat Modal Customer',
+            'phone' => '0811111111',
+            'email' => 'modal@example.com',
         ]);
 
         $response->assertCreated()
             ->assertJson([
                 'data' => [
                     'name' => 'PT Modal Customer',
+                    'company_name' => 'PT Modal Company',
+                    'address' => 'Alamat Modal Customer',
+                    'phone' => '0811111111',
+                    'email' => 'modal@example.com',
                 ],
             ]);
 
         $this->assertDatabaseHas('customer_pos', [
             'name' => 'PT Modal Customer',
+            'company_name' => 'PT Modal Company',
+            'address' => 'Alamat Modal Customer',
+            'phone' => '0811111111',
+            'email' => 'modal@example.com',
         ]);
     }
 
@@ -157,6 +197,7 @@ class CustomerPoCrudTest extends TestCase
                     [
                         'id' => 'PT Options Customer',
                         'text' => 'PT Options Customer',
+                        'name' => 'PT Options Customer',
                     ],
                 ],
             ]);
@@ -186,6 +227,10 @@ class CustomerPoCrudTest extends TestCase
             ->assertJson([
                 [
                     'name' => 'PT Pembelian Options Customer',
+                    'company_name' => null,
+                    'address' => null,
+                    'phone' => null,
+                    'email' => null,
                 ],
             ]);
 
@@ -276,6 +321,12 @@ class CustomerPoCrudTest extends TestCase
         $response->assertSee('id="modalCustomerPo"', false);
         $response->assertSee('id="customerPoModalForm"', false);
         $response->assertSee('id="btnSaveCustomerPo"', false);
+        $response->assertSee('id="customer_po_company_name"', false);
+        $response->assertSee('id="customer_po_address"', false);
+        $response->assertSee('id="customer_po_phone"', false);
+        $response->assertSee('id="customer_po_email"', false);
+        $response->assertSee('id="customer_po_detail_company"', false);
+        $response->assertSee('id="customer_po_detail_address"', false);
         $response->assertSee('initializeCustomerPoSelect', false);
         $response->assertSee('initializeCustomerPoSelectWidget', false);
         $response->assertSee('loadCustomerPoOptions', false);
@@ -410,6 +461,12 @@ class CustomerPoCrudTest extends TestCase
         $response->assertSee('id="modalCustomerPo"', false);
         $response->assertSee('id="customerPoModalForm"', false);
         $response->assertSee('id="btnSaveCustomerPo"', false);
+        $response->assertSee('id="customer_po_company_name"', false);
+        $response->assertSee('id="customer_po_address"', false);
+        $response->assertSee('id="customer_po_phone"', false);
+        $response->assertSee('id="customer_po_email"', false);
+        $response->assertSee('id="customer_po_detail_company"', false);
+        $response->assertSee('id="customer_po_detail_address"', false);
         $response->assertSee('initializeCustomerPoSelect', false);
         $response->assertSee('initializeCustomerPoSelectWidget', false);
         $response->assertSee('loadCustomerPoOptions', false);
