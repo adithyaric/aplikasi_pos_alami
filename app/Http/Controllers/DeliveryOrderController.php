@@ -6,6 +6,7 @@ use App\Models\DeliveryOrder;
 use App\Models\DeliveryOrderItem;
 use App\Models\Outlet;
 use App\Models\OwnerStock;
+use App\Models\OwnerStockMovement;
 use App\Models\PickingList;
 use App\Models\StockMovement;
 use Illuminate\Http\Request;
@@ -124,7 +125,7 @@ class DeliveryOrderController extends Controller
                 $stock->allocate($qtySent);
 
                 // Create/update owner stock using admin-confirmed qty
-                OwnerStock::updateOrCreate(
+                $ownerStock = OwnerStock::updateOrCreate(
                     [
                         'owner_id'   => $deliveryOrder->owner_id,
                         'product_id' => $item->product_id,
@@ -137,6 +138,24 @@ class DeliveryOrderController extends Controller
                         'harga_beli' => $item->harga_beli,
                     ]
                 );
+                $ownerStock->refresh();
+
+                OwnerStockMovement::create([
+                    'owner_id' => $deliveryOrder->owner_id,
+                    'product_id' => $item->product_id,
+                    'owner_stock_id' => $ownerStock->id,
+                    'stock_id' => $stock->id,
+                    'user_id' => auth()->id(),
+                    'type' => 'in',
+                    'reference_type' => DeliveryOrder::class,
+                    'reference_id' => $deliveryOrder->id,
+                    'qty_in' => $qtySent,
+                    'qty_out' => 0,
+                    'balance' => OwnerStock::where('owner_id', $deliveryOrder->owner_id)
+                        ->where('product_id', $item->product_id)
+                        ->sum('qty'),
+                    'notes' => "Pengiriman cabang diterima - {$deliveryOrder->code} - SKU: {$stock->sku}",
+                ]);
 
                 // Log movement with confirmed qty
                 StockMovement::create([

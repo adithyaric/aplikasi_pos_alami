@@ -13,7 +13,19 @@ class RefundItem extends Model
         'refund_id',
         'product_id',
         'qty',
+        'qty_input',
+        'unit',
+        'price',
+        'subtotal',
+        'stock_visibility',
+        'source_owner_stock_id',
         'alasan',
+    ];
+
+    protected $casts = [
+        'qty_input' => 'float',
+        'price' => 'float',
+        'subtotal' => 'float',
     ];
 
     public function refund()
@@ -24,5 +36,10 @@ class RefundItem extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function sourceOwnerStock()
+    {
+        return $this->belongsTo(OwnerStock::class, 'source_owner_stock_id');
     }
 }

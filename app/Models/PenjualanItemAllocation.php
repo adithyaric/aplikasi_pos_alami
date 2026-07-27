@@ -9,6 +9,7 @@ class PenjualanItemAllocation extends Model
     protected $fillable = [
         'penjualan_item_id',
         'stock_id',
+        'owner_stock_id',
         'qty',
     ];
 
@@ -20,5 +21,10 @@ class PenjualanItemAllocation extends Model
     public function stock()
     {
         return $this->belongsTo(Stock::class);
+    }
+
+    public function ownerStock()
+    {
+        return $this->belongsTo(OwnerStock::class);
     }
 }

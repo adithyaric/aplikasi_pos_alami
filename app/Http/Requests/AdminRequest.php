@@ -16,8 +16,8 @@ class AdminRequest extends FormRequest
         return [
             'name' => 'required',
             'username' => 'required',
-            'outlet_id' => 'required_if:role,staff-outlet|required_if:role,admin-gudang|nullable|exists:outlets,id',
-            'role' => 'required|in:superadmin,admin-gudang,staff-outlet,owner',
+            'outlet_id' => 'required_if:role,staff-outlet|required_if:role,admin-gudang|required_if:role,admin-cabang|nullable|exists:outlets,id',
+            'role' => 'required|in:superadmin,admin-gudang,admin-cabang,staff-outlet,owner',
             'status' => 'required',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|same:confirm-password',

@@ -26,8 +26,12 @@
                                     <td colspan="2">{{ $refund->code }}</td>
                                 </tr>
                                 <tr>
-                                    <td colspan="2">No Invoice</td>
-                                    <td colspan="2">{{ $refund->penjualan->code }}</td>
+                                    <td colspan="2">Invoice Dipotong</td>
+                                    <td colspan="2">{{ $refund->appliedPenjualan?->code ?? $refund->penjualan?->code ?? '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">Scope Retur</td>
+                                    <td colspan="2">{{ $refund->return_scope ?: '-' }}</td>
                                 </tr>
                                 <tr>
                                     <td colspan="2">Jenis Pembeli</td>
@@ -43,7 +47,7 @@
                                 </tr>
                                 <tr>
                                     <td colspan="2">Cabang</td>
-                                    <td colspan="2">{{ $refund->outlet?->name ?? '-' }}</td>
+                                    <td colspan="2">{{ $refund->sourceOutlet?->name ?? $refund->outlet?->name ?? '-' }}</td>
                                 </tr>
                                 <tr>
                                     <td colspan="2">Tanggal</td>
@@ -54,18 +58,29 @@
                                     <td colspan="2">@currency($refund->total)</td>
                                 </tr>
                                 <tr>
+                                    <td colspan="2">Invoice Sebelum Retur</td>
+                                    <td colspan="2">@currency($refund->invoice_total_before)</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">Invoice Setelah Retur</td>
+                                    <td colspan="2">@currency($refund->invoice_total_after)</td>
+                                </tr>
+                                <tr>
                                     <td>No</td>
                                     <td>Nama Product</td>
                                     <td>Qty</td>
-                                    <td>Alasan</td>
+                                    <td>Harga / Subtotal / Alasan</td>
                                 </tr>
                             </thead>
                             @foreach ($refund->refundItems as $value)
                                 <tr>
                                     <td>{{ $loop->iteration }}</td>
                                     <td>{{ $value->product->name }}</td>
-                                    <td>{{ $value->qty }}</td>
-                                    <td>{{ $value->alasan }}</td>
+                                    <td>{{ $value->qty }} {{ $value->unit ?: $value->product?->satuan }}</td>
+                                    <td>
+                                        @currency($value->price) / @currency($value->subtotal)
+                                        <br><small>{{ $value->alasan ?: '-' }}</small>
+                                    </td>
                                 </tr>
                             @endforeach
                         </table>

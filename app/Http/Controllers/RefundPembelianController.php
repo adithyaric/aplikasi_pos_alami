@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Kas;
 use App\Models\Outlet;
 use App\Models\OwnerStock;
+use App\Models\OwnerStockMovement;
 use App\Models\RefundPembelian;
 use App\Models\RefundPembelianItem;
 use App\Models\Stock;
@@ -56,6 +57,11 @@ class RefundPembelianController extends Controller
      */
     public function getOutletProducts(Outlet $outlet)
     {
+        $user = auth()->user();
+        if ($this->isBranchOutletUser($user) && (int) $outlet->id !== (int) $user->outlet_id) {
+            abort(403);
+        }
+
         $ownerStocks = OwnerStock::where('owner_id', $outlet->id)
             ->where('qty', '>', 0)
             ->with(['product', 'stock'])
@@ -88,7 +94,7 @@ class RefundPembelianController extends Controller
     public function index(Request $request)
     {
         $user    = auth()->user();
-        $isStaff = $user->role === 'staff-outlet';
+        $isStaff = $this->isBranchOutletUser($user);
         $selectedType = $isStaff
             ? 'outlet_ke_gudang'
             : ($request->query('type') === 'outlet_ke_gudang' ? 'outlet_ke_gudang' : 'gudang_ke_supplier');
@@ -110,7 +116,9 @@ class RefundPembelianController extends Controller
             'refundPembelians' => $query->get(),
             'selectedType'     => $selectedType,
             'selectedOutletId' => $isStaff ? $user->outlet_id : ($selectedType === 'outlet_ke_gudang' ? $request->outlet_id : null),
-            'outlets'          => Outlet::orderBy('name')->get(),
+            'outlets'          => $isStaff
+                ? Outlet::whereKey($user->outlet_id)->get()
+                : Outlet::orderBy('name')->get(),
             'isStaffOutlet'    => $isStaff,
         ]);
     }
@@ -122,14 +130,16 @@ class RefundPembelianController extends Controller
         $code       = 'RTR'.str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
 
         $user          = auth()->user();
-        $isStaffOutlet = $user->role === 'staff-outlet';
+        $isStaffOutlet = $this->isBranchOutletUser($user);
         $selectedType  = $isStaffOutlet
             ? 'outlet_ke_gudang'
             : ($request->query('type') === 'outlet_ke_gudang' ? 'outlet_ke_gudang' : 'gudang_ke_supplier');
 
         return view('refundPembelians.create', [
             'suppliers'     => Supplier::get(),
-            'outlets'       => Outlet::get(),
+            'outlets'       => $isStaffOutlet
+                ? Outlet::whereKey($user->outlet_id)->get()
+                : Outlet::get(),
             'code'          => $code,
             'isStaffOutlet' => $isStaffOutlet,
             'staffOutletId' => $isStaffOutlet ? $user->outlet_id : null,
@@ -144,6 +154,17 @@ class RefundPembelianController extends Controller
 
     public function store(Request $request)
     {
+        $user = auth()->user();
+        $isBranchOutletUser = $this->isBranchOutletUser($user);
+
+        if ($isBranchOutletUser) {
+            $request->merge([
+                'type' => 'outlet_ke_gudang',
+                'outlet_id' => $user->outlet_id,
+                'return_mode' => 'replacement',
+            ]);
+        }
+
         $type = $request->input('type');
         $returnMode = $request->input('return_mode', 'replacement');
         $selectedRows = collect($request->input('selected_rows', []))
@@ -247,7 +268,7 @@ class RefundPembelianController extends Controller
                         $stock = Stock::whereKey($allocation['stock_id'])->lockForUpdate()->firstOrFail();
 
                         if (! $isReplacement) {
-                            if ($stock->qty_available < $allocation['qty']) {
+                            if ($this->resolveStockAvailableQty($stock) < $allocation['qty']) {
                                 throw new \Exception("Stok gudang tidak mencukupi untuk: {$stock->product->name}");
                             }
 
@@ -293,6 +314,23 @@ class RefundPembelianController extends Controller
 
                         $ownerStock->qty -= $allocation['qty'];
                         $ownerStock->save();
+
+                        OwnerStockMovement::create([
+                            'owner_id' => $request->outlet_id,
+                            'product_id' => $product['product_id'],
+                            'owner_stock_id' => $ownerStock->id,
+                            'stock_id' => $stock->id,
+                            'user_id' => auth()->id(),
+                            'type' => 'return_out',
+                            'reference_type' => RefundPembelian::class,
+                            'reference_id' => $refundPembelian->id,
+                            'qty_in' => 0,
+                            'qty_out' => $allocation['qty'],
+                            'balance' => OwnerStock::where('owner_id', $request->outlet_id)
+                                ->where('product_id', $product['product_id'])
+                                ->sum('qty'),
+                            'notes' => "Retur cabang ke gudang - {$refundPembelian->code} - Produk: {$stock->product->name}",
+                        ]);
 
                         $stock->qty += $allocation['qty'];
                         $stock->save();
@@ -621,5 +659,12 @@ class RefundPembelianController extends Controller
         }
 
         return max(0, (int) $stock->qty - (int) ($stock->qty_reserved ?? 0));
+    }
+
+    private function isBranchOutletUser($user): bool
+    {
+        return $user
+            && in_array($user->role, ['admin-cabang', 'staff-outlet'], true)
+            && $user->outlet_id;
     }
 }

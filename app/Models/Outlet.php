@@ -41,9 +41,24 @@ class Outlet extends Model
         return $this->hasMany(Salesman::class);
     }
 
+    public function ownerStocks()
+    {
+        return $this->hasMany(OwnerStock::class, 'owner_id');
+    }
+
+    public function ownerStockMovements()
+    {
+        return $this->hasMany(OwnerStockMovement::class, 'owner_id');
+    }
+
     public function scopeBranches($query)
     {
         return $query->where('jenis_outlet', 'branch');
+    }
+
+    public function scopeShops($query)
+    {
+        return $query->where('jenis_outlet', 'toko');
     }
 
     public static function typeOptions(?string $currentType = null): array

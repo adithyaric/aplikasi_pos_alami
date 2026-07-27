@@ -5,8 +5,12 @@ namespace Database\Seeders;
 use App\Models\Agent;
 use App\Models\Canvas;
 use App\Models\Outlet;
+use App\Models\OwnerStock;
+use App\Models\Penjualan;
 use App\Models\Product;
+use App\Models\Salesman;
 use App\Models\User;
+use App\Services\BranchPenjualanManager;
 use App\Services\WarehousePenjualanManager;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -93,7 +97,7 @@ class WarehousePenjualanSeeder extends Seeder
                 'buyer_id' => $branch->id,
                 'sale_date' => now()->subDay()->toDateString(),
                 'payment_type' => 'termin',
-                'payment_status' => 'partial',
+                'payment_status' => 'unpaid',
                 'due_date' => now()->addDays(6)->toDateString(),
                 'discount' => 10000,
                 'notes' => 'Seeder penjualan cabang untuk cek owner stock.',
@@ -117,11 +121,54 @@ class WarehousePenjualanSeeder extends Seeder
         $manager = app(WarehousePenjualanManager::class);
 
         foreach ($sales as $sale) {
-            if (\App\Models\Penjualan::where('code', $sale['code'])->exists()) {
+            if (Penjualan::where('code', $sale['code'])->exists()) {
                 continue;
             }
 
             $manager->create($sale, (int) $operator->id);
         }
+
+        $this->seedBranchSale($branch, $products);
+    }
+
+    private function seedBranchSale(Outlet $branch, $products): void
+    {
+        $product = $products->get('ALM-BLD-20');
+        $shop = Outlet::shops()->orderBy('id')->first();
+        $salesman = Salesman::where('outlet_id', $branch->id)
+            ->whereNotNull('user_id')
+            ->with('user')
+            ->orderBy('id')
+            ->first();
+
+        if (! $product || ! $shop || ! $salesman?->user || Penjualan::where('code', 'PNJ-CBG-00001')->exists()) {
+            return;
+        }
+
+        $branchBalance = OwnerStock::where('owner_id', $branch->id)
+            ->where('product_id', $product->id)
+            ->sum('qty');
+
+        if ($branchBalance < 2) {
+            return;
+        }
+
+        app(BranchPenjualanManager::class)->create([
+            'code' => 'PNJ-CBG-00001',
+            'buyer_id' => $shop->id,
+            'sale_date' => now()->toDateString(),
+            'payment_type' => 'termin',
+            'payment_status' => 'unpaid',
+            'discount' => 0,
+            'notes' => 'Seeder penjualan sales cabang ke toko untuk cek retur penjualan cabang.',
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'qty' => 2,
+                    'unit' => 'Pack',
+                    'price' => (int) $product->harga_jual,
+                ],
+            ],
+        ], (int) $salesman->user_id, (int) $branch->id, (int) $salesman->id);
     }
 }

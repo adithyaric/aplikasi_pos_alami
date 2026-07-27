@@ -1,8 +1,10 @@
 @php
-    $selectedBuyerType = old('buyer_type', $penjualan?->buyer_type);
+    $saleMode = $saleMode ?? 'warehouse';
+    $isBranchSaleMode = $saleMode === 'branch';
+    $selectedBuyerType = old('buyer_type', $isBranchSaleMode ? 'toko' : $penjualan?->buyer_type);
     $selectedAgentId = old('agent_id', $selectedBuyerType === 'agent' ? $penjualan?->buyer_id : '');
     $selectedCanvasId = old('canvas_id', $selectedBuyerType === 'canvas' ? $penjualan?->buyer_id : '');
-    $selectedOutletId = old('outlet_target_id', $selectedBuyerType === 'outlet' ? $penjualan?->buyer_id : '');
+    $selectedOutletId = old('outlet_target_id', in_array($selectedBuyerType, ['outlet', 'toko'], true) ? $penjualan?->buyer_id : '');
     $selectedPaymentType = old('payment_type', $penjualan?->payment_type ?? 'termin');
     $selectedPaymentStatus = old('payment_status', $penjualan?->payment_status ?? ($selectedPaymentType === 'cash' ? 'paid' : 'unpaid'));
 @endphp
@@ -47,13 +49,19 @@
                             </div>
                             <div class="col-md-4">
                                 <div class="form-group">
-                                    <label>Jenis Pembeli</label>
-                                    <select class="form-control" name="buyer_type" id="buyer_type" required>
-                                        <option value="">Pilih Jenis Pembeli</option>
-                                        <option value="agent" {{ $selectedBuyerType === 'agent' ? 'selected' : '' }}>Agen</option>
-                                        <option value="canvas" {{ $selectedBuyerType === 'canvas' ? 'selected' : '' }}>Canvas</option>
-                                        <option value="outlet" {{ $selectedBuyerType === 'outlet' ? 'selected' : '' }}>Cabang</option>
-                                    </select>
+                                    @if ($isBranchSaleMode)
+                                        <label>Cabang Penanggung Jawab</label>
+                                        <input type="hidden" name="buyer_type" id="buyer_type" value="toko">
+                                        <input type="text" class="form-control" value="{{ $branchName ?: '-' }}" readonly>
+                                    @else
+                                        <label>Jenis Pembeli</label>
+                                        <select class="form-control" name="buyer_type" id="buyer_type" required>
+                                            <option value="">Pilih Jenis Pembeli</option>
+                                            <option value="agent" {{ $selectedBuyerType === 'agent' ? 'selected' : '' }}>Agen</option>
+                                            <option value="canvas" {{ $selectedBuyerType === 'canvas' ? 'selected' : '' }}>Canvas</option>
+                                            <option value="outlet" {{ $selectedBuyerType === 'outlet' ? 'selected' : '' }}>Cabang</option>
+                                        </select>
+                                    @endif
                                     @error('buyer_type')
                                         <div class="text-danger">{{ $message }}</div>
                                     @enderror
@@ -62,6 +70,24 @@
                         </div>
 
                         <div class="row">
+                            @if ($isBranchSaleMode)
+                            <div class="col-md-4 buyer-select buyer-toko" style="display:none">
+                                <div class="form-group">
+                                    <label>Customer/Toko</label>
+                                    <select class="form-control select2" id="outlet_target_id" name="outlet_target_id" style="width:100%">
+                                        <option value="">Pilih Customer/Toko</option>
+                                        @foreach ($outlets as $outlet)
+                                            <option value="{{ $outlet->id }}" {{ (string) $selectedOutletId === (string) $outlet->id ? 'selected' : '' }}>
+                                                {{ $outlet->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @error('outlet_target_id')
+                                        <div class="text-danger">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                            </div>
+                            @else
                             <div class="col-md-4 buyer-select buyer-agent" style="display:none">
                                 <div class="form-group">
                                     <label>Agen</label>
@@ -116,14 +142,19 @@
                                     @enderror
                                 </div>
                             </div>
+                            @endif
 
                         </div>
 
                         <hr>
 
                         <div class="alert alert-info">
-                            Harga diisi per satuan dasar produk. Jika qty dimasukkan dalam Slop atau Ball, sistem akan
-                            mengonversinya ke satuan dasar terlebih dahulu sebelum menghitung subtotal.
+                            @if ($isBranchSaleMode)
+                                Penjualan cabang mengambil stock dari cabang login, dan pembelinya adalah Customer/Toko.
+                            @else
+                                Harga diisi per satuan dasar produk. Jika qty dimasukkan dalam Slop atau Ball, sistem akan
+                                mengonversinya ke satuan dasar terlebih dahulu sebelum menghitung subtotal.
+                            @endif
                         </div>
 
                         <div class="table-responsive">

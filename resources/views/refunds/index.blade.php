@@ -36,10 +36,10 @@
                                 <tr>
                                     <td>{{ $loop->iteration }}</td>
                                     <td>{{ $value->code }}</td>
-                                    <td>{{ $value->penjualan?->code ?? '-' }}</td>
+                                    <td>{{ $value->appliedPenjualan?->code ?? $value->penjualan?->code ?? '-' }}</td>
                                     <td>{{ $value->buyer_type_label }}</td>
                                     <td>{{ $value->buyer_display_name }}</td>
-                                    <td>{{ $value->user->name }}</td>
+                                    <td>{{ $value->user?->name ?? '-' }}</td>
                                     <td>@currency($value->total)</td>
                                     <td>
                                         <a class="btn btn-info" href="{{ route('refund.show', $value->id) }}">Show</a>

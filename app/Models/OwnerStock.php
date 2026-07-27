@@ -41,6 +41,16 @@ class OwnerStock extends Model
         return $this->belongsTo(Stock::class);
     }
 
+    public function movements()
+    {
+        return $this->hasMany(OwnerStockMovement::class);
+    }
+
+    public function adjustments()
+    {
+        return $this->hasMany(OwnerStockAdjustment::class);
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

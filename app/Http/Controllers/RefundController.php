@@ -2,21 +2,32 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\RefundRequest;
+use App\Http\Requests\SalesReturnRequest;
+use App\Models\Agent;
+use App\Models\Canvas;
 use App\Models\Kas;
+use App\Models\Outlet;
 use App\Models\OwnerStock;
 use App\Models\Penjualan;
 use App\Models\PenjualanItem;
 use App\Models\Product;
 use App\Models\Refund;
 use App\Models\RefundItem;
+use App\Models\Salesman;
 use App\Models\Stock;
 use App\Models\StockMovement;
+use App\Services\SalesReturnManager;
+use App\Support\ProductUnitConverter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class RefundController extends Controller
 {
+    public function __construct(
+        private readonly SalesReturnManager $salesReturnManager
+    ) {
+    }
+
     public function index()
     {
         return view('refunds.index', [
@@ -24,9 +35,13 @@ class RefundController extends Controller
                 'user',
                 'customer',
                 'penjualan',
+                'appliedPenjualan',
+                'sourceOutlet',
+                'salesman',
                 'agent',
                 'canvasBuyer',
                 'outletBuyer',
+                'tokoBuyer',
             ])->orderByDesc('tanggal')->orderByDesc('id')->get(),
         ]);
     }
@@ -40,7 +55,7 @@ class RefundController extends Controller
     {
         $refund->loadMissing('refundItems.product');
 
-        return view('refunds.edit', $this->refundFormData($refund, (int) $refund->penjualan_id));
+        return view('refunds.edit', $this->refundFormData($refund));
     }
 
     public function show(Refund $refund)
@@ -49,10 +64,15 @@ class RefundController extends Controller
             'customer',
             'outlet',
             'penjualan',
+            'appliedPenjualan',
+            'sourceOutlet',
+            'salesman',
             'refundItems.product',
             'agent',
             'canvasBuyer',
             'outletBuyer',
+            'tokoBuyer',
+            'totalAdjustment',
         ]);
 
         return view('refunds.show', [
@@ -60,61 +80,75 @@ class RefundController extends Controller
         ]);
     }
 
-    public function store(RefundRequest $request)
+    public function store(SalesReturnRequest $request)
     {
-        DB::transaction(function () use ($request) {
-            $data = $request->validated();
-            $penjualan = $this->refundableSale((int) $data['penjualan_id']);
-            $items = $this->normalizeRefundItems($penjualan, $data['product']);
+        try {
+            $data = $this->returnPayload($request->validated());
+            $refund = $this->salesReturnManager->create($data, (int) auth()->id());
 
-            $refund = Refund::create($this->refundAttributes($penjualan, $data));
-
-            foreach ($items as $item) {
-                $refund->refundItems()->create($item);
-            }
-
-            $this->applyRefundImpact($refund->fresh('refundItems.product'), $penjualan);
-        });
-
-        return redirect(route('refund.index'))->with('toast_success', 'Berhasil Menyimpan Data!');
+            return redirect(route('refund.show', $refund))->with('toast_success', 'Berhasil Menyimpan Data!');
+        } catch (\Throwable $exception) {
+            return redirect()->back()
+                ->withInput()
+                ->with('toast_error', 'Gagal: '.$exception->getMessage());
+        }
     }
 
-    public function update(RefundRequest $request, Refund $refund)
+    public function update(SalesReturnRequest $request, Refund $refund)
     {
-        DB::transaction(function () use ($request, $refund) {
-            $refund->loadMissing('refundItems.product', 'penjualan.items.allocations', 'penjualan.items.product');
-            $this->rollbackRefundImpact($refund);
+        try {
+            $data = $this->returnPayload($request->validated());
+            $refund = $this->salesReturnManager->update($refund, $data, (int) auth()->id());
 
-            $data = $request->validated();
-            $penjualan = $this->refundableSale((int) $data['penjualan_id']);
-            $items = $this->normalizeRefundItems($penjualan, $data['product'], $refund);
-
-            $refund->update($this->refundAttributes($penjualan, $data));
-            $refund->refundItems()->delete();
-
-            foreach ($items as $item) {
-                $refund->refundItems()->create($item);
-            }
-
-            $refund->refresh();
-            $refund->load('refundItems.product');
-
-            $this->applyRefundImpact($refund, $penjualan);
-        });
-
-        return redirect(route('refund.index'))->with('toast_success', 'Berhasil Menyimpan Data!');
+            return redirect(route('refund.show', $refund))->with('toast_success', 'Berhasil Menyimpan Data!');
+        } catch (\Throwable $exception) {
+            return redirect()->back()
+                ->withInput()
+                ->with('toast_error', 'Gagal: '.$exception->getMessage());
+        }
     }
 
     public function destroy(Refund $refund)
     {
-        DB::transaction(function () use ($refund) {
-            $refund->loadMissing('refundItems.product', 'penjualan.items.allocations', 'penjualan.items.product');
-            $this->rollbackRefundImpact($refund);
-            $refund->refundItems()->delete();
-            $refund->delete();
-        });
+        DB::transaction(fn () => $this->salesReturnManager->rollback($refund));
 
         return redirect(route('refund.index'))->with('toast_success', 'Berhasil Menghapus Data!');
+    }
+
+    public function latestInvoicePreview(Request $request)
+    {
+        $payload = $this->previewPayload($request);
+        $invoice = $this->salesReturnManager->latestInvoice($payload);
+
+        if (! $invoice) {
+            return response()->json([
+                'invoice' => null,
+                'message' => 'Tidak ada invoice unpaid terbaru untuk pembeli ini.',
+            ]);
+        }
+
+        return response()->json([
+            'invoice' => [
+                'id' => $invoice->id,
+                'code' => $invoice->code,
+                'sale_date' => optional($invoice->sale_date)->format('Y-m-d'),
+                'total' => (float) $invoice->total,
+                'payment_status' => $invoice->payment_status,
+                'max_return_total' => max(0, (float) $invoice->total - 1),
+            ],
+        ]);
+    }
+
+    public function lastReturnPrice(Request $request)
+    {
+        $request->validate([
+            'product_id' => 'required|exists:products,id',
+        ]);
+
+        $payload = $this->previewPayload($request);
+        $price = $this->salesReturnManager->lastPrice($payload, $request->integer('product_id'));
+
+        return response()->json(['price' => $price]);
     }
 
     private function normalizeMoney($value): int
@@ -124,65 +158,123 @@ class RefundController extends Controller
 
     private function refundFormData(?Refund $refund = null, ?int $selectedPenjualanId = null): array
     {
-        $refundItems = RefundItem::query()
-            ->selectRaw('refunds.penjualan_id, refund_items.product_id, SUM(refund_items.qty) as qty')
-            ->join('refunds', 'refunds.id', '=', 'refund_items.refund_id')
-            ->when($refund, fn ($query) => $query->where('refunds.id', '!=', $refund->id))
-            ->groupBy('refunds.penjualan_id', 'refund_items.product_id')
-            ->get()
-            ->groupBy('penjualan_id');
+        $prefillSale = $selectedPenjualanId ? Penjualan::find($selectedPenjualanId) : null;
+        $converter = app(ProductUnitConverter::class);
 
-        $penjualans = Penjualan::with([
-            'items.product',
-            'customer:id,name',
-            'agent:id,name',
-            'canvasBuyer:id,name',
-            'outletBuyer:id,name',
-        ])
-            ->orderByDesc('sale_date')
-            ->orderByDesc('id')
-            ->get()
-            ->map(function (Penjualan $penjualan) use ($refundItems) {
-                $refundLookup = collect($refundItems->get($penjualan->id))
-                    ->mapWithKeys(fn ($row) => [(int) $row->product_id => (int) $row->qty]);
-
-                return [
-                    'id' => $penjualan->id,
-                    'code' => $penjualan->code,
-                    'buyer_type' => $penjualan->buyer_type,
-                    'buyer_type_label' => $penjualan->buyer_type_label,
-                    'buyer_display_name' => $penjualan->buyer_display_name,
-                    'sale_channel' => $penjualan->sale_channel ?: 'retail',
-                    'sale_channel_label' => $penjualan->isWarehouseSale() ? 'Gudang' : 'Retail',
-                    'items' => $penjualan->items->map(function (PenjualanItem $item) use ($refundLookup) {
-                        $soldQty = (int) $item->qty;
-                        $refundedQty = (int) ($refundLookup[$item->product_id] ?? 0);
-
-                        return [
-                            'product_id' => (int) $item->product_id,
-                            'product_name' => $item->product?->name ?? 'Produk',
-                            'qty_sold' => $soldQty,
-                            'qty_remaining' => max(0, $soldQty - $refundedQty),
-                            'alasan' => '',
-                        ];
-                    })->values()->all(),
-                ];
-            })
+        $products = Product::orderBy('name')
+            ->get([
+                'id',
+                'code',
+                'name',
+                'harga_jual',
+                'satuan',
+                'satuan_besar',
+                'konversi_qty',
+                'satuan_terbesar',
+                'konversi_qty_terbesar',
+            ])
+            ->map(fn (Product $product) => [
+                'id' => $product->id,
+                'code' => $product->code,
+                'name' => $product->name,
+                'harga_jual' => (int) ($product->harga_jual ?? 0),
+                'base_unit' => $product->satuan ?: 'PCS',
+                'default_unit' => $converter->defaultInputUnit($product, auth()->user()?->isBranchScoped() ? 'branch' : 'distribution'),
+                'unit_factors' => $converter->unitMultipliers($product),
+                'units' => $converter->inputUnits($product, auth()->user()?->isBranchScoped() ? 'branch' : 'distribution'),
+            ])
             ->values();
+
+        $selectedReturnScope = old('return_scope', $refund?->return_scope);
+        $selectedBuyerType = old('buyer_type', $refund?->buyer_type);
+        $selectedBuyerId = old('buyer_id', $refund?->buyer_id);
+        $selectedSourceOutletId = old('source_outlet_id', $refund?->source_outlet_id);
+
+        if (! $refund && $prefillSale) {
+            $selectedBuyerType = $prefillSale->buyer_type;
+            $selectedBuyerId = $prefillSale->buyer_id;
+            $selectedSourceOutletId = $prefillSale->outlet_id;
+            $selectedReturnScope = $prefillSale->isBranchSale()
+                ? SalesReturnManager::SCOPE_BRANCH_CUSTOMER
+                : ($prefillSale->buyer_type === 'outlet'
+                    ? SalesReturnManager::SCOPE_WAREHOUSE_BRANCH
+                    : SalesReturnManager::SCOPE_WAREHOUSE_AFFILIATE);
+        }
+
+        if (auth()->user()?->isBranchScoped() && in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true)) {
+            $selectedReturnScope = SalesReturnManager::SCOPE_BRANCH_CUSTOMER;
+            $selectedBuyerType = 'toko';
+            $selectedSourceOutletId = auth()->user()->branchId();
+        }
 
         return [
             'refund' => $refund,
-            'penjualans' => $penjualans,
-            'selectedPenjualanId' => old('penjualan_id', $selectedPenjualanId),
+            'code' => old('code', $refund?->code ?? $this->generateReturnCode()),
+            'tanggalValue' => old('tanggal', $refund?->tanggal?->format('Y-m-d') ?? now()->format('Y-m-d')),
+            'selectedReturnScope' => $selectedReturnScope,
+            'selectedBuyerType' => $selectedBuyerType,
+            'selectedBuyerId' => $selectedBuyerId,
+            'selectedSourceOutletId' => $selectedSourceOutletId,
+            'isBranchScoped' => auth()->user()?->isBranchScoped() && in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true),
+            'branchName' => auth()->user()?->outlet?->name,
+            'agents' => Agent::where('is_active', true)->orderBy('name')->get(),
+            'canvases' => Canvas::where('is_active', true)->orderBy('name')->get(),
+            'branches' => Outlet::branches()->orderBy('name')->get(),
+            'shops' => Outlet::shops()->orderBy('name')->get(),
+            'products' => $products,
             'initialItems' => old('product')
                 ?: ($refund
                     ? $refund->refundItems->map(fn ($item) => [
                         'product_id' => (int) $item->product_id,
-                        'qty' => (int) $item->qty,
+                        'qty' => (float) ($item->qty_input ?? $item->qty),
+                        'unit' => $item->unit ?: $item->product?->satuan,
+                        'price' => (int) $item->price,
                         'alasan' => $item->alasan,
                     ])->values()->all()
                     : []),
         ];
+    }
+
+    private function returnPayload(array $data): array
+    {
+        if (auth()->user()?->role === 'sales') {
+            $data['salesman_id'] = Salesman::where('user_id', auth()->id())->value('id');
+        }
+
+        return $data;
+    }
+
+    private function previewPayload(Request $request): array
+    {
+        $buyerType = (string) $request->input('buyer_type');
+        $isBranchScoped = auth()->user()?->isBranchScoped()
+            && in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true);
+
+        if ($isBranchScoped) {
+            return [
+                'return_scope' => SalesReturnManager::SCOPE_BRANCH_CUSTOMER,
+                'buyer_type' => 'toko',
+                'buyer_id' => (int) $request->input('buyer_id'),
+                'source_outlet_id' => auth()->user()->branchId(),
+            ];
+        }
+
+        return [
+            'return_scope' => $request->input('return_scope') ?: ($buyerType === 'outlet'
+                ? SalesReturnManager::SCOPE_WAREHOUSE_BRANCH
+                : SalesReturnManager::SCOPE_WAREHOUSE_AFFILIATE),
+            'buyer_type' => $buyerType,
+            'buyer_id' => (int) $request->input('buyer_id'),
+            'source_outlet_id' => $request->input('source_outlet_id'),
+        ];
+    }
+
+    private function generateReturnCode(): string
+    {
+        $lastRefund = Refund::latest('id')->first();
+        $nextNumber = $lastRefund ? ((int) substr((string) $lastRefund->code, 3) + 1) : 1;
+
+        return 'RTR'.str_pad((string) $nextNumber, 5, '0', STR_PAD_LEFT);
     }
 
     private function refundableSale(int $penjualanId): Penjualan

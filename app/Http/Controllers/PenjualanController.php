@@ -10,7 +10,9 @@ use App\Models\OwnerStock;
 use App\Models\Penjualan;
 use App\Models\PenjualanItem;
 use App\Models\Product;
+use App\Models\Salesman;
 use App\Models\Stock;
+use App\Services\BranchPenjualanManager;
 use App\Services\WarehousePenjualanManager;
 use App\Support\ProductUnitConverter;
 use Illuminate\Http\Request;
@@ -19,7 +21,8 @@ use Illuminate\Support\Facades\DB;
 class PenjualanController extends Controller
 {
     public function __construct(
-        private readonly WarehousePenjualanManager $warehousePenjualanManager
+        private readonly WarehousePenjualanManager $warehousePenjualanManager,
+        private readonly BranchPenjualanManager $branchPenjualanManager
     ) {
     }
 
@@ -56,39 +59,79 @@ class PenjualanController extends Controller
 
     public function index()
     {
-        $this->ensureWarehouseSaleAccess();
+        $this->ensurePenjualanAccess();
+
+        $query = Penjualan::with(['items.product', 'operator', 'salesman', 'outlet', 'agent', 'canvasBuyer', 'outletBuyer', 'tokoBuyer', 'paymentTransaction'])
+            ->orderByDesc('sale_date')
+            ->orderByDesc('id');
+
+        if ($this->isBranchMode()) {
+            $query->branchSales()
+                ->where('outlet_id', auth()->user()->branchId());
+
+            if (auth()->user()?->role === 'sales') {
+                $salesmanId = $this->currentSalesmanId();
+                $query->where(function ($innerQuery) use ($salesmanId) {
+                    $innerQuery->where('user_id', auth()->id())
+                        ->when($salesmanId, fn ($salesQuery) => $salesQuery->orWhere('salesman_id', $salesmanId));
+                });
+            }
+        } else {
+            $query->warehouseSales();
+        }
 
         return view('penjualan.index', [
-            'penjualans' => Penjualan::warehouseSales()
-                ->with(['items.product', 'operator', 'agent', 'canvasBuyer', 'outletBuyer', 'paymentTransaction'])
-                ->orderByDesc('sale_date')
-                ->orderByDesc('id')
-                ->get(),
+            'penjualans' => $query->get(),
         ]);
     }
 
     public function create()
     {
-        $this->ensureWarehouseSaleAccess();
+        $this->ensurePenjualanAccess();
 
-        return view('penjualan.create', $this->warehouseSaleFormData());
+        return view('penjualan.create', $this->isBranchMode()
+            ? $this->branchSaleFormData()
+            : $this->warehouseSaleFormData());
     }
 
     public function edit(Penjualan $penjualan)
     {
-        $this->ensureWarehouseSaleAccess();
-        abort_unless($penjualan->isWarehouseSale(), 404);
+        $this->ensurePenjualanAccess();
+        $this->ensureSaleCanBeManaged($penjualan);
 
         $penjualan->load('items.product');
 
-        return view('penjualan.edit', $this->warehouseSaleFormData($penjualan));
+        return view('penjualan.edit', $penjualan->isBranchSale()
+            ? $this->branchSaleFormData($penjualan)
+            : $this->warehouseSaleFormData($penjualan));
     }
 
     public function storeWarehouseSale(WarehousePenjualanRequest $request)
     {
-        $this->ensureWarehouseSaleAccess();
+        $this->ensurePenjualanAccess();
 
         try {
+            if ($this->isBranchMode()) {
+                $penjualan = $this->branchPenjualanManager->create([
+                    'code' => $this->generateWarehouseSaleCode(),
+                    'buyer_id' => (int) $request->outlet_target_id,
+                    'sale_date' => $request->sale_date,
+                    'payment_type' => $request->payment_type,
+                    'payment_status' => $request->payment_status,
+                    'discount' => (int) ($request->discount ?? 0),
+                    'notes' => $request->notes,
+                    'items' => collect($request->items)->map(fn ($item) => [
+                        'product_id' => (int) $item['product_id'],
+                        'qty' => (float) $item['qty'],
+                        'unit' => (string) $item['unit'],
+                        'price' => (int) $item['price'],
+                    ])->all(),
+                ], (int) auth()->id(), (int) auth()->user()->branchId(), $this->currentSalesmanId());
+
+                return redirect()->route('penjualan.show', $penjualan)
+                    ->with('toast_success', 'Penjualan cabang berhasil disimpan.');
+            }
+
             $penjualan = $this->warehousePenjualanManager->create([
                 'code' => $this->generateWarehouseSaleCode(),
                 'buyer_type' => $request->buyer_type,
@@ -116,10 +159,30 @@ class PenjualanController extends Controller
 
     public function updateWarehouseSale(WarehousePenjualanRequest $request, Penjualan $penjualan)
     {
-        $this->ensureWarehouseSaleAccess();
-        abort_unless($penjualan->isWarehouseSale(), 404);
+        $this->ensurePenjualanAccess();
+        $this->ensureSaleCanBeManaged($penjualan);
 
         try {
+            if ($penjualan->isBranchSale()) {
+                $penjualan = $this->branchPenjualanManager->update($penjualan, [
+                    'buyer_id' => (int) $request->outlet_target_id,
+                    'sale_date' => $request->sale_date,
+                    'payment_type' => $request->payment_type,
+                    'payment_status' => $request->payment_status,
+                    'discount' => (int) ($request->discount ?? 0),
+                    'notes' => $request->notes,
+                    'items' => collect($request->items)->map(fn ($item) => [
+                        'product_id' => (int) $item['product_id'],
+                        'qty' => (float) $item['qty'],
+                        'unit' => (string) $item['unit'],
+                        'price' => (int) $item['price'],
+                    ])->all(),
+                ], (int) auth()->id(), (int) auth()->user()->branchId(), $this->currentSalesmanId());
+
+                return redirect()->route('penjualan.show', $penjualan)
+                    ->with('toast_success', 'Penjualan cabang berhasil diperbarui.');
+            }
+
             $penjualan = $this->warehousePenjualanManager->update($penjualan, [
                 'buyer_type' => $request->buyer_type,
                 'buyer_id' => $this->resolveBuyerTargetId($request),
@@ -146,22 +209,29 @@ class PenjualanController extends Controller
 
     public function lastPrice(Request $request)
     {
-        $this->ensureWarehouseSaleAccess();
+        $this->ensurePenjualanAccess();
 
         $request->validate([
-            'buyer_type' => 'required|in:agent,canvas,outlet',
+            'buyer_type' => 'required|in:agent,canvas,outlet,toko',
             'buyer_id' => 'required|integer',
             'product_id' => 'required|integer|exists:products,id',
         ]);
 
-        $price = PenjualanItem::query()
+        $priceQuery = PenjualanItem::query()
             ->select('penjualan_items.price')
             ->join('penjualans', 'penjualans.id', '=', 'penjualan_items.penjualan_id')
-            ->where('penjualans.sale_channel', 'warehouse')
             ->where('penjualans.buyer_type', $request->buyer_type)
             ->where('penjualans.buyer_id', (int) $request->buyer_id)
-            ->where('penjualan_items.product_id', (int) $request->product_id)
-            ->orderByDesc('penjualans.sale_date')
+            ->where('penjualan_items.product_id', (int) $request->product_id);
+
+        if ($this->isBranchMode()) {
+            $priceQuery->where('penjualans.sale_channel', 'branch')
+                ->where('penjualans.outlet_id', auth()->user()->branchId());
+        } else {
+            $priceQuery->where('penjualans.sale_channel', 'warehouse');
+        }
+
+        $price = $priceQuery->orderByDesc('penjualans.sale_date')
             ->orderByDesc('penjualan_items.id')
             ->value('price');
 
@@ -255,17 +325,22 @@ class PenjualanController extends Controller
 
     public function show(Penjualan $penjualan)
     {
+        $this->ensureSaleCanBeViewed($penjualan);
+
         $penjualan->load([
             'items.product',
             'operator',
             'customer',
             'kasir',
             'outlet',
+            'salesman',
             'agent',
             'canvasBuyer',
             'outletBuyer',
+            'tokoBuyer',
             'transaction.payment',
             'paymentTransaction',
+            'totalAdjustments.refund',
         ]);
 
         return view('penjualan.show', [
@@ -275,17 +350,22 @@ class PenjualanController extends Controller
 
     public function print(Penjualan $penjualan)
     {
+        $this->ensureSaleCanBeViewed($penjualan);
+
         $penjualan->load([
             'items.product',
             'operator',
             'customer',
             'kasir',
             'outlet',
+            'salesman',
             'agent',
             'canvasBuyer',
             'outletBuyer',
+            'tokoBuyer',
             'transaction.payment',
             'paymentTransaction',
+            'totalAdjustments.refund',
         ]);
 
         return view('penjualan.print', [
@@ -295,12 +375,16 @@ class PenjualanController extends Controller
 
     public function suratJalan(Penjualan $penjualan)
     {
+        $this->ensureSaleCanBeViewed($penjualan);
+
         $penjualan->load([
             'items.product',
             'operator',
+            'salesman',
             'agent',
             'canvasBuyer',
             'outletBuyer',
+            'tokoBuyer',
         ]);
 
         return view('penjualan.surat-jalan', [
@@ -310,9 +394,11 @@ class PenjualanController extends Controller
 
     public function destroy(Penjualan $penjualan)
     {
-        if ($penjualan->isWarehouseSale()) {
+        $this->ensureSaleCanBeManaged($penjualan);
+
+        if ($penjualan->isWarehouseSale() || $penjualan->isBranchSale()) {
             return redirect()->route('penjualan.index')
-                ->with('toast_error', 'Penjualan gudang tidak dapat dihapus. Gunakan koreksi stok bila diperlukan.');
+                ->with('toast_error', 'Penjualan gudang/cabang tidak dapat dihapus. Gunakan koreksi stok bila diperlukan.');
         }
 
         $penjualan->delete();
@@ -323,6 +409,54 @@ class PenjualanController extends Controller
     private function ensureWarehouseSaleAccess(): void
     {
         abort_unless(in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner'], true), 403);
+    }
+
+    private function ensurePenjualanAccess(): void
+    {
+        abort_unless(in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true), 403);
+    }
+
+    private function isBranchMode(): bool
+    {
+        return auth()->user()?->isBranchScoped() && in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true);
+    }
+
+    private function ensureSaleCanBeManaged(Penjualan $penjualan): void
+    {
+        if ($this->isBranchMode()) {
+            abort_unless($penjualan->isBranchSale() && (int) $penjualan->outlet_id === (int) auth()->user()->branchId(), 403);
+
+            if (auth()->user()?->role === 'sales') {
+                $salesmanId = $this->currentSalesmanId();
+                abort_unless((int) $penjualan->user_id === (int) auth()->id() || ($salesmanId && (int) $penjualan->salesman_id === $salesmanId), 403);
+            }
+
+            return;
+        }
+
+        $this->ensureWarehouseSaleAccess();
+        abort_unless($penjualan->isWarehouseSale(), 404);
+    }
+
+    private function ensureSaleCanBeViewed(Penjualan $penjualan): void
+    {
+        if ($this->isBranchMode()) {
+            abort_unless($penjualan->isBranchSale() && (int) $penjualan->outlet_id === (int) auth()->user()->branchId(), 403);
+
+            if (auth()->user()?->role === 'sales') {
+                $salesmanId = $this->currentSalesmanId();
+                abort_unless((int) $penjualan->user_id === (int) auth()->id() || ($salesmanId && (int) $penjualan->salesman_id === $salesmanId), 403);
+            }
+        }
+    }
+
+    private function currentSalesmanId(): ?int
+    {
+        if (auth()->user()?->role !== 'sales') {
+            return null;
+        }
+
+        return Salesman::where('user_id', auth()->id())->value('id');
     }
 
     private function warehouseSaleFormData(?Penjualan $penjualan = null): array
@@ -369,11 +503,85 @@ class PenjualanController extends Controller
 
         return [
             'penjualan' => $penjualan,
+            'saleMode' => 'warehouse',
+            'branchName' => null,
             'code' => $penjualan?->code ?? $this->generateWarehouseSaleCode(),
             'saleDate' => ($penjualan?->sale_date ?? now())->format('Y-m-d'),
             'agents' => Agent::where('is_active', true)->orderBy('name')->get(),
             'canvases' => Canvas::where('is_active', true)->orderBy('name')->get(),
             'outlets' => Outlet::branches()->orderBy('name')->get(),
+            'products' => $products,
+            'initialItems' => old('items')
+                ?: ($penjualan
+                    ? $penjualan->items->map(fn ($item) => [
+                        'product_id' => (int) $item->product_id,
+                        'qty' => (float) ($item->qty_input ?? $item->qty),
+                        'unit' => $item->unit ?: $item->product?->satuan,
+                        'price' => (int) $item->price,
+                    ])->values()->all()
+                    : []),
+        ];
+    }
+
+    private function branchSaleFormData(?Penjualan $penjualan = null): array
+    {
+        $branchId = (int) auth()->user()->branchId();
+        abort_unless($branchId > 0, 403);
+
+        $converter = app(ProductUnitConverter::class);
+        $existingQtyByProduct = $penjualan
+            ? $penjualan->items->pluck('qty', 'product_id')
+            : collect();
+        $productIds = OwnerStock::where('owner_id', $branchId)
+            ->where('qty', '>', 0)
+            ->pluck('product_id')
+            ->merge($existingQtyByProduct->keys())
+            ->unique()
+            ->values();
+
+        $products = Product::whereIn('id', $productIds)
+            ->with(['ownerStocks' => fn ($query) => $query->where('owner_id', $branchId)])
+            ->orderBy('name')
+            ->get([
+                'id',
+                'code',
+                'name',
+                'harga_jual',
+                'satuan',
+                'satuan_besar',
+                'konversi_qty',
+                'satuan_terbesar',
+                'konversi_qty_terbesar',
+            ])
+            ->map(function (Product $product) use ($converter, $existingQtyByProduct) {
+                $availableQty = (int) $product->ownerStocks->sum('qty')
+                    + (int) ($existingQtyByProduct[$product->id] ?? 0);
+
+                return [
+                    'id' => $product->id,
+                    'code' => $product->code,
+                    'name' => $product->name,
+                    'harga_jual' => (int) ($product->harga_jual ?? 0),
+                    'available_stock_qty' => $availableQty,
+                    'base_unit' => $product->satuan ?: 'PCS',
+                    'stock_summary' => $converter->stockSummaryDisplay($product, $availableQty),
+                    'default_unit' => $converter->defaultInputUnit($product, 'branch'),
+                    'unit_factors' => $converter->unitMultipliers($product),
+                    'units' => $converter->inputUnits($product, 'branch'),
+                ];
+            })
+            ->filter(fn (array $product) => $product['available_stock_qty'] > 0)
+            ->values();
+
+        return [
+            'penjualan' => $penjualan,
+            'saleMode' => 'branch',
+            'branchName' => auth()->user()->outlet?->name,
+            'code' => $penjualan?->code ?? $this->generateWarehouseSaleCode(),
+            'saleDate' => ($penjualan?->sale_date ?? now())->format('Y-m-d'),
+            'agents' => collect(),
+            'canvases' => collect(),
+            'outlets' => Outlet::shops()->orderBy('name')->get(),
             'products' => $products,
             'initialItems' => old('items')
                 ?: ($penjualan

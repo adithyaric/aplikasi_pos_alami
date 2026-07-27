@@ -58,18 +58,22 @@
                                             <a class="btn btn-primary btn-xs" href="{{ route('penjualan.edit', $penjualan) }}">
                                                 <i class="fa fa-pencil"></i> Edit
                                             </a>
+                                            @if (! in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true))
                                             <a class="btn btn-success btn-xs" href="{{ route('penjualan.pembayaran.edit', $penjualan) }}">
                                                 <i class="fa fa-credit-card"></i> Pembayaran
                                             </a>
+                                            @endif
                                             <a class="btn btn-danger btn-xs" href="{{ route('refund.create', ['penjualan_id' => $penjualan->id]) }}">
                                                 <i class="fa fa-undo"></i> Retur
                                             </a>
                                             <a class="btn btn-warning btn-xs" href="{{ route('penjualan.print', $penjualan) }}" target="_blank">
                                                 <i class="fa fa-print"></i> Invoice
                                             </a>
+                                            @if (! in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true))
                                             <a class="btn btn-info btn-xs" href="{{ route('penjualan.surat-jalan', $penjualan) }}" target="_blank">
                                                 <i class="fa fa-truck"></i> Surat Jalan
                                             </a>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach

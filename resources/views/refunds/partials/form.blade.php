@@ -1,7 +1,8 @@
 @php
-    $selectedPenjualanId = (string) ($selectedPenjualanId ?? '');
-    $tanggalValue = old('tanggal', $refund?->tanggal?->format('Y-m-d') ?? now()->format('Y-m-d'));
-    $totalValue = old('total', isset($refund) ? number_format((int) $refund->total, 0, ',', '.') : '');
+    $selectedReturnScope = $selectedReturnScope ?: '';
+    $selectedBuyerType = $selectedBuyerType ?: '';
+    $selectedBuyerId = (string) ($selectedBuyerId ?: '');
+    $selectedSourceOutletId = (string) ($selectedSourceOutletId ?: '');
 @endphp
 
 <section class="content">
@@ -18,107 +19,152 @@
                         @method($formMethod)
                     @endif
 
+                    <input type="hidden" name="return_scope" id="return_scope" value="{{ $selectedReturnScope }}">
+                    <input type="hidden" name="buyer_id" id="buyer_id" value="{{ $selectedBuyerId }}">
+
                     <div class="box-body">
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <div class="form-group">
-                                    <label>Kode Refund</label>
-                                    <input type="text" class="form-control" name="code"
-                                        value="{{ old('code', $refund?->code) }}" placeholder="Masukkan kode refund" required>
+                                    <label>Kode Retur</label>
+                                    <input type="text" class="form-control" name="code" value="{{ old('code', $code) }}" required>
                                     @error('code')
                                         <div class="text-danger">{{ $message }}</div>
                                     @enderror
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <div class="form-group">
                                     <label>Tanggal</label>
-                                    <input type="date" class="form-control" name="tanggal"
-                                        value="{{ $tanggalValue }}" required>
+                                    <input type="date" class="form-control" name="tanggal" value="{{ $tanggalValue }}" required>
                                     @error('tanggal')
                                         <div class="text-danger">{{ $message }}</div>
                                     @enderror
                                 </div>
                             </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Penjualan</label>
-                            <select id="penjualan_id" class="form-control select2" name="penjualan_id" style="width:100%" required>
-                                <option value="">Pilih Penjualan</option>
-                                @foreach ($penjualans as $penjualan)
-                                    <option value="{{ $penjualan['id'] }}" {{ $selectedPenjualanId === (string) $penjualan['id'] ? 'selected' : '' }}>
-                                        {{ $penjualan['code'] }} - {{ $penjualan['buyer_type_label'] }} {{ $penjualan['buyer_display_name'] }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('penjualan_id')
-                                <div class="text-danger">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="alert alert-info">
-                            Retur penjualan akan mengikuti pembeli pada invoice yang dipilih. Jadi bisa untuk
-                            <strong>Agen</strong>, <strong>Canvas</strong>, atau <strong>Cabang</strong>.
+                            <div class="col-md-4">
+                                @if ($isBranchScoped)
+                                    <div class="form-group">
+                                        <label>Cabang Penerima Retur</label>
+                                        <input type="hidden" name="buyer_type" id="buyer_type" value="toko">
+                                        <input type="hidden" name="source_outlet_id" value="{{ $selectedSourceOutletId }}">
+                                        <input type="text" class="form-control" value="{{ $branchName ?: '-' }}" readonly>
+                                    </div>
+                                @else
+                                    <div class="form-group">
+                                        <label>Jenis Pembeli</label>
+                                        <select class="form-control" name="buyer_type" id="buyer_type" required>
+                                            <option value="">Pilih Jenis Pembeli</option>
+                                            <option value="agent" {{ $selectedBuyerType === 'agent' ? 'selected' : '' }}>Agen</option>
+                                            <option value="canvas" {{ $selectedBuyerType === 'canvas' ? 'selected' : '' }}>Canvas</option>
+                                            <option value="outlet" {{ $selectedBuyerType === 'outlet' ? 'selected' : '' }}>Cabang</option>
+                                        </select>
+                                        @error('buyer_type')
+                                            <div class="text-danger">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                @endif
+                            </div>
                         </div>
 
                         <div class="row">
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label>Channel Penjualan</label>
-                                    <input type="text" class="form-control" id="sale_channel_info" readonly value="-">
+                            @if ($isBranchScoped)
+                                <div class="col-md-6 buyer-block buyer-toko">
+                                    <div class="form-group">
+                                        <label>Customer/Toko</label>
+                                        <select class="form-control select2 buyer-select" id="shop_buyer_id" data-buyer-type="toko" style="width:100%">
+                                            <option value="">Pilih Customer/Toko</option>
+                                            @foreach ($shops as $shop)
+                                                <option value="{{ $shop->id }}" {{ $selectedBuyerId === (string) $shop->id ? 'selected' : '' }}>
+                                                    {{ $shop->name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label>Jenis Pembeli</label>
-                                    <input type="text" class="form-control" id="buyer_type_info" readonly value="-">
+                            @else
+                                <div class="col-md-4 buyer-block buyer-agent" style="display:none">
+                                    <div class="form-group">
+                                        <label>Agen</label>
+                                        <select class="form-control select2 buyer-select" id="agent_buyer_id" data-buyer-type="agent" style="width:100%">
+                                            <option value="">Pilih Agen</option>
+                                            @foreach ($agents as $agent)
+                                                <option value="{{ $agent->id }}" {{ $selectedBuyerType === 'agent' && $selectedBuyerId === (string) $agent->id ? 'selected' : '' }}>
+                                                    {{ $agent->code ? $agent->code.' - ' : '' }}{{ $agent->name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label>Nama Pembeli</label>
-                                    <input type="text" class="form-control" id="buyer_name_info" readonly value="-">
+                                <div class="col-md-4 buyer-block buyer-canvas" style="display:none">
+                                    <div class="form-group">
+                                        <label>Canvas</label>
+                                        <select class="form-control select2 buyer-select" id="canvas_buyer_id" data-buyer-type="canvas" style="width:100%">
+                                            <option value="">Pilih Canvas</option>
+                                            @foreach ($canvases as $canvas)
+                                                <option value="{{ $canvas->id }}" {{ $selectedBuyerType === 'canvas' && $selectedBuyerId === (string) $canvas->id ? 'selected' : '' }}>
+                                                    {{ $canvas->code ? $canvas->code.' - ' : '' }}{{ $canvas->name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
                                 </div>
-                            </div>
+                                <div class="col-md-4 buyer-block buyer-outlet" style="display:none">
+                                    <div class="form-group">
+                                        <label>Cabang</label>
+                                        <select class="form-control select2 buyer-select" id="branch_buyer_id" data-buyer-type="outlet" style="width:100%">
+                                            <option value="">Pilih Cabang</option>
+                                            @foreach ($branches as $branch)
+                                                <option value="{{ $branch->id }}" {{ $selectedBuyerType === 'outlet' && $selectedBuyerId === (string) $branch->id ? 'selected' : '' }}>
+                                                    {{ $branch->name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                            @endif
                         </div>
 
+                        <div id="invoice-preview" class="alert alert-warning" style="display:none"></div>
+
                         <div class="form-group">
-                            <label>Total Refund</label>
-                            <input type="text" class="form-control numeral-mask" name="total"
-                                value="{{ $totalValue }}" placeholder="Masukkan total refund" required>
-                            @error('total')
-                                <div class="text-danger">{{ $message }}</div>
-                            @enderror
+                            <label>Catatan</label>
+                            <textarea class="form-control" name="notes" rows="2" placeholder="Catatan retur">{{ old('notes', $refund?->notes) }}</textarea>
                         </div>
 
                         <hr>
-
-                        <div class="clearfix" style="margin-bottom:10px;">
-                            <button type="button" class="btn btn-default pull-right" id="reload-sale-items">
-                                <i class="fa fa-refresh"></i> Muat Ulang Item Penjualan
-                            </button>
-                        </div>
 
                         <div class="table-responsive">
                             <table class="table table-bordered table-striped">
                                 <thead>
                                     <tr>
-                                        <th>Produk</th>
-                                        <th>Qty Terjual</th>
-                                        <th>Maks Retur</th>
-                                        <th>Qty Retur</th>
+                                        <th style="width:28%">Produk</th>
+                                        <th style="width:12%">Satuan</th>
+                                        <th style="width:10%">Qty Retur</th>
+                                        <th style="width:16%">Harga Jual</th>
+                                        <th style="width:14%">Subtotal</th>
                                         <th>Alasan</th>
-                                        <th>Aksi</th>
+                                        <th style="width:6%">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody id="refund-items-body"></tbody>
+                                <tfoot>
+                                    <tr>
+                                        <th colspan="4" class="text-right">Total Retur</th>
+                                        <th id="return-total-display">0</th>
+                                        <th colspan="2"></th>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
 
                         @error('product')
                             <div class="text-danger">{{ $message }}</div>
                         @enderror
+
+                        <button type="button" class="btn btn-default" id="add-row">
+                            <i class="fa fa-plus"></i> Tambah Produk
+                        </button>
                     </div>
 
                     <div class="box-footer">

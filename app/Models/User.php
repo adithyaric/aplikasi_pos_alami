@@ -55,4 +55,19 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Outlet::class);
     }
+
+    public function branchId(): ?int
+    {
+        return $this->outlet_id ? (int) $this->outlet_id : null;
+    }
+
+    public function isBranchScoped(): bool
+    {
+        return in_array($this->role, ['admin-cabang', 'sales', 'staff-outlet'], true) && $this->branchId() !== null;
+    }
+
+    public function isWarehouseRole(): bool
+    {
+        return in_array($this->role, ['superadmin', 'admin-gudang', 'owner'], true);
+    }
 }

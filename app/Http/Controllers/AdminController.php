@@ -14,6 +14,7 @@ class AdminController extends Controller
     private const MANAGED_ROLES = [
         'superadmin',
         'admin-gudang',
+        'admin-cabang',
         'staff-outlet',
         'owner',
     ];
@@ -64,7 +65,7 @@ class AdminController extends Controller
         $this->validate($request, [
             'name' => 'required',
             'username' => 'required',
-            'outlet_id' => 'required_if:role,staff-outlet|required_if:role,admin-gudang|nullable|exists:outlets,id',
+            'outlet_id' => 'required_if:role,staff-outlet|required_if:role,admin-gudang|required_if:role,admin-cabang|nullable|exists:outlets,id',
             'role' => 'required|in:'.implode(',', self::MANAGED_ROLES),
             'status' => 'required',
             'email' => 'required|email|unique:users,email,'.$admin->id,

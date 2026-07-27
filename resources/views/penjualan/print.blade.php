@@ -133,7 +133,10 @@
             </tr>
         </thead>
         <tbody>
-            @php $subtotal = 0; @endphp
+            @php
+                $subtotal = 0;
+                $returnAdjustment = $penjualan->totalAdjustments->sum('amount');
+            @endphp
             @foreach ($penjualan->items as $item)
                 @php $subtotal += (int) $item->subtotal; @endphp
                 <tr>
@@ -160,6 +163,12 @@
             <td>Diskon</td>
             <td style="text-align:right">@currency($penjualan->discount)</td>
         </tr>
+        @if ($returnAdjustment > 0)
+            <tr>
+                <td>Potongan Retur</td>
+                <td style="text-align:right">- @currency($returnAdjustment)</td>
+            </tr>
+        @endif
         <tr>
             <td><strong>Total</strong></td>
             <td style="text-align:right"><strong>@currency($penjualan->total)</strong></td>

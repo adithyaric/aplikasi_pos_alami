@@ -25,6 +25,32 @@ class CurrentDistributionFlowSeeder extends Seeder
     {
         $this->call(CigaretteProductSeeder::class);
 
+        User::updateOrCreate(
+            ['email' => 'admin-gudang@alami.test'],
+            [
+                'name' => 'Admin Gudang ALAMI',
+                'username' => 'admin-gudang@alami.test',
+                'role' => 'admin-gudang',
+                'status' => 'active',
+                'alamat' => 'Gudang Utama ALAMI Yogyakarta',
+                'no_telp' => '+628111000001',
+                'password' => Hash::make('password'),
+            ]
+        );
+
+        User::updateOrCreate(
+            ['email' => 'owner@alami.test'],
+            [
+                'name' => 'Owner ALAMI',
+                'username' => 'owner@alami.test',
+                'role' => 'owner',
+                'status' => 'active',
+                'alamat' => 'Yogyakarta',
+                'no_telp' => '+628111000002',
+                'password' => Hash::make('password'),
+            ]
+        );
+
         collect([
             [
                 'name' => 'Cabang ALAMI AREA JOGJA KOTA',
@@ -69,7 +95,7 @@ class CurrentDistributionFlowSeeder extends Seeder
                 [
                     'name' => $branch['leader']['name'],
                     'username' => $branch['leader']['username'],
-                    'role' => 'staff-outlet',
+                    'role' => 'admin-cabang',
                     'status' => 'active',
                     'alamat' => $branch['alamat'],
                     'no_telp' => $branch['leader']['no_telp'],
@@ -84,19 +110,61 @@ class CurrentDistributionFlowSeeder extends Seeder
             );
 
             foreach ($branch['sales'] as $salesIndex => $salesName) {
+                $salesPhone = '+628111200'.str_pad((string) (($index * 3) + $salesIndex + 1), 3, '0', STR_PAD_LEFT);
+                $salesEmail = strtolower(str_replace(' ', '-', $salesName)).'@alami.test';
+                $salesUser = User::updateOrCreate(
+                    ['email' => $salesEmail],
+                    [
+                        'name' => $salesName,
+                        'username' => $salesEmail,
+                        'role' => 'sales',
+                        'status' => 'active',
+                        'alamat' => $branch['alamat'],
+                        'no_telp' => $salesPhone,
+                        'password' => Hash::make('password'),
+                        'outlet_id' => $outlet->id,
+                    ]
+                );
+
                 Salesman::updateOrCreate(
                     ['code' => sprintf('SLS-%02d-%02d', $index + 1, $salesIndex + 1)],
                     [
                         'name' => $salesName,
                         'alamat' => $branch['alamat'],
-                        'no_telp' => '+628111200'.str_pad((string) (($index * 3) + $salesIndex + 1), 3, '0', STR_PAD_LEFT),
+                        'no_telp' => $salesPhone,
                         'outlet_id' => $outlet->id,
-                        'user_id' => null,
+                        'user_id' => $salesUser->id,
                     ]
                 );
             }
 
             return $outlet;
+        });
+
+        collect([
+            [
+                'name' => 'Toko Sembako Malioboro',
+                'alamat' => 'Jl. Sosrowijayan No. 10, Yogyakarta',
+                'desc' => 'Customer/toko untuk simulasi penjualan cabang Jogja Kota',
+            ],
+            [
+                'name' => 'Toko Retail Wates',
+                'alamat' => 'Jl. Wates No. 21, Kulon Progo',
+                'desc' => 'Customer/toko untuk simulasi penjualan cabang Kulon Progo',
+            ],
+        ])->each(function (array $shop) {
+            Outlet::updateOrCreate(
+                ['name' => $shop['name']],
+                [
+                    'logo' => null,
+                    'jenis_outlet' => 'toko',
+                    'alamat' => $shop['alamat'],
+                    'npwp' => null,
+                    'slogan' => 'Customer retail ALAMI',
+                    'desc' => $shop['desc'],
+                    'footer' => 'Terima kasih',
+                ]
+            );
         });
 
         $agents = [

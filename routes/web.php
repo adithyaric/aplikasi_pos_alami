@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\BranchController;
+use App\Http\Controllers\BranchStockController;
 use App\Http\Controllers\CanvasController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CartUserController;
@@ -38,7 +39,7 @@ Route::get('/', function () {
     return redirect('/dashboard');
 });
 
-Route::middleware(['role:admin-gudang|staff-outlet|owner|superadmin'])->group(function () {
+Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|superadmin'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -101,6 +102,8 @@ Route::middleware(['role:admin-gudang|staff-outlet|owner|superadmin'])->group(fu
     Route::get('/supplier/{supplier}/products', [App\Http\Controllers\PembelianController::class, 'getProductsBySupplier'])->name('supplier.products');
 
     Route::resource('/refund', RefundController::class);
+    Route::get('/refund-preview/latest-invoice', [RefundController::class, 'latestInvoicePreview'])->name('refund.latest-invoice');
+    Route::get('/refund-preview/last-price', [RefundController::class, 'lastReturnPrice'])->name('refund.last-price');
 
     // AJAX helpers for retur — must be BEFORE the resource
     Route::get('/retur/supplier/{supplier}/products', [RefundPembelianController::class, 'getSupplierProducts'])->name('retur.supplier.products');
@@ -124,6 +127,13 @@ Route::middleware(['role:admin-gudang|staff-outlet|owner|superadmin'])->group(fu
     Route::get('/penjualan/{penjualan}/print', [PenjualanController::class, 'print'])->name('penjualan.print');
     Route::get('/penjualan/{penjualan}/surat-jalan', [PenjualanController::class, 'suratJalan'])->name('penjualan.surat-jalan');
     Route::delete('/penjualan/{penjualan}', [PenjualanController::class, 'destroy'])->name('penjualan.destroy');
+
+    Route::get('/branch-stock', [BranchStockController::class, 'index'])->name('branch-stock.index');
+    Route::get('/branch-stock/kartu', [BranchStockController::class, 'kartu'])->name('branch-stock.kartu');
+    Route::get('/branch-stock/kartu/data', [BranchStockController::class, 'getKartuData'])->name('branch-stock.kartu.data');
+    Route::get('/branch-stock/opname', [BranchStockController::class, 'opname'])->name('branch-stock.opname');
+    Route::get('/branch-stock/opname/data', [BranchStockController::class, 'getOpnameData'])->name('branch-stock.opname.data');
+    Route::post('/branch-stock/opname/save', [BranchStockController::class, 'saveOpname'])->name('branch-stock.opname.save');
 
     // Route::resource('/cart', CartController::class);
     // Route::post('/cart-change-qty', [CartController::class, 'changeQty']);

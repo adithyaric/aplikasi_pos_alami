@@ -78,7 +78,10 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @php $subtotal = 0; @endphp
+                                @php
+                                    $subtotal = 0;
+                                    $returnAdjustment = $penjualan->totalAdjustments->sum('amount');
+                                @endphp
                                 @foreach ($penjualan->items as $item)
                                     @php $subtotal += (int) $item->subtotal; @endphp
                                     <tr>
@@ -106,6 +109,12 @@
                                     <th colspan="5" class="text-right">Diskon</th>
                                     <th>@currency($penjualan->discount)</th>
                                 </tr>
+                                @if ($returnAdjustment > 0)
+                                    <tr>
+                                        <th colspan="5" class="text-right">Potongan Retur</th>
+                                        <th class="text-danger">- @currency($returnAdjustment)</th>
+                                    </tr>
+                                @endif
                                 <tr>
                                     <th colspan="5" class="text-right">Total</th>
                                     <th>@currency($penjualan->total)</th>
@@ -118,18 +127,22 @@
                         <a href="{{ route('penjualan.edit', $penjualan) }}" class="btn btn-primary">
                             <i class="fa fa-pencil"></i> Edit
                         </a>
+                        @if (! in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true))
                         <a href="{{ route('penjualan.pembayaran.edit', $penjualan) }}" class="btn btn-success">
                             <i class="fa fa-credit-card"></i> Pembayaran
                         </a>
+                        @endif
                         <a href="{{ route('refund.create', ['penjualan_id' => $penjualan->id]) }}" class="btn btn-danger">
                             <i class="fa fa-undo"></i> Retur
                         </a>
                         <a href="{{ route('penjualan.print', $penjualan) }}" class="btn btn-warning" target="_blank">
                             <i class="fa fa-print"></i> Invoice
                         </a>
+                        @if (! in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true))
                         <a href="{{ route('penjualan.surat-jalan', $penjualan) }}" class="btn btn-info" target="_blank">
                             <i class="fa fa-truck"></i> Surat Jalan
                         </a>
+                        @endif
                     </div>
                 </div>
             </div>

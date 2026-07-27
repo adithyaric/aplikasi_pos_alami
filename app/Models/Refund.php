@@ -14,13 +14,21 @@ class Refund extends Model
         'kas_id',
         'customer_id',
         'penjualan_id',
+        'applied_penjualan_id',
         'outlet_id',
+        'source_outlet_id',
+        'return_scope',
+        'sale_channel',
         'buyer_type',
         'buyer_id',
         'buyer_name',
+        'salesman_id',
         'user_id',
         'tanggal',
         'total',
+        'invoice_total_before',
+        'invoice_total_after',
+        'notes',
     ];
 
     public function customer()
@@ -48,6 +56,11 @@ class Refund extends Model
         return $this->belongsTo(Penjualan::class);
     }
 
+    public function appliedPenjualan()
+    {
+        return $this->belongsTo(Penjualan::class, 'applied_penjualan_id');
+    }
+
     public function refundItems()
     {
         return $this->hasMany(RefundItem::class);
@@ -68,12 +81,33 @@ class Refund extends Model
         return $this->belongsTo(Outlet::class, 'buyer_id');
     }
 
+    public function tokoBuyer()
+    {
+        return $this->belongsTo(Outlet::class, 'buyer_id');
+    }
+
+    public function sourceOutlet()
+    {
+        return $this->belongsTo(Outlet::class, 'source_outlet_id');
+    }
+
+    public function salesman()
+    {
+        return $this->belongsTo(Salesman::class);
+    }
+
+    public function totalAdjustment()
+    {
+        return $this->hasOne(PenjualanTotalAdjustment::class);
+    }
+
     public function buyerEntity()
     {
         return match ($this->buyer_type) {
             'agent' => $this->relationLoaded('agent') ? $this->agent : $this->agent()->first(),
             'canvas' => $this->relationLoaded('canvasBuyer') ? $this->canvasBuyer : $this->canvasBuyer()->first(),
             'outlet' => $this->relationLoaded('outletBuyer') ? $this->outletBuyer : $this->outletBuyer()->first(),
+            'toko' => $this->relationLoaded('tokoBuyer') ? $this->tokoBuyer : $this->tokoBuyer()->first(),
             default => null,
         };
     }
@@ -97,11 +131,15 @@ class Refund extends Model
             'agent' => 'Agen',
             'canvas' => 'Canvas',
             'outlet' => 'Cabang',
+            'toko' => 'Customer/Toko',
             default => $this->customer_id ? 'Customer' : '-',
         };
     }
 
     protected $casts = [
         'tanggal' => 'datetime',
+        'invoice_total_before' => 'float',
+        'invoice_total_after' => 'float',
+        'total' => 'float',
     ];
 }

@@ -8,7 +8,7 @@ class WarehousePenjualanRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return in_array($this->user()?->role, ['superadmin', 'admin-gudang', 'owner'], true);
+        return in_array($this->user()?->role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true);
     }
 
     protected function prepareForValidation(): void
@@ -41,12 +41,16 @@ class WarehousePenjualanRequest extends FormRequest
 
     public function rules(): array
     {
+        $isBranchSale = in_array($this->user()?->role, ['admin-cabang', 'sales'], true);
+
         return [
             'sale_date' => 'required|date',
-            'buyer_type' => 'required|in:agent,canvas,outlet',
-            'agent_id' => 'nullable|required_if:buyer_type,agent|exists:agents,id',
-            'canvas_id' => 'nullable|required_if:buyer_type,canvas|exists:canvases,id',
-            'outlet_target_id' => 'nullable|required_if:buyer_type,outlet|exists:outlets,id',
+            'buyer_type' => $isBranchSale ? 'required|in:toko' : 'required|in:agent,canvas,outlet',
+            'agent_id' => $isBranchSale ? 'nullable' : 'nullable|required_if:buyer_type,agent|exists:agents,id',
+            'canvas_id' => $isBranchSale ? 'nullable' : 'nullable|required_if:buyer_type,canvas|exists:canvases,id',
+            'outlet_target_id' => $isBranchSale
+                ? 'required|exists:outlets,id'
+                : 'nullable|required_if:buyer_type,outlet|exists:outlets,id',
             'payment_type' => 'required|in:cash,termin',
             'payment_status' => 'nullable|in:paid,unpaid,partial',
             'due_date' => 'nullable|date|after_or_equal:sale_date',

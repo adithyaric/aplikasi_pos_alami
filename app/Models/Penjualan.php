@@ -87,6 +87,11 @@ class Penjualan extends Model
         return $this->belongsTo(Outlet::class, 'buyer_id');
     }
 
+    public function tokoBuyer()
+    {
+        return $this->belongsTo(Outlet::class, 'buyer_id');
+    }
+
     public function transaction()
     {
         return $this->hasOne(Transaction::class);
@@ -95,6 +100,16 @@ class Penjualan extends Model
     public function paymentTransaction()
     {
         return $this->hasOne(PenjualanPayment::class);
+    }
+
+    public function totalAdjustments()
+    {
+        return $this->hasMany(PenjualanTotalAdjustment::class);
+    }
+
+    public function appliedRefunds()
+    {
+        return $this->hasMany(Refund::class, 'applied_penjualan_id');
     }
 
     public function items()
@@ -120,9 +135,19 @@ class Penjualan extends Model
         });
     }
 
+    public function scopeBranchSales($query)
+    {
+        return $query->where('sale_channel', 'branch');
+    }
+
     public function isWarehouseSale(): bool
     {
         return $this->sale_channel === 'warehouse';
+    }
+
+    public function isBranchSale(): bool
+    {
+        return $this->sale_channel === 'branch';
     }
 
     public function buyerEntity()
@@ -131,6 +156,7 @@ class Penjualan extends Model
             'agent' => $this->relationLoaded('agent') ? $this->agent : $this->agent()->first(),
             'canvas' => $this->relationLoaded('canvasBuyer') ? $this->canvasBuyer : $this->canvasBuyer()->first(),
             'outlet' => $this->relationLoaded('outletBuyer') ? $this->outletBuyer : $this->outletBuyer()->first(),
+            'toko' => $this->relationLoaded('tokoBuyer') ? $this->tokoBuyer : $this->tokoBuyer()->first(),
             default => null,
         };
     }
@@ -172,6 +198,7 @@ class Penjualan extends Model
             'agent' => 'Agen',
             'canvas' => 'Canvas',
             'outlet' => 'Cabang',
+            'toko' => 'Customer/Toko',
             default => $this->customer_id ? 'Customer' : '-',
         };
     }

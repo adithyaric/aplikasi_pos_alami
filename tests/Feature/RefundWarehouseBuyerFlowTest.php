@@ -6,7 +6,9 @@ use App\Models\Agent;
 use App\Models\Category;
 use App\Models\Outlet;
 use App\Models\OwnerStock;
+use App\Models\OwnerStockMovement;
 use App\Models\Penjualan;
+use App\Models\PenjualanTotalAdjustment;
 use App\Models\Product;
 use App\Models\Refund;
 use App\Models\Stock;
@@ -19,7 +21,7 @@ class RefundWarehouseBuyerFlowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_refund_penjualan_for_agent_restores_warehouse_stock(): void
+    public function test_global_refund_penjualan_for_agent_reduces_latest_unpaid_invoice_without_stock_mutation(): void
     {
         $admin = User::factory()->create([
             'role' => 'superadmin',
@@ -70,8 +72,8 @@ class RefundWarehouseBuyerFlowTest extends TestCase
             'buyer_name' => $agent->name,
             'user_id' => $admin->id,
             'sale_date' => now()->toDateString(),
-            'payment_type' => 'cash',
-            'payment_status' => 'paid',
+            'payment_type' => 'termin',
+            'payment_status' => 'unpaid',
             'discount' => 0,
             'total' => 1100000,
         ]);
@@ -93,32 +95,40 @@ class RefundWarehouseBuyerFlowTest extends TestCase
 
         $response = $this->actingAs($admin)->post(route('refund.store'), [
             'code' => 'RFD-AGENT-001',
-            'penjualan_id' => $penjualan->id,
+            'buyer_type' => 'agent',
+            'buyer_id' => $agent->id,
             'tanggal' => now()->toDateString(),
-            'total' => '550.000',
             'product' => [
                 [
                     'product_id' => $product->id,
                     'qty' => 5,
+                    'unit' => 'Pack',
+                    'price' => '110.000',
                     'alasan' => 'Kemasan rusak',
                 ],
             ],
         ]);
 
-        $response->assertRedirect(route('refund.index'));
-
         $refund = Refund::firstOrFail();
+        $response->assertRedirect(route('refund.show', $refund));
+
         $stock->refresh();
+        $penjualan->refresh();
 
         $this->assertSame('agent', $refund->buyer_type);
         $this->assertSame($agent->id, (int) $refund->buyer_id);
-        $this->assertSame(45, (int) $stock->qty);
+        $this->assertSame(40, (int) $stock->qty);
+        $this->assertSame(550000, (int) $refund->total);
+        $this->assertSame(550000, (int) $penjualan->total);
+        $this->assertSame($penjualan->id, (int) $refund->applied_penjualan_id);
         $this->assertNull($refund->kas_id);
-        $this->assertDatabaseHas('stock_movements', [
-            'reference_type' => Refund::class,
-            'reference_id' => $refund->id,
-            'product_id' => $product->id,
-            'qty_in' => 5,
+        $this->assertSame(0, StockMovement::where('reference_type', Refund::class)->where('reference_id', $refund->id)->count());
+        $this->assertDatabaseHas('penjualan_total_adjustments', [
+            'penjualan_id' => $penjualan->id,
+            'refund_id' => $refund->id,
+            'amount' => 550000,
+            'total_before' => 1100000,
+            'total_after' => 550000,
         ]);
     }
 
@@ -180,8 +190,8 @@ class RefundWarehouseBuyerFlowTest extends TestCase
             'buyer_name' => $outlet->name,
             'user_id' => $admin->id,
             'sale_date' => now()->toDateString(),
-            'payment_type' => 'cash',
-            'payment_status' => 'paid',
+            'payment_type' => 'termin',
+            'payment_status' => 'unpaid',
             'discount' => 0,
             'total' => 1800000,
         ]);
@@ -203,29 +213,37 @@ class RefundWarehouseBuyerFlowTest extends TestCase
 
         $response = $this->actingAs($admin)->post(route('refund.store'), [
             'code' => 'RFD-OUTLET-001',
-            'penjualan_id' => $penjualan->id,
+            'buyer_type' => 'outlet',
+            'buyer_id' => $outlet->id,
             'tanggal' => now()->toDateString(),
-            'total' => '720.000',
             'product' => [
                 [
                     'product_id' => $product->id,
                     'qty' => 4,
+                    'unit' => 'Pack',
+                    'price' => '180.000',
                     'alasan' => 'Barang tidak laku',
                 ],
             ],
         ]);
 
-        $response->assertRedirect(route('refund.index'));
-
         $refund = Refund::firstOrFail();
+        $response->assertRedirect(route('refund.show', $refund));
+
         $stock->refresh();
         $ownerStock = OwnerStock::firstOrFail();
+        $penjualan->refresh();
 
         $this->assertSame('outlet', $refund->buyer_type);
         $this->assertSame($outlet->id, (int) $refund->buyer_id);
         $this->assertSame($outlet->id, (int) $refund->outlet_id);
+        $this->assertSame($penjualan->id, (int) $refund->applied_penjualan_id);
+        $this->assertSame(720000, (int) $refund->total);
+        $this->assertSame(1080000, (int) $penjualan->total);
         $this->assertSame(24, (int) $stock->qty);
         $this->assertSame(6, (int) $ownerStock->qty);
         $this->assertSame(1, StockMovement::where('reference_type', Refund::class)->where('reference_id', $refund->id)->count());
+        $this->assertSame(1, OwnerStockMovement::where('reference_type', Refund::class)->where('reference_id', $refund->id)->count());
+        $this->assertSame(1, PenjualanTotalAdjustment::where('refund_id', $refund->id)->count());
     }
 }

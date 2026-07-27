@@ -6,6 +6,7 @@ use App\Models\Agent;
 use App\Models\Canvas;
 use App\Models\Outlet;
 use App\Models\OwnerStock;
+use App\Models\OwnerStockMovement;
 use App\Models\Penjualan;
 use App\Models\PenjualanItem;
 use App\Models\PenjualanPayment;
@@ -81,7 +82,7 @@ class WarehousePenjualanManager
         }
 
         return DB::transaction(function () use ($penjualan, $payload, $operatorId) {
-            $this->rollbackSale($penjualan);
+            $this->rollbackSale($penjualan, $operatorId);
             $this->purgeSaleItems($penjualan);
 
             $buyer = $this->resolveBuyer($payload['buyer_type'], (int) $payload['buyer_id']);
@@ -169,7 +170,7 @@ class WarehousePenjualanManager
                 ]);
 
                 if ($penjualan->buyer_type === 'outlet') {
-                    $this->increaseOwnerStock((int) $buyer['id'], $stock, $allocatedQty);
+                    $this->increaseOwnerStock((int) $buyer['id'], $stock, $allocatedQty, $penjualan, $operatorId);
                 }
 
                 StockMovement::create([
@@ -265,7 +266,7 @@ class WarehousePenjualanManager
         }
     }
 
-    private function rollbackSale(Penjualan $penjualan): void
+    private function rollbackSale(Penjualan $penjualan, ?int $operatorId = null): void
     {
         $penjualan->loadMissing('items.allocations', 'items.product');
 
@@ -285,7 +286,7 @@ class WarehousePenjualanManager
                 $stock->save();
 
                 if ($penjualan->buyer_type === 'outlet') {
-                    $this->decreaseOwnerStock((int) $penjualan->buyer_id, (int) $item->product_id, (int) $allocation->qty, $stock->id);
+                    $this->decreaseOwnerStock((int) $penjualan->buyer_id, (int) $item->product_id, (int) $allocation->qty, $stock->id, $penjualan, $operatorId);
                 }
             }
         }
@@ -300,7 +301,7 @@ class WarehousePenjualanManager
         $qty = (int) $item->qty;
 
         if ($penjualan->buyer_type === 'outlet') {
-            $this->decreaseOwnerStock((int) $penjualan->buyer_id, (int) $item->product_id, $qty);
+            $this->decreaseOwnerStock((int) $penjualan->buyer_id, (int) $item->product_id, $qty, null, $penjualan);
         }
 
         $stock = null;
@@ -391,7 +392,7 @@ class WarehousePenjualanManager
         return $allocations;
     }
 
-    private function increaseOwnerStock(int $outletId, Stock $stock, int $qty): void
+    private function increaseOwnerStock(int $outletId, Stock $stock, int $qty, ?Penjualan $penjualan = null, ?int $operatorId = null): void
     {
         $ownerStock = OwnerStock::where('owner_id', $outletId)
             ->where('product_id', $stock->product_id)
@@ -405,22 +406,32 @@ class WarehousePenjualanManager
             $ownerStock->expired_at = $stock->expired_at;
             $ownerStock->harga_beli = $stock->harga_beli;
             $ownerStock->save();
-
-            return;
+        } else {
+            $ownerStock = OwnerStock::create([
+                'owner_id' => $outletId,
+                'product_id' => $stock->product_id,
+                'stock_id' => $stock->id,
+                'qty' => $qty,
+                'sku' => $stock->sku,
+                'expired_at' => $stock->expired_at,
+                'harga_beli' => $stock->harga_beli,
+            ]);
         }
 
-        OwnerStock::create([
-            'owner_id' => $outletId,
-            'product_id' => $stock->product_id,
-            'stock_id' => $stock->id,
-            'qty' => $qty,
-            'sku' => $stock->sku,
-            'expired_at' => $stock->expired_at,
-            'harga_beli' => $stock->harga_beli,
-        ]);
+        $this->recordOwnerStockMovement(
+            $ownerStock,
+            'in',
+            $qty,
+            0,
+            $operatorId,
+            $penjualan,
+            $penjualan
+                ? "Penjualan gudang ke cabang - {$penjualan->code} - SKU: {$stock->sku}"
+                : "Stock cabang masuk dari gudang - SKU: {$stock->sku}"
+        );
     }
 
-    private function decreaseOwnerStock(int $outletId, int $productId, int $qty, ?int $stockId = null): void
+    private function decreaseOwnerStock(int $outletId, int $productId, int $qty, ?int $stockId = null, ?Penjualan $penjualan = null, ?int $operatorId = null): void
     {
         $remaining = $qty;
 
@@ -459,6 +470,18 @@ class WarehousePenjualanManager
             $ownerStock->save();
 
             $remaining -= $take;
+
+            $this->recordOwnerStockMovement(
+                $ownerStock,
+                'return_out',
+                0,
+                $take,
+                $operatorId,
+                $penjualan,
+                $penjualan
+                    ? "Rollback penjualan gudang ke cabang - {$penjualan->code}"
+                    : 'Pengurangan stock cabang'
+            );
         }
 
         if ($remaining > 0) {
@@ -473,5 +496,25 @@ class WarehousePenjualanManager
         }
 
         return max(0, (int) $stock->qty - (int) ($stock->qty_reserved ?? 0));
+    }
+
+    private function recordOwnerStockMovement(OwnerStock $ownerStock, string $type, int|float $qtyIn, int|float $qtyOut, ?int $operatorId, ?Penjualan $penjualan, string $notes): void
+    {
+        OwnerStockMovement::create([
+            'owner_id' => $ownerStock->owner_id,
+            'product_id' => $ownerStock->product_id,
+            'owner_stock_id' => $ownerStock->id,
+            'stock_id' => $ownerStock->stock_id,
+            'user_id' => $operatorId ?: auth()->id(),
+            'type' => $type,
+            'reference_type' => $penjualan ? Penjualan::class : null,
+            'reference_id' => $penjualan?->id,
+            'qty_in' => $qtyIn,
+            'qty_out' => $qtyOut,
+            'balance' => OwnerStock::where('owner_id', $ownerStock->owner_id)
+                ->where('product_id', $ownerStock->product_id)
+                ->sum('qty'),
+            'notes' => $notes,
+        ]);
     }
 }
