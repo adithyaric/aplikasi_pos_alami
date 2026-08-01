@@ -98,6 +98,9 @@ class RefundPembelianController extends Controller
         $selectedType = $isStaff
             ? 'outlet_ke_gudang'
             : ($request->query('type') === 'outlet_ke_gudang' ? 'outlet_ke_gudang' : 'gudang_ke_supplier');
+        $filterPeriod = $request->input('period', 'all');
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
 
         $query = RefundPembelian::with('user', 'supplier', 'outlet')->latest();
 
@@ -112,14 +115,39 @@ class RefundPembelianController extends Controller
             }
         }
 
+        if ($filterPeriod === 'daterange' && $dateFrom && $dateTo) {
+            $query->whereBetween('tanggal', [
+                \Carbon\Carbon::parse($dateFrom)->startOfDay(),
+                \Carbon\Carbon::parse($dateTo)->endOfDay(),
+            ]);
+        }
+
+        $refundPembelians = $query->get();
+        $summary = [
+            'totalNominal' => $refundPembelians->sum('total'),
+            'totalCount' => $refundPembelians->count(),
+            'completeNominal' => $refundPembelians->where('status', 'complete')->sum('total'),
+            'completeCount' => $refundPembelians->where('status', 'complete')->count(),
+            'returNominal' => $refundPembelians->where('status', 'retur')->sum('total'),
+            'returCount' => $refundPembelians->where('status', 'retur')->count(),
+            'branchReturnCount' => $refundPembelians->where('type', 'outlet_ke_gudang')->count(),
+            'supplierReturnCount' => $refundPembelians->where('type', 'gudang_ke_supplier')->count(),
+        ];
+
         return view('refundPembelians.index', [
-            'refundPembelians' => $query->get(),
+            'refundPembelians' => $refundPembelians,
             'selectedType'     => $selectedType,
             'selectedOutletId' => $isStaff ? $user->outlet_id : ($selectedType === 'outlet_ke_gudang' ? $request->outlet_id : null),
             'outlets'          => $isStaff
                 ? Outlet::whereKey($user->outlet_id)->get()
-                : Outlet::orderBy('name')->get(),
+                : Outlet::branches()->orderBy('name')->get(),
             'isStaffOutlet'    => $isStaff,
+            'filterPeriod' => $filterPeriod,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'summary' => $summary,
+            'canCreateRetur' => ! ($isStaff && $user?->role === 'staff-outlet'),
+            'userRole' => $user?->role,
         ]);
     }
 
@@ -139,7 +167,7 @@ class RefundPembelianController extends Controller
             'suppliers'     => Supplier::get(),
             'outlets'       => $isStaffOutlet
                 ? Outlet::whereKey($user->outlet_id)->get()
-                : Outlet::get(),
+                : Outlet::branches()->get(),
             'code'          => $code,
             'isStaffOutlet' => $isStaffOutlet,
             'staffOutletId' => $isStaffOutlet ? $user->outlet_id : null,

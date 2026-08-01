@@ -123,25 +123,30 @@
                         </table>
                     </div>
                     <div class="box-footer">
-                        <a href="{{ route('penjualan.index') }}" class="btn btn-default">Kembali</a>
+                        <a href="{{ $backRoute ?? route('penjualan.index') }}" class="btn btn-default">Kembali</a>
+                        @if ($penjualan->payment_status != 'paid' && ($penjualan->isWarehouseSale() || auth()->user()?->role === 'sales'))
                         <a href="{{ route('penjualan.edit', $penjualan) }}" class="btn btn-primary">
                             <i class="fa fa-pencil"></i> Edit
                         </a>
-                        @if (! in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true))
+                        @endif
+                        @if ($penjualan->isWarehouseSale() && ! in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true))
                         <a href="{{ route('penjualan.pembayaran.edit', $penjualan) }}" class="btn btn-success">
                             <i class="fa fa-credit-card"></i> Pembayaran
                         </a>
                         @endif
-                        <a href="{{ route('refund.create', ['penjualan_id' => $penjualan->id]) }}" class="btn btn-danger">
-                            <i class="fa fa-undo"></i> Retur
-                        </a>
+                        {{-- <a href="{{ route('refund.create', ['penjualan_id' => $penjualan->id]) }}" class="btn btn-danger"> --}}
+                            {{-- <i class="fa fa-undo"></i> Retur --}}
+                        {{-- </a> --}}
+                        @if ($penjualan->isBranchSale() || $penjualan->buyer_type_label != 'Cabang')
                         <a href="{{ route('penjualan.print', $penjualan) }}" class="btn btn-warning" target="_blank">
                             <i class="fa fa-print"></i> Invoice
                         </a>
+                        @else
                         @if (! in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true))
                         <a href="{{ route('penjualan.surat-jalan', $penjualan) }}" class="btn btn-info" target="_blank">
                             <i class="fa fa-truck"></i> Surat Jalan
                         </a>
+                        @endif
                         @endif
                     </div>
                 </div>

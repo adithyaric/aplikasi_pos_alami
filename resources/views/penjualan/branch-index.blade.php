@@ -1,10 +1,10 @@
 @extends('layouts.master')
 
-@section('title', 'Penjualan Gudang')
+@section('title', 'Penjualan Cabang')
 
 @section('container')
     <section class="content-header">
-        <h1>Penjualan Gudang</h1>
+        <h1>Penjualan Cabang</h1>
     </section>
 
     <section class="content">
@@ -12,7 +12,7 @@
             <div class="col-xs-12">
                 <div class="box box-default" style="margin-bottom:0;">
                     <div class="box-body" style="padding:10px 15px;">
-                        <form method="GET" action="{{ route('penjualan.index') }}">
+                        <form method="GET" action="{{ route('penjualan.branch-index') }}">
                             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                                 <label style="margin:0; white-space:nowrap;">Tanggal:</label>
                                 <input type="hidden" name="period" value="daterange">
@@ -22,12 +22,22 @@
                                 <input type="date" name="date_to" class="form-control input-sm" style="width:180px"
                                     value="{{ $dateTo }}">
 
-                                <label style="margin:0 0 0 8px; white-space:nowrap;">Jenis Pembeli:</label>
-                                <select name="buyer_type" class="form-control input-sm" style="width:180px">
-                                    <option value="">Semua Jenis</option>
-                                    @foreach ($buyerTypeOptions as $value => $label)
-                                        <option value="{{ $value }}" {{ $selectedBuyerType === $value ? 'selected' : '' }}>
-                                            {{ $label }}
+                                <label style="margin:0 0 0 8px; white-space:nowrap;">Cabang:</label>
+                                <select name="branch_id" class="form-control input-sm" style="width:220px">
+                                    <option value="">Semua Cabang</option>
+                                    @foreach ($branches as $branch)
+                                        <option value="{{ $branch->id }}" {{ (string) $selectedBranchId === (string) $branch->id ? 'selected' : '' }}>
+                                            {{ $branch->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+
+                                <label style="margin:0 0 0 8px; white-space:nowrap;">Sales:</label>
+                                <select name="salesman_id" class="form-control input-sm" style="width:220px">
+                                    <option value="">Semua Sales</option>
+                                    @foreach ($salesmen as $salesman)
+                                        <option value="{{ $salesman->id }}" {{ (string) $selectedSalesmanId === (string) $salesman->id ? 'selected' : '' }}>
+                                            {{ $salesman->name }}
                                         </option>
                                     @endforeach
                                 </select>
@@ -36,7 +46,7 @@
                                     <i class="fa fa-filter"></i> Terapkan Filter
                                 </button>
 
-                                <a href="{{ route('penjualan.index') }}" class="btn btn-sm btn-default">
+                                <a href="{{ route('penjualan.branch-index') }}" class="btn btn-sm btn-default">
                                     <i class="fa fa-times"></i> Reset
                                 </a>
                             </div>
@@ -69,7 +79,7 @@
 
                             <div class="col-xs-12 col-sm-6 col-md-3">
                                 <div class="info-box bg-aqua">
-                                    <span class="info-box-icon"><i class="fa fa-tags"></i></span>
+                                    <span class="info-box-icon"><i class="fa fa-line-chart"></i></span>
                                     <div class="info-box-content">
                                         <span class="info-box-text">Total Transaksi</span>
                                         <span class="info-box-number">{{ $summary['totalTransaksi'] }} invoice</span>
@@ -103,18 +113,23 @@
                                 <i class="fa fa-plus"></i> Tambah Penjualan
                             </a>
                         @endif
+                        @if ($canCreateCustomerShop)
+                            <button type="button" class="btn btn-sm btn-default" data-toggle="modal" data-target="#modalCustomerShop">
+                                <i class="fa fa-user-plus"></i> Tambah Customer/Toko
+                            </button>
+                        @endif
                     </div>
                     <div class="box-body table-responsive">
                         <table id="example1" class="table table-bordered table-striped">
                             <thead>
                                 <tr>
                                     <th>No</th>
-                                    <th>Kode</th>
+                                    <th>Invoice</th>
                                     <th>Tanggal</th>
-                                    <th>Jenis</th>
-                                    <th>Pembeli</th>
+                                    <th>Cabang</th>
+                                    <th>Sales</th>
+                                    <th>Customer/Toko</th>
                                     <th>Pembayaran</th>
-                                    <th>Operator</th>
                                     <th>Total</th>
                                     <th>Aksi</th>
                                 </tr>
@@ -125,7 +140,8 @@
                                         <td>{{ $loop->iteration }}</td>
                                         <td>{{ $penjualan->code }}</td>
                                         <td>{{ optional($penjualan->sale_date ?? $penjualan->created_at)->format('d M Y') }}</td>
-                                        <td>{{ $penjualan->buyer_type_label }}</td>
+                                        <td>{{ $penjualan->outlet?->name ?? '-' }}</td>
+                                        <td>{{ $penjualan->salesman?->name ?? $penjualan->operator?->name ?? '-' }}</td>
                                         <td>{{ $penjualan->buyer_display_name }}</td>
                                         <td>
                                             {{ strtoupper($penjualan->payment_type ?? '-') }}
@@ -133,33 +149,20 @@
                                             <span class="label {{ $penjualan->payment_status === 'paid' ? 'label-success' : ($penjualan->payment_status === 'partial' ? 'label-warning' : 'label-default') }}">
                                                 {{ strtoupper($penjualan->payment_status ?? '-') }}
                                             </span>
-                                            @if (($penjualan->paymentTransaction?->amount ?? 0) > 0)
-                                                <br><small>Dibayar: @currency($penjualan->paymentTransaction->amount)</small>
-                                            @endif
                                         </td>
-                                        <td>{{ $penjualan->operator?->name ?? '-' }}</td>
                                         <td>@currency($penjualan->total)</td>
                                         <td class="text-nowrap">
                                             <a class="btn btn-default btn-xs" href="{{ route('penjualan.show', $penjualan) }}">
                                                 <i class="fa fa-eye"></i> Show
                                             </a>
-                                            @if ($penjualan->payment_status != 'paid')
+                                            @if (auth()->user()?->role === 'sales' && $penjualan->payment_status != 'paid')
                                                 <a class="btn btn-primary btn-xs" href="{{ route('penjualan.edit', $penjualan) }}">
                                                     <i class="fa fa-pencil"></i> Edit
                                                 </a>
                                             @endif
-                                            <a class="btn btn-success btn-xs" href="{{ route('penjualan.pembayaran.edit', $penjualan) }}">
-                                                <i class="fa fa-credit-card"></i> Pembayaran
+                                            <a class="btn btn-warning btn-xs" href="{{ route('penjualan.print', $penjualan) }}" target="_blank">
+                                                <i class="fa fa-print"></i> Invoice
                                             </a>
-                                            @if ($penjualan->buyer_type === 'outlet')
-                                                <a class="btn btn-info btn-xs" href="{{ route('penjualan.surat-jalan', $penjualan) }}" target="_blank">
-                                                    <i class="fa fa-truck"></i> Surat Jalan
-                                                </a>
-                                            @else
-                                                <a class="btn btn-warning btn-xs" href="{{ route('penjualan.print', $penjualan) }}" target="_blank">
-                                                    <i class="fa fa-print"></i> Invoice
-                                                </a>
-                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach
@@ -170,4 +173,77 @@
             </div>
         </div>
     </section>
+
+    <div class="modal fade" id="modalCustomerShop" tabindex="-1" role="dialog" aria-labelledby="modalCustomerShopLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <form id="customerShopForm">
+                    @csrf
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h4 class="modal-title" id="modalCustomerShopLabel">
+                            <i class="fa fa-user-plus"></i> Tambah Customer/Toko
+                        </h4>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-danger" id="customerShopErrors" style="display:none"></div>
+                        <div class="form-group">
+                            <label>Nama Customer/Toko</label>
+                            <input type="text" class="form-control" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Alamat</label>
+                            <input type="text" class="form-control" name="alamat" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Deskripsi</label>
+                            <input type="text" class="form-control" name="desc">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Tutup</button>
+                        <button type="submit" class="btn btn-primary" id="btnSaveCustomerShop">
+                            <i class="fa fa-save"></i> Simpan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+@endsection
+
+@section('page-script')
+    <script>
+        $('#customerShopForm').on('submit', function(event) {
+            event.preventDefault();
+
+            var $form = $(this);
+            var $button = $('#btnSaveCustomerShop');
+            var $errors = $('#customerShopErrors');
+
+            $button.prop('disabled', true);
+            $errors.hide().empty();
+
+            $.post('{{ route('outlet.store-shop') }}', $form.serialize())
+                .done(function() {
+                    $('#modalCustomerShop').modal('hide');
+                    $form.trigger('reset');
+                    window.location.reload();
+                })
+                .fail(function(xhr) {
+                    var message = 'Gagal menyimpan customer/toko.';
+
+                    if (xhr.responseJSON && xhr.responseJSON.errors) {
+                        message = Object.values(xhr.responseJSON.errors).flat().join('<br>');
+                    }
+
+                    $errors.html(message).show();
+                })
+                .always(function() {
+                    $button.prop('disabled', false);
+                });
+        });
+    </script>
 @endsection

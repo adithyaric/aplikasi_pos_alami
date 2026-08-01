@@ -8,6 +8,7 @@ use App\Models\Outlet;
 use App\Models\OwnerStock;
 use App\Models\OwnerStockMovement;
 use App\Models\Penjualan;
+use App\Models\PenjualanPayment;
 use App\Models\PenjualanTotalAdjustment;
 use App\Models\Product;
 use App\Models\Refund;
@@ -117,6 +118,7 @@ class RefundWarehouseBuyerFlowTest extends TestCase
 
         $this->assertSame('agent', $refund->buyer_type);
         $this->assertSame($agent->id, (int) $refund->buyer_id);
+        $this->assertSame(Refund::STATUS_APPROVED, $refund->status);
         $this->assertSame(40, (int) $stock->qty);
         $this->assertSame(550000, (int) $refund->total);
         $this->assertSame(550000, (int) $penjualan->total);
@@ -236,6 +238,7 @@ class RefundWarehouseBuyerFlowTest extends TestCase
 
         $this->assertSame('outlet', $refund->buyer_type);
         $this->assertSame($outlet->id, (int) $refund->buyer_id);
+        $this->assertSame(Refund::STATUS_APPROVED, $refund->status);
         $this->assertSame($outlet->id, (int) $refund->outlet_id);
         $this->assertSame($penjualan->id, (int) $refund->applied_penjualan_id);
         $this->assertSame(720000, (int) $refund->total);
@@ -245,5 +248,133 @@ class RefundWarehouseBuyerFlowTest extends TestCase
         $this->assertSame(1, StockMovement::where('reference_type', Refund::class)->where('reference_id', $refund->id)->count());
         $this->assertSame(1, OwnerStockMovement::where('reference_type', Refund::class)->where('reference_id', $refund->id)->count());
         $this->assertSame(1, PenjualanTotalAdjustment::where('refund_id', $refund->id)->count());
+    }
+
+    public function test_global_refund_penjualan_targets_latest_partial_invoice_when_latest_invoice_is_not_paid(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'superadmin',
+            'email' => 'refund-partial-admin@alami.test',
+        ]);
+
+        $category = Category::create([
+            'name' => 'Rokok Partial',
+            'type' => 'product',
+        ]);
+
+        $agent = Agent::create([
+            'name' => 'Agen Partial',
+            'code' => 'AGN-RET-PAR',
+            'termin_days' => 14,
+            'credit_limit' => 1000000,
+            'is_active' => true,
+        ]);
+
+        $product = Product::create([
+            'code' => 'ALM-RFD-003',
+            'name' => 'ALAMI Retur Partial',
+            'category_id' => $category->id,
+            'is_serialized' => false,
+            'harga_beli' => 18000,
+            'harga_jual' => 220000,
+            'status_produk' => 'sudah',
+            'satuan' => 'Pack',
+        ]);
+
+        $stock = Stock::create([
+            'product_id' => $product->id,
+            'sku' => 'RET-PARTIAL-001',
+            'subtotal' => 720000,
+            'harga_beli' => 18000,
+            'qty' => 40,
+            'condition' => 'new',
+            'status' => 'available',
+        ]);
+
+        $olderInvoice = Penjualan::create([
+            'code' => 'PNJ-RET-OLD-001',
+            'sale_channel' => 'warehouse',
+            'buyer_type' => 'agent',
+            'buyer_id' => $agent->id,
+            'buyer_name' => $agent->name,
+            'user_id' => $admin->id,
+            'sale_date' => now()->subDays(2)->toDateString(),
+            'payment_type' => 'termin',
+            'payment_status' => 'unpaid',
+            'discount' => 0,
+            'total' => 900000,
+        ]);
+
+        $olderInvoice->items()->create([
+            'product_id' => $product->id,
+            'stock_id' => $stock->id,
+            'qty' => 5,
+            'qty_input' => 5,
+            'unit' => 'Pack',
+            'price' => 180000,
+            'subtotal' => 900000,
+        ]);
+
+        $latestPartialInvoice = Penjualan::create([
+            'code' => 'PNJ-RET-PARTIAL-001',
+            'sale_channel' => 'warehouse',
+            'buyer_type' => 'agent',
+            'buyer_id' => $agent->id,
+            'buyer_name' => $agent->name,
+            'user_id' => $admin->id,
+            'sale_date' => now()->toDateString(),
+            'payment_type' => 'termin',
+            'payment_status' => 'partial',
+            'discount' => 0,
+            'total' => 1000000,
+        ]);
+
+        $latestPartialInvoice->items()->create([
+            'product_id' => $product->id,
+            'stock_id' => $stock->id,
+            'qty' => 5,
+            'qty_input' => 5,
+            'unit' => 'Pack',
+            'price' => 200000,
+            'subtotal' => 1000000,
+        ]);
+
+        PenjualanPayment::create([
+            'penjualan_id' => $latestPartialInvoice->id,
+            'payment_date' => now(),
+            'payment_method' => 'bank_transfer',
+            'payment_reference' => 'PAY-PARTIAL-001',
+            'payment_history' => [],
+            'status' => 'partial',
+            'amount' => 400000,
+            'notes' => 'Pembayaran partial test',
+        ]);
+
+        $response = $this->actingAs($admin)->post(route('refund.store'), [
+            'code' => 'RFD-PARTIAL-001',
+            'buyer_type' => 'agent',
+            'buyer_id' => $agent->id,
+            'tanggal' => now()->toDateString(),
+            'product' => [
+                [
+                    'product_id' => $product->id,
+                    'qty' => 1,
+                    'unit' => 'Pack',
+                    'price' => '200.000',
+                    'alasan' => 'Retur ke invoice partial',
+                ],
+            ],
+        ]);
+
+        $refund = Refund::where('code', 'RFD-PARTIAL-001')->firstOrFail();
+        $response->assertRedirect(route('refund.show', $refund));
+
+        $olderInvoice->refresh();
+        $latestPartialInvoice->refresh();
+
+        $this->assertSame($latestPartialInvoice->id, (int) $refund->applied_penjualan_id);
+        $this->assertSame(900000, (int) $olderInvoice->total);
+        $this->assertSame(800000, (int) $latestPartialInvoice->total);
+        $this->assertSame('partial', $latestPartialInvoice->payment_status);
     }
 }

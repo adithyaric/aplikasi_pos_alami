@@ -4,6 +4,7 @@
     var oldItems = @json($initialItems);
     var rowIndex = 0;
     var productChecklistTable = null;
+    var shopStoreUrl = @json($shopStoreUrl ?? null);
 
     function moneyMask() {
         $('.numeral-mask').mask('#,##0', { reverse: true });
@@ -507,5 +508,45 @@
                 price: '',
             });
         }
+    });
+
+    $('#customerShopPenjualanForm').on('submit', function(event) {
+        if (!shopStoreUrl) {
+            return;
+        }
+
+        event.preventDefault();
+
+        var $form = $(this);
+        var $button = $('#btnSaveCustomerShopPenjualan');
+        var $errors = $('#customerShopPenjualanErrors');
+
+        $button.prop('disabled', true);
+        $errors.hide().empty();
+
+        $.post(shopStoreUrl, $form.serialize())
+            .done(function(response) {
+                var shop = response.data || null;
+
+                if (shop) {
+                    var option = new Option(shop.name, shop.id, true, true);
+                    $('#outlet_target_id').append(option).trigger('change');
+                }
+
+                $('#modalCustomerShopPenjualan').modal('hide');
+                $form.trigger('reset');
+            })
+            .fail(function(xhr) {
+                var message = 'Gagal menyimpan customer/toko.';
+
+                if (xhr.responseJSON && xhr.responseJSON.errors) {
+                    message = Object.values(xhr.responseJSON.errors).flat().join('<br>');
+                }
+
+                $errors.html(message).show();
+            })
+            .always(function() {
+                $button.prop('disabled', false);
+            });
     });
 </script>

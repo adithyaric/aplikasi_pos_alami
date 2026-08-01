@@ -43,12 +43,25 @@
                                 </div>
                             </div>
                             <div class="col-md-4">
-                                @if ($isBranchScoped)
+                                @if ($isSales)
                                     <div class="form-group">
-                                        <label>Cabang Penerima Retur</label>
+                                        <label>Cabang</label>
                                         <input type="hidden" name="buyer_type" id="buyer_type" value="toko">
                                         <input type="hidden" name="source_outlet_id" value="{{ $selectedSourceOutletId }}">
                                         <input type="text" class="form-control" value="{{ $branchName ?: '-' }}" readonly>
+                                    </div>
+                                @elseif ($isAdminCabang)
+                                    <div class="form-group">
+                                        <label>Jenis Retur Penjualan</label>
+                                        <input type="hidden" name="buyer_type" id="buyer_type" value="{{ $selectedBuyerType }}">
+                                        <input type="hidden" name="source_outlet_id" value="{{ $selectedSourceOutletId }}">
+                                        <select class="form-control" id="return_scope_selector">
+                                            @foreach ($branchReturnScopeOptions as $scopeValue => $scopeLabel)
+                                                <option value="{{ $scopeValue }}" {{ $selectedReturnScope === $scopeValue ? 'selected' : '' }}>
+                                                    {{ $scopeLabel }}
+                                                </option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                 @else
                                     <div class="form-group">
@@ -69,7 +82,13 @@
 
                         <div class="row">
                             @if ($isBranchScoped)
-                                <div class="col-md-6 buyer-block buyer-toko">
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>Cabang</label>
+                                        <input type="text" class="form-control" value="{{ $branchName ?: '-' }}" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 buyer-block buyer-toko" style="{{ $selectedReturnScope === 'warehouse_branch_return' ? 'display:none' : '' }}">
                                     <div class="form-group">
                                         <label>Customer/Toko</label>
                                         <select class="form-control select2 buyer-select" id="shop_buyer_id" data-buyer-type="toko" style="width:100%">
@@ -80,6 +99,12 @@
                                                 </option>
                                             @endforeach
                                         </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 buyer-block buyer-outlet-branch" style="{{ $selectedReturnScope === 'warehouse_branch_return' ? '' : 'display:none' }}">
+                                    <div class="form-group">
+                                        <label>Retur Cabang</label>
+                                        <input type="text" class="form-control" value="{{ $branchName ?: '-' }}" readonly>
                                     </div>
                                 </div>
                             @else
@@ -123,6 +148,10 @@
                                     </div>
                                 </div>
                             @endif
+                        </div>
+
+                        <div id="warehouse-approval-note" class="alert alert-info" style="{{ $selectedReturnScope === 'warehouse_branch_return' ? '' : 'display:none' }}">
+                            Request retur cabang ke gudang akan menunggu konfirmasi superadmin. Stok cabang dan invoice cabang dipotong saat approval.
                         </div>
 
                         <div id="invoice-preview" class="alert alert-warning" style="display:none"></div>

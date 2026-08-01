@@ -76,9 +76,9 @@
 <body>
     <div class="header">
         <div>
-            <p class="title">INVOICE PENJUALAN</p>
+            <p class="title">{{ $penjualan->isBranchSale() ? 'INVOICE PENJUALAN CABANG' : 'INVOICE PENJUALAN' }}</p>
             <div>ALAMI</div>
-            <div class="muted">Gudang Utama</div>
+            <div class="muted">{{ $penjualan->isBranchSale() ? ($penjualan->outlet?->name ?? 'Cabang ALAMI') : 'Gudang Utama' }}</div>
         </div>
         <div>
             <table>

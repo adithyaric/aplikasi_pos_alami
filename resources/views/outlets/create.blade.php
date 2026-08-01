@@ -15,6 +15,7 @@
                     <!-- form start -->
                     <form action="{{ route('outlet.store') }}" method="POST" enctype="multipart/form-data">
                         @csrf
+                        <input type="hidden" name="jenis_outlet" value="branch">
                         <div class="box-body">
                             <div class="form-group">
                                 <label for="">Nama Cabang</label>
@@ -27,15 +28,8 @@
                                 @enderror
                             </div>
                             <div class="form-group">
-                                <label for="">Jenis Cabang / Outlet</label>
-                                <select class="form-control" name="jenis_outlet" required>
-                                    <option value="" disabled {{ old('jenis_outlet') ? '' : 'selected' }}>Pilih Jenis Cabang / Outlet</option>
-                                    @foreach ($jenisOutletOptions as $value => $label)
-                                        <option value="{{ $value }}" {{ old('jenis_outlet') === $value ? 'selected' : '' }}>
-                                            {{ $label }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                                <label for="">Jenis Cabang</label>
+                                <input type="text" class="form-control" value="Cabang / Branch" readonly>
                                 @error('jenis_outlet')
                                     <div class="invalid-feedback text-danger">
                                         {{ $message }}

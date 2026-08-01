@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\OutletRequest;
 use App\Models\Kas;
 use App\Models\Outlet;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class OutletController extends Controller
@@ -19,20 +21,19 @@ class OutletController extends Controller
     public function index()
     {
         return view('outlets.index', [
-            'outlets' => Outlet::get(),
+            'outlets' => Outlet::branches()->orderBy('name')->get(),
         ]);
     }
 
     public function create()
     {
-        return view('outlets.create', [
-            'jenisOutletOptions' => Outlet::typeOptions(),
-        ]);
+        return view('outlets.create');
     }
 
     public function store(OutletRequest $request)
     {
         $data = $request->validated();
+        $data['jenis_outlet'] = 'branch';
 
         // Handle file upload
         if ($request->hasFile('logo')) {
@@ -66,13 +67,13 @@ class OutletController extends Controller
     {
         return view('outlets.edit', [
             'outlet' => $outlet,
-            'jenisOutletOptions' => Outlet::typeOptions($outlet->jenis_outlet),
         ]);
     }
 
     public function update(OutletRequest $request, Outlet $outlet)
     {
         $data = $request->validated();
+        $data['jenis_outlet'] = 'branch';
         if ($request->hasFile('logo')) {
             // Delete the old image file
             if ($outlet->logo) {
@@ -99,5 +100,58 @@ class OutletController extends Controller
         $outlet->delete();
 
         return redirect(route('outlet.index'))->with('toast_success', 'Berhasil Menghapus Data!');
+    }
+
+    public function storeShop(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'alamat' => 'required|string|max:255',
+            'desc' => 'nullable|string|max:255',
+        ], [
+            'name.required' => 'Nama customer/toko wajib diisi.',
+            'alamat.required' => 'Alamat customer/toko wajib diisi.',
+        ]);
+
+        $name = trim((string) $validated['name']);
+
+        $shop = Outlet::withTrashed()
+            ->where('jenis_outlet', 'toko')
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+            ->first();
+
+        if ($shop) {
+            if ($shop->trashed()) {
+                $shop->restore();
+            }
+
+            $shop->fill([
+                'name' => $name,
+                'jenis_outlet' => 'toko',
+                'alamat' => trim((string) $validated['alamat']),
+                'desc' => trim((string) ($validated['desc'] ?? '')) ?: null,
+            ]);
+            $shop->save();
+        } else {
+            $shop = Outlet::create([
+                'name' => $name,
+                'jenis_outlet' => 'toko',
+                'alamat' => trim((string) $validated['alamat']),
+                'desc' => trim((string) ($validated['desc'] ?? '')) ?: null,
+                'logo' => null,
+                'npwp' => null,
+                'slogan' => null,
+                'footer' => null,
+            ]);
+        }
+
+        return response()->json([
+            'data' => [
+                'id' => $shop->id,
+                'name' => $shop->name,
+                'alamat' => $shop->alamat,
+                'desc' => $shop->desc,
+            ],
+        ], 201);
     }
 }

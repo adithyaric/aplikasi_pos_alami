@@ -15,6 +15,7 @@ use App\Models\Stock;
 use App\Services\BranchPenjualanManager;
 use App\Services\WarehousePenjualanManager;
 use App\Support\ProductUnitConverter;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -57,19 +58,81 @@ class PenjualanController extends Controller
         ]);
     }
 
-    public function index()
+    public function index(Request $request)
     {
         $this->ensurePenjualanAccess();
 
-        $query = Penjualan::with(['items.product', 'operator', 'salesman', 'outlet', 'agent', 'canvasBuyer', 'outletBuyer', 'tokoBuyer', 'paymentTransaction'])
+        if ($this->isBranchMode()) {
+            return redirect()->route('penjualan.branch-index', $request->query());
+        }
+
+        $filterState = $this->salesFilterState($request);
+        $query = Penjualan::with([
+            'items.product',
+            'operator',
+            'salesman',
+            'outlet',
+            'agent',
+            'canvasBuyer',
+            'outletBuyer',
+            'tokoBuyer',
+            'paymentTransaction',
+            'totalAdjustments',
+        ])
+            ->warehouseSales()
             ->orderByDesc('sale_date')
             ->orderByDesc('id');
 
-        if ($this->isBranchMode()) {
-            $query->branchSales()
-                ->where('outlet_id', auth()->user()->branchId());
+        $this->applySalesPeriodFilter($query, $filterState);
 
-            if (auth()->user()?->role === 'sales') {
+        if ($filterState['buyerType']) {
+            $query->where('buyer_type', $filterState['buyerType']);
+        }
+
+        $penjualans = $query->get();
+        $summary = $this->salesSummary($penjualans);
+
+        return view('penjualan.index', [
+            'penjualans' => $penjualans,
+            'filterPeriod' => $filterState['period'],
+            'dateFrom' => $filterState['dateFrom'],
+            'dateTo' => $filterState['dateTo'],
+            'selectedBuyerType' => $filterState['buyerType'],
+            'buyerTypeOptions' => [
+                'agent' => 'Agen',
+                'canvas' => 'Canvas',
+                'outlet' => 'Cabang',
+            ],
+            'summary' => $summary,
+            'canCreatePenjualan' => true,
+        ]);
+    }
+
+    public function branchIndex(Request $request)
+    {
+        $this->ensurePenjualanAccess();
+
+        $filterState = $this->salesFilterState($request);
+        $query = Penjualan::with([
+            'items.product',
+            'operator',
+            'salesman',
+            'outlet',
+            'tokoBuyer',
+            'paymentTransaction',
+            'totalAdjustments',
+        ])
+            ->branchSales()
+            ->orderByDesc('sale_date')
+            ->orderByDesc('id');
+
+        $this->applySalesPeriodFilter($query, $filterState);
+
+        $user = auth()->user();
+        if ($user?->isBranchScoped()) {
+            $query->where('outlet_id', $user->branchId());
+
+            if ($user->role === 'sales') {
                 $salesmanId = $this->currentSalesmanId();
                 $query->where(function ($innerQuery) use ($salesmanId) {
                     $innerQuery->where('user_id', auth()->id())
@@ -77,17 +140,47 @@ class PenjualanController extends Controller
                 });
             }
         } else {
-            $query->warehouseSales();
+            if ($request->filled('branch_id')) {
+                $query->where('outlet_id', $request->integer('branch_id'));
+            }
+
+            if ($request->filled('salesman_id')) {
+                $query->where('salesman_id', $request->integer('salesman_id'));
+            }
         }
 
-        return view('penjualan.index', [
-            'penjualans' => $query->get(),
+        $penjualans = $query->get();
+        $summary = $this->salesSummary($penjualans);
+        $selectedBranchId = $user?->isBranchScoped() ? $user->branchId() : $request->integer('branch_id');
+        $selectedSalesmanId = $user?->role === 'sales' ? $this->currentSalesmanId() : $request->integer('salesman_id');
+
+        return view('penjualan.branch-index', [
+            'penjualans' => $penjualans,
+            'filterPeriod' => $filterState['period'],
+            'dateFrom' => $filterState['dateFrom'],
+            'dateTo' => $filterState['dateTo'],
+            'selectedBranchId' => $selectedBranchId,
+            'selectedSalesmanId' => $selectedSalesmanId,
+            'branches' => $user?->isBranchScoped()
+                ? Outlet::whereKey($user->branchId())->orderBy('name')->get()
+                : Outlet::branches()->orderBy('name')->get(),
+            'salesmen' => Salesman::with('outlet:id,name')
+                ->when($user?->isBranchScoped(), fn ($salesmanQuery) => $salesmanQuery->where('outlet_id', $user->branchId()))
+                ->orderBy('name')
+                ->get(),
+            'summary' => $summary,
+            'canCreatePenjualan' => $user?->role === 'sales',
+            'canCreateCustomerShop' => in_array($user?->role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true),
         ]);
     }
 
     public function create()
     {
         $this->ensurePenjualanAccess();
+
+        if ($this->isBranchMode()) {
+            $this->ensureBranchSaleCreateAccess();
+        }
 
         return view('penjualan.create', $this->isBranchMode()
             ? $this->branchSaleFormData()
@@ -112,8 +205,10 @@ class PenjualanController extends Controller
 
         try {
             if ($this->isBranchMode()) {
+                $this->ensureBranchSaleCreateAccess();
+
                 $penjualan = $this->branchPenjualanManager->create([
-                    'code' => $this->generateWarehouseSaleCode(),
+                    'code' => $this->generateBranchSaleCode(),
                     'buyer_id' => (int) $request->outlet_target_id,
                     'sale_date' => $request->sale_date,
                     'payment_type' => $request->payment_type,
@@ -345,6 +440,7 @@ class PenjualanController extends Controller
 
         return view('penjualan.show', [
             'penjualan' => $penjualan,
+            'backRoute' => $penjualan->isBranchSale() ? route('penjualan.branch-index') : route('penjualan.index'),
         ]);
     }
 
@@ -411,6 +507,11 @@ class PenjualanController extends Controller
         abort_unless(in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner'], true), 403);
     }
 
+    private function ensureBranchSaleCreateAccess(): void
+    {
+        abort_unless(auth()->user()?->role === 'sales', 403);
+    }
+
     private function ensurePenjualanAccess(): void
     {
         abort_unless(in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true), 403);
@@ -425,11 +526,10 @@ class PenjualanController extends Controller
     {
         if ($this->isBranchMode()) {
             abort_unless($penjualan->isBranchSale() && (int) $penjualan->outlet_id === (int) auth()->user()->branchId(), 403);
+            abort_unless(auth()->user()?->role === 'sales', 403);
 
-            if (auth()->user()?->role === 'sales') {
-                $salesmanId = $this->currentSalesmanId();
-                abort_unless((int) $penjualan->user_id === (int) auth()->id() || ($salesmanId && (int) $penjualan->salesman_id === $salesmanId), 403);
-            }
+            $salesmanId = $this->currentSalesmanId();
+            abort_unless((int) $penjualan->user_id === (int) auth()->id() || ($salesmanId && (int) $penjualan->salesman_id === $salesmanId), 403);
 
             return;
         }
@@ -577,12 +677,13 @@ class PenjualanController extends Controller
             'penjualan' => $penjualan,
             'saleMode' => 'branch',
             'branchName' => auth()->user()->outlet?->name,
-            'code' => $penjualan?->code ?? $this->generateWarehouseSaleCode(),
+            'code' => $penjualan?->code ?? $this->generateBranchSaleCode(),
             'saleDate' => ($penjualan?->sale_date ?? now())->format('Y-m-d'),
             'agents' => collect(),
             'canvases' => collect(),
             'outlets' => Outlet::shops()->orderBy('name')->get(),
             'products' => $products,
+            'shopStoreUrl' => route('outlet.store-shop'),
             'initialItems' => old('items')
                 ?: ($penjualan
                     ? $penjualan->items->map(fn ($item) => [
@@ -610,6 +711,61 @@ class PenjualanController extends Controller
         $nextNumber = $lastSale ? ((int) substr((string) $lastSale->code, 3) + 1) : 1;
 
         return 'PNJ'.str_pad((string) $nextNumber, 5, '0', STR_PAD_LEFT);
+    }
+
+    private function generateBranchSaleCode(): string
+    {
+        $lastSale = Penjualan::branchSales()
+            ->where('code', 'like', 'INV-CBG-%')
+            ->latest('id')
+            ->first();
+
+        $nextNumber = 1;
+        if ($lastSale && preg_match('/(\d+)$/', (string) $lastSale->code, $matches)) {
+            $nextNumber = ((int) $matches[1]) + 1;
+        }
+
+        return 'INV-CBG-'.str_pad((string) $nextNumber, 5, '0', STR_PAD_LEFT);
+    }
+
+    private function salesFilterState(Request $request): array
+    {
+        return [
+            'period' => $request->input('period', 'all'),
+            'dateFrom' => $request->input('date_from'),
+            'dateTo' => $request->input('date_to'),
+            'buyerType' => $request->input('buyer_type'),
+        ];
+    }
+
+    private function applySalesPeriodFilter($query, array $filterState): void
+    {
+        if ($filterState['period'] !== 'daterange' || ! $filterState['dateFrom'] || ! $filterState['dateTo']) {
+            return;
+        }
+
+        $query->whereBetween('sale_date', [
+            Carbon::parse($filterState['dateFrom'])->startOfDay(),
+            Carbon::parse($filterState['dateTo'])->endOfDay(),
+        ]);
+    }
+
+    private function salesSummary($penjualans): array
+    {
+        $notPaidSales = $penjualans->filter(fn (Penjualan $penjualan) => ($penjualan->payment_status ?? 'unpaid') !== 'paid');
+        $paidSales = $penjualans->filter(fn (Penjualan $penjualan) => ($penjualan->payment_status ?? 'unpaid') === 'paid');
+        $returnAffectedSales = $penjualans->filter(fn (Penjualan $penjualan) => $penjualan->totalAdjustments->sum('amount') > 0);
+
+        return [
+            'totalPiutang' => $notPaidSales->sum(fn (Penjualan $penjualan) => max(0, (float) $penjualan->total - (float) ($penjualan->paymentTransaction?->amount ?? 0))),
+            'countPiutang' => $notPaidSales->count(),
+            'totalLunas' => $paidSales->sum(fn (Penjualan $penjualan) => (float) ($penjualan->paymentTransaction?->amount ?? $penjualan->total)),
+            'countLunas' => $paidSales->count(),
+            'totalTransaksi' => $penjualans->count(),
+            'totalTransaksiNominal' => $penjualans->sum('total'),
+            'totalPotonganRetur' => $returnAffectedSales->sum(fn (Penjualan $penjualan) => $penjualan->totalAdjustments->sum('amount')),
+            'countPotonganRetur' => $returnAffectedSales->count(),
+        ];
     }
 
     private function resolveBuyerTargetId(WarehousePenjualanRequest $request): int

@@ -60,11 +60,8 @@ class RoleMiddleware
             'profile.update',
             'profile.destroy',
             'penjualan.index',
+            'penjualan.branch-index',
             'penjualan.last-price',
-            'penjualan.create',
-            'penjualan.store',
-            'penjualan.edit',
-            'penjualan.update',
             'penjualan.show',
             'penjualan.print',
             'refund.index',
@@ -82,6 +79,7 @@ class RoleMiddleware
             'branch-stock.opname',
             'branch-stock.opname.data',
             'branch-stock.opname.save',
+            'outlet.store-shop',
         ];
 
         $adminCabangRoutes = [
@@ -91,11 +89,6 @@ class RoleMiddleware
             'customer.edit',
             'customer.update',
             'customer.destroy',
-            'refundPembelian.index',
-            'refundPembelian.create',
-            'refundPembelian.store',
-            'refundPembelian.show',
-            'retur.outlet.products',
             'salesman.index',
             'salesman.create',
             'salesman.store',
@@ -104,9 +97,16 @@ class RoleMiddleware
             'salesman.destroy',
         ];
 
+        $salesOnlyRoutes = [
+            'penjualan.create',
+            'penjualan.store',
+            'penjualan.edit',
+            'penjualan.update',
+        ];
+
         $allowedRouteNames = $role === 'admin-cabang'
             ? array_merge($commonRoutes, $adminCabangRoutes)
-            : $commonRoutes;
+            : array_merge($commonRoutes, $salesOnlyRoutes);
 
         return in_array((string) $request->route()?->getName(), $allowedRouteNames, true);
     }

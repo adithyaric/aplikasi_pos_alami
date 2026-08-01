@@ -23,8 +23,24 @@
         $canSeeStock = in_array($role, ['superadmin', 'admin-gudang', 'owner'], true);
         $canSeeBranchStock = in_array($role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true);
         $canSeeMasters = in_array($role, ['superadmin', 'admin-gudang', 'owner'], true);
-        $canSeeWarehouseSales = in_array($role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true);
+        $canSeeWarehouseSales = in_array($role, ['superadmin', 'admin-gudang', 'owner'], true);
+        $canSeeBranchSales = in_array($role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true);
+        $canSeePurchaseReturn = in_array($role, ['superadmin', 'admin-gudang', 'owner', 'staff-outlet'], true);
         $canSeeSalesReturn = in_array($role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true);
+        $currentPenjualan = request()->route('penjualan');
+        $currentRefund = request()->route('refund');
+        $isCurrentBranchSale = $currentPenjualan instanceof \App\Models\Penjualan && $currentPenjualan->isBranchSale();
+        $isCurrentWarehouseSale = $currentPenjualan instanceof \App\Models\Penjualan && $currentPenjualan->isWarehouseSale();
+        $requestReturnScope = request()->get('return_scope') ?: request()->get('mode');
+        $isCurrentBranchWarehouseReturn = $currentRefund instanceof \App\Models\Refund && $currentRefund->return_scope === 'warehouse_branch_return';
+        $branchCustomerReturnActive = request()->routeIs('refund.*')
+            && ($requestReturnScope === 'branch_customer_return' || ($requestReturnScope === null && ! $isCurrentBranchWarehouseReturn));
+        $branchWarehouseReturnActive = request()->routeIs('refund.*')
+            && ($requestReturnScope === 'warehouse_branch_return' || $isCurrentBranchWarehouseReturn);
+        $warehouseSalesActive = request()->routeIs('penjualan.index')
+            || (request()->routeIs('penjualan.*') && $isCurrentWarehouseSale);
+        $branchSalesActive = request()->routeIs('penjualan.branch-index')
+            || (request()->routeIs('penjualan.*') && $isCurrentBranchSale);
         $permintaanActive = request()->is('request-orders*')
             || request()->is('picking-lists*')
             || (! $isStaffOutlet && request()->is('delivery-orders*'));
@@ -115,8 +131,14 @@
         @endif
 
         @if ($canSeeWarehouseSales)
-        <li class="{{ request()->is('penjualan*') ? 'active' : '' }}">
-            <a href="/penjualan"><i class="fa fa-tags"></i><span>Penjualan</span></a>
+        <li class="{{ $warehouseSalesActive ? 'active' : '' }}">
+            <a href="{{ route('penjualan.index') }}"><i class="fa fa-tags"></i><span>Penjualan Gudang</span></a>
+        </li>
+        @endif
+
+        @if ($canSeeBranchSales)
+        <li class="{{ $branchSalesActive ? 'active' : '' }}">
+            <a href="{{ route('penjualan.branch-index') }}"><i class="fa fa-line-chart"></i><span>Penjualan Cabang</span></a>
         </li>
         @endif
 
@@ -145,8 +167,24 @@
         </li>
         @endif
 
-        @if (in_array($role, ['superadmin', 'admin-gudang', 'staff-outlet', 'owner'], true))
-        @if ($isStaffOutlet)
+        @if ($canSeePurchaseReturn || $canSeeSalesReturn)
+        @if ($isSales)
+        <li class="{{ request()->is('refund') || request()->is('refund/*') ? 'active' : '' }}">
+            <a href="{{ route('refund.index', ['return_scope' => 'branch_customer_return']) }}"><i class="fa fa-undo"></i><span>Retur Penjualan</span></a>
+        </li>
+        @elseif ($isAdminCabang)
+        <li class="treeview {{ request()->routeIs('refund.*') ? 'active' : '' }}">
+            <a href="#"><i class="fa fa-undo"></i><span>Retur Penjualan</span><i class="fa fa-angle-left pull-right"></i></a>
+            <ul class="treeview-menu">
+                <li class="{{ $branchCustomerReturnActive ? 'active' : '' }}">
+                    <a href="{{ route('refund.index', ['return_scope' => 'branch_customer_return']) }}"><i class="fa fa-undo"></i><span>Retur Toko ke Cabang</span></a>
+                </li>
+                <li class="{{ $branchWarehouseReturnActive ? 'active' : '' }}">
+                    <a href="{{ route('refund.index', ['return_scope' => 'warehouse_branch_return']) }}"><i class="fa fa-exchange"></i><span>Retur Cabang ke Gudang</span></a>
+                </li>
+            </ul>
+        </li>
+        @elseif ($isStaffOutlet)
         <li class="{{ request()->is('refundPembelian*') ? 'active' : '' }}">
             <a href="/refundPembelian"><i class="fa fa-undo"></i><span>Retur Barang</span></a>
         </li>
@@ -159,17 +197,21 @@
         <li class="treeview {{ request()->is('refundPembelian*') || request()->is('refund*') ? 'active' : '' }}">
             <a href="#"><i class="fa fa-undo"></i><span>Retur Barang</span><i class="fa fa-angle-left pull-right"></i></a>
             <ul class="treeview-menu">
+                @if (in_array($role, ['superadmin', 'admin-gudang', 'owner'], true))
                 <li class="{{ request()->is('refundPembelian*') && (!request()->filled('type') || request()->get('type') === 'gudang_ke_supplier') ? 'active' : '' }}">
-                    <a href="/refundPembelian?type=gudang_ke_supplier"><i class="fa fa-undo"></i><span>Retur Barang Gudang</span></a>
+                    <a href="/refundPembelian?type=gudang_ke_supplier"><i class="fa fa-undo"></i><span>Retur Pembelian</span></a>
                 </li>
+                @endif
+                @if (in_array($role, ['staff-outlet'], true))
+                <li class="{{ request()->is('refundPembelian*') && request()->get('type') === 'outlet_ke_gudang' ? 'active' : '' }}">
+                    <a href="/refundPembelian?type=outlet_ke_gudang"><i class="fa fa-exchange"></i><span>Retur Cabang ke Gudang</span></a>
+                </li>
+                @endif
+                @if ($canSeeSalesReturn)
                 <li class="{{ request()->is('refund') || request()->is('refund/*') ? 'active' : '' }}">
                     <a href="{{ route('refund.index') }}"><i class="fa fa-undo"></i><span>Retur Penjualan</span></a>
                 </li>
-                {{-- @if ($isSuperadmin) --}}
-                {{-- <li class="{{ request()->is('refundPembelian*') && request()->get('type') === 'outlet_ke_gudang' ? 'active' : '' }}"> --}}
-                    {{-- <a href="/refundPembelian?type=outlet_ke_gudang"><i class="fa fa-undo"></i><span>Retur Barang Cabang</span></a> --}}
-                {{-- </li> --}}
-                {{-- @endif --}}
+                @endif
             </ul>
         </li>
         @endif

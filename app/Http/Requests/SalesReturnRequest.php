@@ -15,13 +15,20 @@ class SalesReturnRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $buyerType = (string) $this->input('buyer_type');
-        $isBranchScoped = $this->user()?->isBranchScoped()
-            && in_array($this->user()?->role, ['admin-cabang', 'sales'], true);
+        $user = $this->user();
+        $isSales = $user?->role === 'sales' && $user->isBranchScoped();
+        $isAdminCabang = $user?->role === 'admin-cabang' && $user->isBranchScoped();
+        $isBranchScoped = $isSales || $isAdminCabang;
 
-        $returnScope = $this->input('return_scope');
-        if ($isBranchScoped) {
+        $returnScope = (string) $this->input('return_scope');
+        if ($isSales) {
             $returnScope = SalesReturnManager::SCOPE_BRANCH_CUSTOMER;
             $buyerType = 'toko';
+        } elseif ($isAdminCabang) {
+            $returnScope = $returnScope === SalesReturnManager::SCOPE_WAREHOUSE_BRANCH
+                ? SalesReturnManager::SCOPE_WAREHOUSE_BRANCH
+                : SalesReturnManager::SCOPE_BRANCH_CUSTOMER;
+            $buyerType = $returnScope === SalesReturnManager::SCOPE_WAREHOUSE_BRANCH ? 'outlet' : 'toko';
         } else {
             $returnScope = $buyerType === 'outlet'
                 ? SalesReturnManager::SCOPE_WAREHOUSE_BRANCH
@@ -40,14 +47,19 @@ class SalesReturnRequest extends FormRequest
             'return_scope' => $returnScope,
             'buyer_type' => $buyerType,
             'source_outlet_id' => $isBranchScoped ? $this->user()?->branchId() : $this->input('source_outlet_id'),
+            'buyer_id' => $isAdminCabang && $returnScope === SalesReturnManager::SCOPE_WAREHOUSE_BRANCH
+                ? $this->user()?->branchId()
+                : $this->input('buyer_id'),
             'product' => $items,
         ]);
     }
 
     public function rules(): array
     {
-        $isBranchScoped = $this->user()?->isBranchScoped()
-            && in_array($this->user()?->role, ['admin-cabang', 'sales'], true);
+        $user = $this->user();
+        $isSales = $user?->role === 'sales' && $user->isBranchScoped();
+        $isAdminCabang = $user?->role === 'admin-cabang' && $user->isBranchScoped();
+        $isBranchScoped = $isSales || $isAdminCabang;
 
         return [
             'code' => 'required|string|max:255',
@@ -57,7 +69,9 @@ class SalesReturnRequest extends FormRequest
                 SalesReturnManager::SCOPE_WAREHOUSE_BRANCH,
                 SalesReturnManager::SCOPE_BRANCH_CUSTOMER,
             ]),
-            'buyer_type' => $isBranchScoped ? 'required|in:toko' : 'required|in:agent,canvas,outlet',
+            'buyer_type' => $isSales
+                ? 'required|in:toko'
+                : ($isAdminCabang ? 'required|in:toko,outlet' : 'required|in:agent,canvas,outlet'),
             'buyer_id' => 'required|integer',
             'source_outlet_id' => $isBranchScoped ? 'required|exists:outlets,id' : 'nullable|exists:outlets,id',
             'notes' => 'nullable|string',

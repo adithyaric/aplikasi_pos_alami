@@ -33,7 +33,7 @@
                         <div class="row">
                             <div class="col-md-4">
                                 <div class="form-group">
-                                    <label>No. Penjualan</label>
+                                    <label>{{ $isBranchSaleMode ? 'No. Invoice Cabang' : 'No. Penjualan' }}</label>
                                     <input type="text" class="form-control" value="{{ $code }}" readonly>
                                 </div>
                             </div>
@@ -73,7 +73,12 @@
                             @if ($isBranchSaleMode)
                             <div class="col-md-4 buyer-select buyer-toko" style="display:none">
                                 <div class="form-group">
-                                    <label>Customer/Toko</label>
+                                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                                        <label style="margin-bottom:0;">Customer/Toko</label>
+                                        <button type="button" class="btn btn-default btn-xs" data-toggle="modal" data-target="#modalCustomerShopPenjualan">
+                                            <i class="fa fa-user-plus"></i> Tambah Customer/Toko
+                                        </button>
+                                    </div>
                                     <select class="form-control select2" id="outlet_target_id" name="outlet_target_id" style="width:100%">
                                         <option value="">Pilih Customer/Toko</option>
                                         @foreach ($outlets as $outlet)
@@ -256,6 +261,47 @@
                             </div>
                         </div>
                     </div>
+
+                    @if ($isBranchSaleMode)
+                    <div class="modal fade" id="modalCustomerShopPenjualan" tabindex="-1" role="dialog" aria-labelledby="modalCustomerShopPenjualanLabel">
+                        <div class="modal-dialog" role="document">
+                            <div class="modal-content">
+                                <form id="customerShopPenjualanForm">
+                                    @csrf
+                                    <div class="modal-header">
+                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                            <span aria-hidden="true">&times;</span>
+                                        </button>
+                                        <h4 class="modal-title" id="modalCustomerShopPenjualanLabel">
+                                            <i class="fa fa-user-plus"></i> Tambah Customer/Toko
+                                        </h4>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="alert alert-danger" id="customerShopPenjualanErrors" style="display:none"></div>
+                                        <div class="form-group">
+                                            <label>Nama Customer/Toko</label>
+                                            <input type="text" class="form-control" name="name" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Alamat</label>
+                                            <input type="text" class="form-control" name="alamat" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Deskripsi</label>
+                                            <input type="text" class="form-control" name="desc">
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-default" data-dismiss="modal">Tutup</button>
+                                        <button type="submit" class="btn btn-primary" id="btnSaveCustomerShopPenjualan">
+                                            <i class="fa fa-save"></i> Simpan
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    @endif
                 </form>
             </div>
         </div>

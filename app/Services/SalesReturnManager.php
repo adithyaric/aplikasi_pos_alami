@@ -42,6 +42,91 @@ class SalesReturnManager
         });
     }
 
+    public function approve(Refund $refund, int $userId, ?string $approvalNote = null): Refund
+    {
+        return DB::transaction(function () use ($refund, $userId, $approvalNote) {
+            /** @var Refund $lockedRefund */
+            $lockedRefund = Refund::whereKey($refund->id)->lockForUpdate()->firstOrFail();
+            $lockedRefund->loadMissing('refundItems.product', 'refundItems.sourceOwnerStock.product', 'appliedPenjualan');
+
+            if (! $lockedRefund->isPendingApproval() || $lockedRefund->return_scope !== self::SCOPE_WAREHOUSE_BRANCH) {
+                throw new \RuntimeException('Retur ini tidak menunggu approval superadmin.');
+            }
+
+            $invoice = Penjualan::whereKey($lockedRefund->applied_penjualan_id)->lockForUpdate()->first();
+            if (! $invoice) {
+                throw new \RuntimeException('Invoice cabang untuk retur ini tidak ditemukan.');
+            }
+
+            if ($invoice->payment_status === 'paid') {
+                throw new \RuntimeException('Invoice cabang sudah lunas dan tidak bisa dipotong.');
+            }
+
+            $returnTotal = (int) $lockedRefund->total;
+            $invoiceTotalBefore = (float) $invoice->total;
+            $invoiceTotalAfter = $invoiceTotalBefore - $returnTotal;
+
+            if ($returnTotal <= 0 || $invoiceTotalAfter <= 0) {
+                throw new \RuntimeException('Retur tidak boleh membuat total invoice menjadi nol atau negatif.');
+            }
+
+            $this->applyStoredWarehouseBranchStock($lockedRefund, $userId);
+
+            $invoice->update(['total' => $invoiceTotalAfter]);
+
+            PenjualanTotalAdjustment::create([
+                'penjualan_id' => $invoice->id,
+                'refund_id' => $lockedRefund->id,
+                'type' => 'sales_return',
+                'amount' => $returnTotal,
+                'total_before' => $invoiceTotalBefore,
+                'total_after' => $invoiceTotalAfter,
+                'user_id' => $userId,
+                'notes' => "Retur penjualan {$lockedRefund->code}",
+            ]);
+
+            $this->syncPaymentAfterAdjustment($invoice);
+
+            $lockedRefund->update([
+                'status' => Refund::STATUS_APPROVED,
+                'approved_by' => $userId,
+                'approved_at' => now(),
+                'approval_note' => $approvalNote,
+                'invoice_total_before' => $invoiceTotalBefore,
+                'invoice_total_after' => $invoiceTotalAfter,
+            ]);
+
+            return $lockedRefund->fresh([
+                'refundItems.product',
+                'refundItems.sourceOwnerStock.product',
+                'appliedPenjualan',
+                'approver',
+                'totalAdjustment',
+            ]);
+        });
+    }
+
+    public function reject(Refund $refund, int $userId, ?string $approvalNote = null): Refund
+    {
+        return DB::transaction(function () use ($refund, $userId, $approvalNote) {
+            /** @var Refund $lockedRefund */
+            $lockedRefund = Refund::whereKey($refund->id)->lockForUpdate()->firstOrFail();
+
+            if (! $lockedRefund->isPendingApproval() || $lockedRefund->return_scope !== self::SCOPE_WAREHOUSE_BRANCH) {
+                throw new \RuntimeException('Retur ini tidak menunggu approval superadmin.');
+            }
+
+            $lockedRefund->update([
+                'status' => Refund::STATUS_REJECTED,
+                'approved_by' => $userId,
+                'approved_at' => now(),
+                'approval_note' => $approvalNote,
+            ]);
+
+            return $lockedRefund->fresh(['approver']);
+        });
+    }
+
     public function rollback(Refund $refund, bool $deleteRefund = true): void
     {
         $refund->loadMissing('refundItems.sourceOwnerStock.product', 'appliedPenjualan', 'totalAdjustment');
@@ -49,17 +134,17 @@ class SalesReturnManager
         $invoice = $refund->appliedPenjualan;
         $adjustment = $refund->totalAdjustment;
 
-        if ($invoice && $adjustment) {
+        if ($refund->hasAppliedEffects() && $invoice && $adjustment) {
             $invoice->update(['total' => $adjustment->total_before]);
             $adjustment->delete();
             $this->syncPaymentAfterAdjustment($invoice);
         }
 
-        if ($refund->return_scope === self::SCOPE_WAREHOUSE_BRANCH) {
+        if ($refund->hasAppliedEffects() && $refund->return_scope === self::SCOPE_WAREHOUSE_BRANCH) {
             $this->rollbackWarehouseBranchStock($refund);
         }
 
-        if ($refund->return_scope === self::SCOPE_BRANCH_CUSTOMER) {
+        if ($refund->hasAppliedEffects() && $refund->return_scope === self::SCOPE_BRANCH_CUSTOMER) {
             $this->rollbackBranchCustomerStock($refund);
         }
 
@@ -81,7 +166,10 @@ class SalesReturnManager
     public function latestInvoice(array $payload, bool $lock = false): ?Penjualan
     {
         $query = Penjualan::query()
-            ->where('payment_status', 'unpaid')
+            ->where(function ($builder) {
+                $builder->whereNull('payment_status')
+                    ->orWhere('payment_status', '!=', 'paid');
+            })
             ->orderByDesc('sale_date')
             ->orderByDesc('id');
 
@@ -149,6 +237,7 @@ class SalesReturnManager
         }
 
         $buyer = $this->resolveBuyer($payload);
+        $requiresApproval = $this->shouldCreatePendingWarehouseBranchReturn($payload);
         $attributes = [
             'code' => $payload['code'],
             'kas_id' => null,
@@ -169,12 +258,22 @@ class SalesReturnManager
             'invoice_total_before' => $invoiceTotalBefore,
             'invoice_total_after' => $invoiceTotalAfter,
             'notes' => $payload['notes'] ?? null,
+            'status' => $requiresApproval ? Refund::STATUS_PENDING : Refund::STATUS_APPROVED,
+            'approved_by' => null,
+            'approved_at' => null,
+            'approval_note' => null,
         ];
 
         if ($refund) {
             $refund->update($attributes);
         } else {
             $refund = Refund::create($attributes);
+        }
+
+        if ($requiresApproval) {
+            $this->storePendingWarehouseBranchItems($refund, $items, (int) $payload['buyer_id']);
+
+            return $refund->fresh(['refundItems.product', 'appliedPenjualan', 'approver']);
         }
 
         $invoice->update(['total' => $invoiceTotalAfter]);
@@ -200,6 +299,12 @@ class SalesReturnManager
         };
 
         return $refund->fresh(['refundItems.product', 'appliedPenjualan', 'totalAdjustment']);
+    }
+
+    private function shouldCreatePendingWarehouseBranchReturn(array $payload): bool
+    {
+        return ($payload['requires_superadmin_approval'] ?? false)
+            && $payload['return_scope'] === self::SCOPE_WAREHOUSE_BRANCH;
     }
 
     private function normalizedItems(array $items): array
@@ -261,14 +366,7 @@ class SalesReturnManager
     {
         foreach ($items as $item) {
             $remaining = $item['qty'];
-            $ownerStocks = OwnerStock::where('owner_id', $branchId)
-                ->where('product_id', $item['product_id'])
-                ->where('qty', '>', 0)
-                ->orderByRaw('CASE WHEN expired_at IS NULL THEN 1 ELSE 0 END')
-                ->orderBy('expired_at')
-                ->orderBy('id')
-                ->lockForUpdate()
-                ->get();
+            $ownerStocks = $this->branchOwnerStocks($branchId, $item['product_id']);
 
             foreach ($ownerStocks as $ownerStock) {
                 if ($remaining <= 0) {
@@ -329,6 +427,43 @@ class SalesReturnManager
                     'qty_out' => 0,
                     'balance' => Stock::where('product_id', $item['product_id'])->sum('qty'),
                     'notes' => "Retur penjualan cabang ke gudang - {$refund->code} - Item retur #{$refundItem->id}",
+                ]);
+
+                $remaining -= $take;
+            }
+
+            if ($remaining > 0) {
+                throw new \RuntimeException("Stock cabang {$item['product']->name} tidak cukup untuk retur.");
+            }
+        }
+    }
+
+    private function storePendingWarehouseBranchItems(Refund $refund, array $items, int $branchId): void
+    {
+        foreach ($items as $item) {
+            $remaining = $item['qty'];
+            $ownerStocks = $this->branchOwnerStocks($branchId, $item['product_id']);
+
+            foreach ($ownerStocks as $ownerStock) {
+                if ($remaining <= 0) {
+                    break;
+                }
+
+                $take = min($remaining, (int) $ownerStock->qty);
+                if ($take <= 0) {
+                    continue;
+                }
+
+                $refund->refundItems()->create([
+                    'product_id' => $item['product_id'],
+                    'qty' => $take,
+                    'qty_input' => $take,
+                    'unit' => $item['product']->satuan ?: 'PCS',
+                    'price' => $item['price'],
+                    'subtotal' => (int) round($take * $item['price']),
+                    'stock_visibility' => 'visible',
+                    'source_owner_stock_id' => $ownerStock->id,
+                    'alasan' => $item['alasan'],
                 ]);
 
                 $remaining -= $take;
@@ -404,6 +539,59 @@ class SalesReturnManager
         }
     }
 
+    private function applyStoredWarehouseBranchStock(Refund $refund, int $userId): void
+    {
+        foreach ($refund->refundItems as $refundItem) {
+            $ownerStock = OwnerStock::whereKey($refundItem->source_owner_stock_id)->lockForUpdate()->first();
+            if (! $ownerStock) {
+                throw new \RuntimeException("Batch stock cabang untuk {$refundItem->product?->name} tidak ditemukan.");
+            }
+
+            if ((float) $ownerStock->qty < (float) $refundItem->qty) {
+                throw new \RuntimeException("Stock cabang {$refundItem->product?->name} tidak cukup saat approval.");
+            }
+
+            $ownerStock->qty -= (float) $refundItem->qty;
+            $ownerStock->save();
+
+            $warehouseStock = $this->resolveWarehouseStockForBranchReturn($ownerStock, $refundItem->product, $refund);
+            $warehouseStock->qty += (float) $refundItem->qty;
+            $warehouseStock->save();
+
+            if (! $ownerStock->stock_id) {
+                $ownerStock->stock_id = $warehouseStock->id;
+                $ownerStock->save();
+            }
+
+            OwnerStockMovement::create([
+                'owner_id' => $ownerStock->owner_id,
+                'product_id' => $refundItem->product_id,
+                'owner_stock_id' => $ownerStock->id,
+                'stock_id' => $warehouseStock->id,
+                'user_id' => $userId,
+                'type' => 'return_out',
+                'reference_type' => Refund::class,
+                'reference_id' => $refund->id,
+                'qty_in' => 0,
+                'qty_out' => $refundItem->qty,
+                'balance' => $this->branchProductBalance((int) $ownerStock->owner_id, (int) $refundItem->product_id),
+                'notes' => "Retur cabang ke gudang - {$refund->code} - Produk: {$refundItem->product?->name}",
+            ]);
+
+            StockMovement::create([
+                'product_id' => $refundItem->product_id,
+                'user_id' => $userId,
+                'type' => 'in',
+                'reference_type' => Refund::class,
+                'reference_id' => $refund->id,
+                'qty_in' => $refundItem->qty,
+                'qty_out' => 0,
+                'balance' => Stock::where('product_id', $refundItem->product_id)->sum('qty'),
+                'notes' => "Retur penjualan cabang ke gudang - {$refund->code} - Item retur #{$refundItem->id}",
+            ]);
+        }
+    }
+
     private function rollbackBranchCustomerStock(Refund $refund): void
     {
         foreach ($refund->refundItems as $item) {
@@ -475,5 +663,17 @@ class SalesReturnManager
         return (float) OwnerStock::where('owner_id', $branchId)
             ->where('product_id', $productId)
             ->sum('qty');
+    }
+
+    private function branchOwnerStocks(int $branchId, int $productId)
+    {
+        return OwnerStock::where('owner_id', $branchId)
+            ->where('product_id', $productId)
+            ->where('qty', '>', 0)
+            ->orderByRaw('CASE WHEN expired_at IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('expired_at')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
     }
 }

@@ -141,7 +141,7 @@ class WarehousePenjualanSeeder extends Seeder
             ->orderBy('id')
             ->first();
 
-        if (! $product || ! $shop || ! $salesman?->user || Penjualan::where('code', 'PNJ-CBG-00001')->exists()) {
+        if (! $product || ! $shop || ! $salesman?->user || Penjualan::where('code', 'INV-CBG-00001')->exists()) {
             return;
         }
 
@@ -154,7 +154,7 @@ class WarehousePenjualanSeeder extends Seeder
         }
 
         app(BranchPenjualanManager::class)->create([
-            'code' => 'PNJ-CBG-00001',
+            'code' => 'INV-CBG-00001',
             'buyer_id' => $shop->id,
             'sale_date' => now()->toDateString(),
             'payment_type' => 'termin',

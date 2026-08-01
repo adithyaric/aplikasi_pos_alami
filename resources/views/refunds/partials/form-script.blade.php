@@ -5,6 +5,8 @@
     var rowIndex = 0;
     var latestInvoice = null;
     var isBranchScoped = @json($isBranchScoped);
+    var isAdminCabang = @json($isAdminCabang);
+    var branchBuyerId = @json((string) ($selectedSourceOutletId ?: ''));
 
     function moneyMask() {
         $('.numeral-mask').mask('#,##0', { reverse: true });
@@ -117,20 +119,33 @@
 
     function updateBuyerState() {
         var buyerType = $('#buyer_type').val();
-        if (!isBranchScoped) {
+        if (isBranchScoped) {
+            if (isAdminCabang) {
+                var selectedScope = $('#return_scope_selector').val() || $('#return_scope').val() || 'branch_customer_return';
+                var isWarehouseBranchReturn = selectedScope === 'warehouse_branch_return';
+
+                $('#return_scope').val(selectedScope);
+                $('#buyer_type').val(isWarehouseBranchReturn ? 'outlet' : 'toko');
+                $('.buyer-toko').toggle(!isWarehouseBranchReturn);
+                $('.buyer-outlet-branch').toggle(isWarehouseBranchReturn);
+                $('#warehouse-approval-note').toggle(isWarehouseBranchReturn);
+                $('#buyer_id').val(isWarehouseBranchReturn ? branchBuyerId : ($('#shop_buyer_id').val() || ''));
+            } else {
+                $('#return_scope').val('branch_customer_return');
+                $('#buyer_type').val('toko');
+                $('#warehouse-approval-note').hide();
+                $('#buyer_id').val($('#shop_buyer_id').val() || '');
+            }
+        } else {
             $('.buyer-block').hide();
             if (buyerType) {
                 $('.buyer-' + buyerType).show();
             }
+            var selected = $('.buyer-select:visible').val();
+            $('#buyer_id').val(selected || '');
+            $('#return_scope').val(buyerType === 'outlet' ? 'warehouse_branch_return' : 'warehouse_affiliate_return');
         }
 
-        var selected = $('.buyer-select:visible').val();
-        if (isBranchScoped) {
-            selected = $('#shop_buyer_id').val();
-        }
-
-        $('#buyer_id').val(selected || '');
-        $('#return_scope').val(isBranchScoped ? 'branch_customer_return' : (buyerType === 'outlet' ? 'warehouse_branch_return' : 'warehouse_affiliate_return'));
         loadInvoicePreview();
     }
 
@@ -145,7 +160,7 @@
 
         if (!latestInvoice) {
             $preview.removeClass('alert-info alert-danger').addClass('alert-warning')
-                .html('Belum ada invoice unpaid terbaru untuk pembeli ini.')
+                .html('Belum ada invoice terbaru dengan status belum lunas untuk pembeli ini.')
                 .show();
             return;
         }
@@ -157,6 +172,9 @@
                 'Invoice yang akan dipotong: <strong>' + latestInvoice.code + '</strong>' +
                 ' | Total invoice: <strong>Rp ' + formatMoney(latestInvoice.total) + '</strong>' +
                 ' | Maks retur: <strong>Rp ' + formatMoney(latestInvoice.max_return_total) + '</strong>' +
+                (isAdminCabang && $('#return_scope').val() === 'warehouse_branch_return'
+                    ? '<br>Invoice cabang dipotong setelah superadmin mengonfirmasi retur ini.'
+                    : '') +
                 (exceeds ? '<br>Total retur melebihi batas dan akan ditolak saat disimpan.' : '')
             )
             .show();
@@ -199,7 +217,7 @@
             });
     }
 
-    $(document).on('change', '#buyer_type, .buyer-select', updateBuyerState);
+    $(document).on('change', '#buyer_type, #return_scope_selector, .buyer-select', updateBuyerState);
 
     $(document).on('change', '.item-product', function() {
         var $row = $(this).closest('tr');

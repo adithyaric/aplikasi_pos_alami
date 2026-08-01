@@ -43,8 +43,20 @@ class SeededOperationalFlowsTest extends TestCase
             ->assertRedirect(route('dashboard'));
 
         $this->actingAs($adminCabang)
-            ->get(route('refundPembelian.create', ['type' => 'outlet_ke_gudang']))
+            ->get(route('refund.create', ['return_scope' => 'warehouse_branch_return']))
             ->assertOk();
+
+        $this->actingAs($adminCabang)
+            ->get(route('refundPembelian.create', ['type' => 'outlet_ke_gudang']))
+            ->assertRedirect(route('dashboard'));
+
+        $this->actingAs($adminCabang)
+            ->get(route('penjualan.branch-index'))
+            ->assertOk();
+
+        $this->actingAs($adminCabang)
+            ->get(route('penjualan.create'))
+            ->assertRedirect(route('dashboard'));
 
         $this->actingAs($sales)
             ->get(route('refundPembelian.create', ['type' => 'outlet_ke_gudang']))
@@ -198,6 +210,7 @@ class SeededOperationalFlowsTest extends TestCase
 
         $adminCabang = User::where('email', 'alfreda.branch@alami.test')->firstOrFail();
         $sales = User::where('email', 'sales-jogja-1@alami.test')->firstOrFail();
+        $superadmin = User::where('email', 'superadmin@mailinator.com')->firstOrFail();
         $salesman = Salesman::where('user_id', $sales->id)->firstOrFail();
         $branch = Outlet::findOrFail($adminCabang->outlet_id);
         $shop = Outlet::shops()->orderBy('id')->firstOrFail();
@@ -208,34 +221,59 @@ class SeededOperationalFlowsTest extends TestCase
             ->where('qty', '>', 4)
             ->firstOrFail();
         $warehouseStock = Stock::findOrFail($ownerStock->stock_id);
+        $branchWarehouseInvoice = Penjualan::warehouseSales()
+            ->where('buyer_type', 'outlet')
+            ->where('buyer_id', $branch->id)
+            ->where(function ($query) {
+                $query->whereNull('payment_status')
+                    ->orWhere('payment_status', '!=', 'paid');
+            })
+            ->latest('id')
+            ->firstOrFail();
         $branchQtyBeforeReturnToWarehouse = (int) $ownerStock->qty;
         $warehouseQtyBeforeReturnToWarehouse = (int) $warehouseStock->qty;
+        $branchInvoiceTotalBeforeReturn = (int) $branchWarehouseInvoice->total;
 
-        $branchReturnResponse = $this->actingAs($adminCabang)->post(route('refundPembelian.store'), [
-            'code' => 'RTR-CABANG-DEMO-001',
+        $branchReturnResponse = $this->actingAs($adminCabang)->post(route('refund.store'), [
+            'code' => 'RTR-CABANG-DEMO-REQ-001',
             'tanggal' => now()->toDateString(),
-            'type' => 'gudang_ke_supplier',
-            'supplier_id' => Supplier::where('kode_supplier', 'S00001')->value('id'),
-            'selected_rows' => ['0'],
+            'return_scope' => 'warehouse_branch_return',
             'product' => [
                 [
                     'product_id' => $product->id,
-                    'stock_id' => $ownerStock->stock_id,
                     'qty' => 1,
+                    'unit' => 'Pack',
+                    'price' => (int) $product->harga_jual,
                     'alasan' => 'Retur stok cabang demo',
                 ],
             ],
         ]);
 
-        $branchReturnResponse->assertRedirect(route('refundPembelian.index'));
-        $branchRefundPembelian = RefundPembelian::where('code', 'RTR-CABANG-DEMO-001')->firstOrFail();
+        $branchReturn = Refund::where('code', 'RTR-CABANG-DEMO-REQ-001')->firstOrFail();
+        $branchReturnResponse->assertRedirect(route('refund.show', $branchReturn));
         $ownerStock->refresh();
         $warehouseStock->refresh();
+        $branchWarehouseInvoice->refresh();
 
-        $this->assertSame('outlet_ke_gudang', $branchRefundPembelian->type);
-        $this->assertSame($branch->id, (int) $branchRefundPembelian->outlet_id);
+        $this->assertSame(Refund::STATUS_PENDING, $branchReturn->status);
+        $this->assertSame('warehouse_branch_return', $branchReturn->return_scope);
+        $this->assertSame($branch->id, (int) $branchReturn->buyer_id);
+        $this->assertSame($branchQtyBeforeReturnToWarehouse, (int) $ownerStock->qty);
+        $this->assertSame($warehouseQtyBeforeReturnToWarehouse, (int) $warehouseStock->qty);
+        $this->assertSame($branchInvoiceTotalBeforeReturn, (int) $branchWarehouseInvoice->total);
+
+        $approveReturnResponse = $this->actingAs($superadmin)->post(route('refund.approve', $branchReturn));
+
+        $approveReturnResponse->assertRedirect(route('refund.show', $branchReturn));
+        $branchReturn->refresh();
+        $ownerStock->refresh();
+        $warehouseStock->refresh();
+        $branchWarehouseInvoice->refresh();
+
+        $this->assertSame(Refund::STATUS_APPROVED, $branchReturn->status);
         $this->assertSame($branchQtyBeforeReturnToWarehouse - 1, (int) $ownerStock->qty);
         $this->assertSame($warehouseQtyBeforeReturnToWarehouse + 1, (int) $warehouseStock->qty);
+        $this->assertSame($branchInvoiceTotalBeforeReturn - (int) $product->harga_jual, (int) $branchWarehouseInvoice->total);
 
         $branchQtyBeforeSale = (int) OwnerStock::where('owner_id', $branch->id)
             ->where('product_id', $product->id)
@@ -289,6 +327,7 @@ class SeededOperationalFlowsTest extends TestCase
         $returnResponse->assertRedirect(route('refund.show', $refund));
 
         $this->assertSame('branch_customer_return', $refund->return_scope);
+        $this->assertSame(Refund::STATUS_APPROVED, $refund->status);
         $this->assertSame($sale->id, (int) $refund->applied_penjualan_id);
         $this->assertSame((int) $product->harga_jual, (int) $sale->total);
         $this->assertSame($branchQtyBeforeSale - 1, (int) OwnerStock::where('owner_id', $branch->id)

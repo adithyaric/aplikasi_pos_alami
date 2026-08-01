@@ -17,6 +17,20 @@
                 <div class="box">
                     <div class="box-header">
                         <a href="{{ route('refund.index') }}" class="btn btn-md bg-primary">Kembali</a>
+                        @if (auth()->user()?->role === 'superadmin' && $refund->return_scope === \App\Services\SalesReturnManager::SCOPE_WAREHOUSE_BRANCH && $refund->isPendingApproval())
+                            <form action="{{ route('refund.approve', $refund) }}" method="POST" style="display:inline;">
+                                @csrf
+                                <button type="submit" class="btn btn-md btn-success" onclick="return confirm('Konfirmasi retur cabang ini?')">
+                                    Konfirmasi Superadmin
+                                </button>
+                            </form>
+                            <form action="{{ route('refund.reject', $refund) }}" method="POST" style="display:inline;">
+                                @csrf
+                                <button type="submit" class="btn btn-md btn-danger" onclick="return confirm('Tolak retur cabang ini?')">
+                                    Tolak
+                                </button>
+                            </form>
+                        @endif
                     </div><!-- /.box-header -->
                     <div class="box-body table-responsive">
                         <table id="example1" class="table table-bordered table-striped">
@@ -32,6 +46,10 @@
                                 <tr>
                                     <td colspan="2">Scope Retur</td>
                                     <td colspan="2">{{ $refund->return_scope ?: '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">Status</td>
+                                    <td colspan="2">{{ $refund->status_label }}</td>
                                 </tr>
                                 <tr>
                                     <td colspan="2">Jenis Pembeli</td>
@@ -56,6 +74,18 @@
                                 <tr>
                                     <td colspan="2">Total</td>
                                     <td colspan="2">@currency($refund->total)</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">Dikonfirmasi Oleh</td>
+                                    <td colspan="2">{{ $refund->approver?->name ?? '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">Waktu Konfirmasi</td>
+                                    <td colspan="2">{{ $refund->approved_at?->format('d-M-Y H:i') ?? '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">Catatan Approval</td>
+                                    <td colspan="2">{{ $refund->approval_note ?: '-' }}</td>
                                 </tr>
                                 <tr>
                                     <td colspan="2">Invoice Sebelum Retur</td>

@@ -43,6 +43,7 @@ class CurrentDistributionFlowSeederTest extends TestCase
         $this->assertTrue(Penjualan::warehouseSales()->where('buyer_type', 'canvas')->exists());
         $this->assertTrue(Penjualan::warehouseSales()->where('buyer_type', 'outlet')->exists());
         $this->assertSame(1, Penjualan::branchSales()->count());
+        $this->assertTrue(Penjualan::branchSales()->where('code', 'like', 'INV-CBG-%')->exists());
         $this->assertGreaterThan(0, OwnerStock::count());
     }
 }

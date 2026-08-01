@@ -9,6 +9,10 @@ class Refund extends Model
 {
     use SoftDeletes;
 
+    public const STATUS_PENDING = 'pending';
+    public const STATUS_APPROVED = 'approved';
+    public const STATUS_REJECTED = 'rejected';
+
     protected $fillable = [
         'code',
         'kas_id',
@@ -29,6 +33,10 @@ class Refund extends Model
         'invoice_total_before',
         'invoice_total_after',
         'notes',
+        'status',
+        'approved_by',
+        'approved_at',
+        'approval_note',
     ];
 
     public function customer()
@@ -44,6 +52,11 @@ class Refund extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function approver()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     public function outlet()
@@ -136,10 +149,35 @@ class Refund extends Model
         };
     }
 
+    public function getStatusLabelAttribute(): string
+    {
+        return match ($this->status) {
+            self::STATUS_PENDING => 'Pending Superadmin',
+            self::STATUS_REJECTED => 'Rejected',
+            default => 'Approved',
+        };
+    }
+
+    public function isPendingApproval(): bool
+    {
+        return $this->status === self::STATUS_PENDING;
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === self::STATUS_REJECTED;
+    }
+
+    public function hasAppliedEffects(): bool
+    {
+        return ! in_array($this->status, [self::STATUS_PENDING, self::STATUS_REJECTED], true);
+    }
+
     protected $casts = [
         'tanggal' => 'datetime',
         'invoice_total_before' => 'float',
         'invoice_total_after' => 'float',
         'total' => 'float',
+        'approved_at' => 'datetime',
     ];
 }

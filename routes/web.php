@@ -57,6 +57,7 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::resource('/customer', CustomerController::class);
     Route::resource('/kas', KasController::class);
     Route::resource('/payment', PaymentMethodController::class);
+    Route::post('/outlet/store-shop', [OutletController::class, 'storeShop'])->name('outlet.store-shop');
     Route::resource('/outlet', OutletController::class);
     Route::get('/outlet/{outlet_id}/kas', [OutletController::class, 'getKas']);
     Route::resource('/supplier', SupplierController::class);
@@ -101,6 +102,8 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::get('/pembelian/{id}/destroy', [PembelianController::class, 'stockDestroy'])->name('pembelian.stock.destroy');
     Route::get('/supplier/{supplier}/products', [App\Http\Controllers\PembelianController::class, 'getProductsBySupplier'])->name('supplier.products');
 
+    Route::post('/refund/{refund}/approve', [RefundController::class, 'approve'])->name('refund.approve');
+    Route::post('/refund/{refund}/reject', [RefundController::class, 'reject'])->name('refund.reject');
     Route::resource('/refund', RefundController::class);
     Route::get('/refund-preview/latest-invoice', [RefundController::class, 'latestInvoicePreview'])->name('refund.latest-invoice');
     Route::get('/refund-preview/last-price', [RefundController::class, 'lastReturnPrice'])->name('refund.last-price');
@@ -116,6 +119,7 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::resource('/refundPembelian', RefundPembelianController::class);
 
     Route::get('/penjualan', [PenjualanController::class, 'index'])->name('penjualan.index');
+    Route::get('/penjualan/cabang', [PenjualanController::class, 'branchIndex'])->name('penjualan.branch-index');
     Route::get('/penjualan/last-price', [PenjualanController::class, 'lastPrice'])->name('penjualan.last-price');
     Route::get('/penjualan/create', [PenjualanController::class, 'create'])->name('penjualan.create');
     Route::post('/penjualan/warehouse', [PenjualanController::class, 'storeWarehouseSale'])->name('penjualan.store');

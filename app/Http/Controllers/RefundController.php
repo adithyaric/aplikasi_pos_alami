@@ -28,21 +28,62 @@ class RefundController extends Controller
     ) {
     }
 
-    public function index()
+    public function index(Request $request)
     {
+        $query = Refund::with([
+            'user',
+            'approver',
+            'customer',
+            'penjualan',
+            'appliedPenjualan',
+            'sourceOutlet',
+            'salesman',
+            'agent',
+            'canvasBuyer',
+            'outletBuyer',
+            'tokoBuyer',
+        ])->orderByDesc('tanggal')->orderByDesc('id');
+
+        $this->scopeRefundQueryForCurrentUser($query);
+
+        if ($request->filled('buyer_type')) {
+            $query->where('buyer_type', $request->input('buyer_type'));
+        }
+
+        if ($request->filled('return_scope')) {
+            $query->where('return_scope', $request->input('return_scope'));
+        }
+
+        if ($request->input('period') === 'daterange' && $request->filled('date_from') && $request->filled('date_to')) {
+            $query->whereBetween('tanggal', [
+                \Carbon\Carbon::parse($request->input('date_from'))->startOfDay(),
+                \Carbon\Carbon::parse($request->input('date_to'))->endOfDay(),
+            ]);
+        }
+
+        $refunds = $query->get();
+        $summary = [
+            'totalNominal' => $refunds->sum('total'),
+            'totalCount' => $refunds->count(),
+            'affiliateNominal' => $refunds->where('return_scope', SalesReturnManager::SCOPE_WAREHOUSE_AFFILIATE)->sum('total'),
+            'affiliateCount' => $refunds->where('return_scope', SalesReturnManager::SCOPE_WAREHOUSE_AFFILIATE)->count(),
+            'branchWarehouseNominal' => $refunds->where('return_scope', SalesReturnManager::SCOPE_WAREHOUSE_BRANCH)->sum('total'),
+            'branchWarehouseCount' => $refunds->where('return_scope', SalesReturnManager::SCOPE_WAREHOUSE_BRANCH)->count(),
+            'branchCustomerNominal' => $refunds->where('return_scope', SalesReturnManager::SCOPE_BRANCH_CUSTOMER)->sum('total'),
+            'branchCustomerCount' => $refunds->where('return_scope', SalesReturnManager::SCOPE_BRANCH_CUSTOMER)->count(),
+        ];
+
         return view('refunds.index', [
-            'refunds' => Refund::with([
-                'user',
-                'customer',
-                'penjualan',
-                'appliedPenjualan',
-                'sourceOutlet',
-                'salesman',
-                'agent',
-                'canvasBuyer',
-                'outletBuyer',
-                'tokoBuyer',
-            ])->orderByDesc('tanggal')->orderByDesc('id')->get(),
+            'refunds' => $refunds,
+            'filterPeriod' => $request->input('period', 'all'),
+            'dateFrom' => $request->input('date_from'),
+            'dateTo' => $request->input('date_to'),
+            'selectedBuyerType' => $request->input('buyer_type'),
+            'selectedReturnScope' => $request->input('return_scope'),
+            'buyerTypeOptions' => $this->buyerTypeOptions(),
+            'returnScopeOptions' => $this->returnScopeOptions(),
+            'summary' => $summary,
+            'canApproveBranchWarehouseReturn' => auth()->user()?->role === 'superadmin',
         ]);
     }
 
@@ -53,6 +94,7 @@ class RefundController extends Controller
 
     public function edit(Refund $refund)
     {
+        $this->ensureRefundAccessible($refund, true);
         $refund->loadMissing('refundItems.product');
 
         return view('refunds.edit', $this->refundFormData($refund));
@@ -60,7 +102,9 @@ class RefundController extends Controller
 
     public function show(Refund $refund)
     {
+        $this->ensureRefundAccessible($refund);
         $refund->load([
+            'approver',
             'customer',
             'outlet',
             'penjualan',
@@ -86,7 +130,12 @@ class RefundController extends Controller
             $data = $this->returnPayload($request->validated());
             $refund = $this->salesReturnManager->create($data, (int) auth()->id());
 
-            return redirect(route('refund.show', $refund))->with('toast_success', 'Berhasil Menyimpan Data!');
+            return redirect(route('refund.show', $refund))->with(
+                'toast_success',
+                $refund->isPendingApproval()
+                    ? 'Retur cabang dikirim dan menunggu konfirmasi superadmin.'
+                    : 'Berhasil Menyimpan Data!'
+            );
         } catch (\Throwable $exception) {
             return redirect()->back()
                 ->withInput()
@@ -96,11 +145,18 @@ class RefundController extends Controller
 
     public function update(SalesReturnRequest $request, Refund $refund)
     {
+        $this->ensureRefundAccessible($refund, true);
+
         try {
             $data = $this->returnPayload($request->validated());
             $refund = $this->salesReturnManager->update($refund, $data, (int) auth()->id());
 
-            return redirect(route('refund.show', $refund))->with('toast_success', 'Berhasil Menyimpan Data!');
+            return redirect(route('refund.show', $refund))->with(
+                'toast_success',
+                $refund->isPendingApproval()
+                    ? 'Permintaan retur cabang berhasil diperbarui.'
+                    : 'Berhasil Menyimpan Data!'
+            );
         } catch (\Throwable $exception) {
             return redirect()->back()
                 ->withInput()
@@ -110,9 +166,44 @@ class RefundController extends Controller
 
     public function destroy(Refund $refund)
     {
+        $this->ensureRefundAccessible($refund, true);
         DB::transaction(fn () => $this->salesReturnManager->rollback($refund));
 
         return redirect(route('refund.index'))->with('toast_success', 'Berhasil Menghapus Data!');
+    }
+
+    public function approve(Request $request, Refund $refund)
+    {
+        abort_unless(auth()->user()?->role === 'superadmin', 403);
+
+        try {
+            $refund = $this->salesReturnManager->approve(
+                $refund,
+                (int) auth()->id(),
+                $request->input('approval_note')
+            );
+
+            return redirect(route('refund.show', $refund))->with('toast_success', 'Retur cabang berhasil dikonfirmasi.');
+        } catch (\Throwable $exception) {
+            return redirect()->back()->with('toast_error', 'Gagal: '.$exception->getMessage());
+        }
+    }
+
+    public function reject(Request $request, Refund $refund)
+    {
+        abort_unless(auth()->user()?->role === 'superadmin', 403);
+
+        try {
+            $refund = $this->salesReturnManager->reject(
+                $refund,
+                (int) auth()->id(),
+                $request->input('approval_note')
+            );
+
+            return redirect(route('refund.show', $refund))->with('toast_success', 'Retur cabang ditolak.');
+        } catch (\Throwable $exception) {
+            return redirect()->back()->with('toast_error', 'Gagal: '.$exception->getMessage());
+        }
     }
 
     public function latestInvoicePreview(Request $request)
@@ -123,7 +214,7 @@ class RefundController extends Controller
         if (! $invoice) {
             return response()->json([
                 'invoice' => null,
-                'message' => 'Tidak ada invoice unpaid terbaru untuk pembeli ini.',
+                'message' => 'Tidak ada invoice terbaru dengan status belum lunas untuk pembeli ini.',
             ]);
         }
 
@@ -156,10 +247,84 @@ class RefundController extends Controller
         return (int) preg_replace('/[^\d]/', '', (string) $value);
     }
 
+    private function scopeRefundQueryForCurrentUser($query): void
+    {
+        $user = auth()->user();
+        if (! $user?->isBranchScoped() || ! in_array($user->role, ['admin-cabang', 'sales'], true)) {
+            return;
+        }
+
+        if ($user->role === 'sales') {
+            $salesmanId = Salesman::where('user_id', auth()->id())->value('id');
+            $query->where('return_scope', SalesReturnManager::SCOPE_BRANCH_CUSTOMER)
+                ->where('source_outlet_id', $user->branchId())
+                ->where(function ($builder) use ($salesmanId) {
+                    $builder->where('user_id', auth()->id())
+                        ->when($salesmanId, fn ($salesQuery) => $salesQuery->orWhere('salesman_id', $salesmanId));
+                });
+
+            return;
+        }
+
+        $branchId = $user->branchId();
+        $query->where(function ($builder) use ($branchId) {
+            $builder->where(function ($branchCustomerQuery) use ($branchId) {
+                $branchCustomerQuery->where('return_scope', SalesReturnManager::SCOPE_BRANCH_CUSTOMER)
+                    ->where('source_outlet_id', $branchId);
+            })->orWhere(function ($branchWarehouseQuery) use ($branchId) {
+                $branchWarehouseQuery->where('return_scope', SalesReturnManager::SCOPE_WAREHOUSE_BRANCH)
+                    ->where('buyer_type', 'outlet')
+                    ->where('buyer_id', $branchId);
+            });
+        });
+    }
+
+    private function ensureRefundAccessible(Refund $refund, bool $manage = false): void
+    {
+        $user = auth()->user();
+        if (! $user?->isBranchScoped() || ! in_array($user->role, ['admin-cabang', 'sales'], true)) {
+            return;
+        }
+
+        if ($user->role === 'sales') {
+            abort_unless(
+                $refund->return_scope === SalesReturnManager::SCOPE_BRANCH_CUSTOMER
+                && (int) $refund->source_outlet_id === (int) $user->branchId(),
+                403
+            );
+
+            $salesmanId = Salesman::where('user_id', auth()->id())->value('id');
+            abort_unless(
+                (int) $refund->user_id === (int) auth()->id()
+                || ($salesmanId && (int) $refund->salesman_id === (int) $salesmanId),
+                403
+            );
+
+            return;
+        }
+
+        $belongsToBranch = ($refund->return_scope === SalesReturnManager::SCOPE_BRANCH_CUSTOMER
+                && (int) $refund->source_outlet_id === (int) $user->branchId())
+            || ($refund->return_scope === SalesReturnManager::SCOPE_WAREHOUSE_BRANCH
+                && (int) $refund->buyer_id === (int) $user->branchId());
+
+        abort_unless($belongsToBranch, 403);
+
+        if ($manage
+            && $refund->return_scope === SalesReturnManager::SCOPE_WAREHOUSE_BRANCH
+            && ! $refund->isPendingApproval()) {
+            abort(403);
+        }
+    }
+
     private function refundFormData(?Refund $refund = null, ?int $selectedPenjualanId = null): array
     {
         $prefillSale = $selectedPenjualanId ? Penjualan::find($selectedPenjualanId) : null;
         $converter = app(ProductUnitConverter::class);
+        $user = auth()->user();
+        $isAdminCabang = $user?->role === 'admin-cabang' && $user->isBranchScoped();
+        $isSales = $user?->role === 'sales' && $user->isBranchScoped();
+        $isBranchScoped = $isAdminCabang || $isSales;
 
         $products = Product::orderBy('name')
             ->get([
@@ -179,13 +344,13 @@ class RefundController extends Controller
                 'name' => $product->name,
                 'harga_jual' => (int) ($product->harga_jual ?? 0),
                 'base_unit' => $product->satuan ?: 'PCS',
-                'default_unit' => $converter->defaultInputUnit($product, auth()->user()?->isBranchScoped() ? 'branch' : 'distribution'),
+                'default_unit' => $converter->defaultInputUnit($product, $isBranchScoped ? 'branch' : 'distribution'),
                 'unit_factors' => $converter->unitMultipliers($product),
-                'units' => $converter->inputUnits($product, auth()->user()?->isBranchScoped() ? 'branch' : 'distribution'),
+                'units' => $converter->inputUnits($product, $isBranchScoped ? 'branch' : 'distribution'),
             ])
             ->values();
 
-        $selectedReturnScope = old('return_scope', $refund?->return_scope);
+        $selectedReturnScope = old('return_scope', $refund?->return_scope ?: request()->input('return_scope') ?: request()->input('mode'));
         $selectedBuyerType = old('buyer_type', $refund?->buyer_type);
         $selectedBuyerId = old('buyer_id', $refund?->buyer_id);
         $selectedSourceOutletId = old('source_outlet_id', $refund?->source_outlet_id);
@@ -201,10 +366,24 @@ class RefundController extends Controller
                     : SalesReturnManager::SCOPE_WAREHOUSE_AFFILIATE);
         }
 
-        if (auth()->user()?->isBranchScoped() && in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true)) {
+        if ($isSales) {
             $selectedReturnScope = SalesReturnManager::SCOPE_BRANCH_CUSTOMER;
             $selectedBuyerType = 'toko';
-            $selectedSourceOutletId = auth()->user()->branchId();
+            $selectedSourceOutletId = $user->branchId();
+        }
+
+        if ($isAdminCabang) {
+            $selectedReturnScope = $selectedReturnScope === SalesReturnManager::SCOPE_WAREHOUSE_BRANCH
+                ? SalesReturnManager::SCOPE_WAREHOUSE_BRANCH
+                : SalesReturnManager::SCOPE_BRANCH_CUSTOMER;
+            $selectedSourceOutletId = $user->branchId();
+
+            if ($selectedReturnScope === SalesReturnManager::SCOPE_WAREHOUSE_BRANCH) {
+                $selectedBuyerType = 'outlet';
+                $selectedBuyerId = $user->branchId();
+            } else {
+                $selectedBuyerType = 'toko';
+            }
         }
 
         return [
@@ -215,8 +394,11 @@ class RefundController extends Controller
             'selectedBuyerType' => $selectedBuyerType,
             'selectedBuyerId' => $selectedBuyerId,
             'selectedSourceOutletId' => $selectedSourceOutletId,
-            'isBranchScoped' => auth()->user()?->isBranchScoped() && in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true),
-            'branchName' => auth()->user()?->outlet?->name,
+            'isBranchScoped' => $isBranchScoped,
+            'isAdminCabang' => $isAdminCabang,
+            'isSales' => $isSales,
+            'branchName' => $user?->outlet?->name,
+            'branchReturnScopeOptions' => $this->returnScopeOptions(),
             'agents' => Agent::where('is_active', true)->orderBy('name')->get(),
             'canvases' => Canvas::where('is_active', true)->orderBy('name')->get(),
             'branches' => Outlet::branches()->orderBy('name')->get(),
@@ -241,21 +423,47 @@ class RefundController extends Controller
             $data['salesman_id'] = Salesman::where('user_id', auth()->id())->value('id');
         }
 
+        $data['requires_superadmin_approval'] = auth()->user()?->role === 'admin-cabang'
+            && ($data['return_scope'] ?? null) === SalesReturnManager::SCOPE_WAREHOUSE_BRANCH;
+
         return $data;
     }
 
     private function previewPayload(Request $request): array
     {
+        $user = auth()->user();
         $buyerType = (string) $request->input('buyer_type');
-        $isBranchScoped = auth()->user()?->isBranchScoped()
-            && in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true);
+        $isSales = $user?->role === 'sales' && $user->isBranchScoped();
+        $isAdminCabang = $user?->role === 'admin-cabang' && $user->isBranchScoped();
 
-        if ($isBranchScoped) {
+        if ($isSales) {
             return [
                 'return_scope' => SalesReturnManager::SCOPE_BRANCH_CUSTOMER,
                 'buyer_type' => 'toko',
                 'buyer_id' => (int) $request->input('buyer_id'),
-                'source_outlet_id' => auth()->user()->branchId(),
+                'source_outlet_id' => $user->branchId(),
+            ];
+        }
+
+        if ($isAdminCabang) {
+            $returnScope = $request->input('return_scope') === SalesReturnManager::SCOPE_WAREHOUSE_BRANCH
+                ? SalesReturnManager::SCOPE_WAREHOUSE_BRANCH
+                : SalesReturnManager::SCOPE_BRANCH_CUSTOMER;
+
+            if ($returnScope === SalesReturnManager::SCOPE_WAREHOUSE_BRANCH) {
+                return [
+                    'return_scope' => SalesReturnManager::SCOPE_WAREHOUSE_BRANCH,
+                    'buyer_type' => 'outlet',
+                    'buyer_id' => (int) $user->branchId(),
+                    'source_outlet_id' => $user->branchId(),
+                ];
+            }
+
+            return [
+                'return_scope' => SalesReturnManager::SCOPE_BRANCH_CUSTOMER,
+                'buyer_type' => 'toko',
+                'buyer_id' => (int) $request->input('buyer_id'),
+                'source_outlet_id' => $user->branchId(),
             ];
         }
 
@@ -266,6 +474,53 @@ class RefundController extends Controller
             'buyer_type' => $buyerType,
             'buyer_id' => (int) $request->input('buyer_id'),
             'source_outlet_id' => $request->input('source_outlet_id'),
+        ];
+    }
+
+    private function buyerTypeOptions(): array
+    {
+        $user = auth()->user();
+
+        if ($user?->role === 'sales') {
+            return ['toko' => 'Customer/Toko'];
+        }
+
+        if ($user?->role === 'admin-cabang') {
+            return [
+                'toko' => 'Customer/Toko',
+                'outlet' => 'Cabang',
+            ];
+        }
+
+        return [
+            'agent' => 'Agen',
+            'canvas' => 'Canvas',
+            'outlet' => 'Cabang',
+            'toko' => 'Customer/Toko',
+        ];
+    }
+
+    private function returnScopeOptions(): array
+    {
+        $user = auth()->user();
+
+        if ($user?->role === 'sales') {
+            return [
+                SalesReturnManager::SCOPE_BRANCH_CUSTOMER => 'Retur Toko ke Cabang',
+            ];
+        }
+
+        if ($user?->role === 'admin-cabang') {
+            return [
+                SalesReturnManager::SCOPE_BRANCH_CUSTOMER => 'Retur Toko ke Cabang',
+                SalesReturnManager::SCOPE_WAREHOUSE_BRANCH => 'Retur Cabang ke Gudang',
+            ];
+        }
+
+        return [
+            SalesReturnManager::SCOPE_WAREHOUSE_AFFILIATE => 'Retur Agen / Canvas',
+            SalesReturnManager::SCOPE_WAREHOUSE_BRANCH => 'Retur Cabang ke Gudang',
+            SalesReturnManager::SCOPE_BRANCH_CUSTOMER => 'Retur Toko ke Cabang',
         ];
     }
 
