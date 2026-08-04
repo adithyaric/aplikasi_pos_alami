@@ -89,6 +89,10 @@ class PenjualanController extends Controller
             $query->where('buyer_type', $filterState['buyerType']);
         }
 
+        if ($filterState['buyerId']) {
+            $query->where('buyer_id', $filterState['buyerId']);
+        }
+
         $penjualans = $query->get();
         $summary = $this->salesSummary($penjualans);
 
@@ -98,11 +102,14 @@ class PenjualanController extends Controller
             'dateFrom' => $filterState['dateFrom'],
             'dateTo' => $filterState['dateTo'],
             'selectedBuyerType' => $filterState['buyerType'],
+            'selectedBuyerId' => $filterState['buyerId'],
             'buyerTypeOptions' => [
                 'agent' => 'Agen',
                 'canvas' => 'Canvas',
                 'outlet' => 'Cabang',
+                'toko' => 'Toko',
             ],
+            'buyerOptionsByType' => $this->buyerOptionsByType(),
             'summary' => $summary,
             'canCreatePenjualan' => true,
         ]);
@@ -170,7 +177,6 @@ class PenjualanController extends Controller
                 ->get(),
             'summary' => $summary,
             'canCreatePenjualan' => $user?->role === 'sales',
-            'canCreateCustomerShop' => in_array($user?->role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true),
         ]);
     }
 
@@ -610,6 +616,7 @@ class PenjualanController extends Controller
             'agents' => Agent::where('is_active', true)->orderBy('name')->get(),
             'canvases' => Canvas::where('is_active', true)->orderBy('name')->get(),
             'outlets' => Outlet::branches()->orderBy('name')->get(),
+            'shops' => Outlet::shops()->orderBy('name')->get(),
             'products' => $products,
             'initialItems' => old('items')
                 ?: ($penjualan
@@ -683,7 +690,6 @@ class PenjualanController extends Controller
             'canvases' => collect(),
             'outlets' => Outlet::shops()->orderBy('name')->get(),
             'products' => $products,
-            'shopStoreUrl' => route('outlet.store-shop'),
             'initialItems' => old('items')
                 ?: ($penjualan
                     ? $penjualan->items->map(fn ($item) => [
@@ -735,6 +741,17 @@ class PenjualanController extends Controller
             'dateFrom' => $request->input('date_from'),
             'dateTo' => $request->input('date_to'),
             'buyerType' => $request->input('buyer_type'),
+            'buyerId' => $request->integer('buyer_id') ?: null,
+        ];
+    }
+
+    private function buyerOptionsByType(): array
+    {
+        return [
+            'agent' => Agent::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code'])->map(fn ($item) => ['id' => $item->id, 'name' => $item->name, 'code' => $item->code])->values()->all(),
+            'canvas' => Canvas::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code'])->map(fn ($item) => ['id' => $item->id, 'name' => $item->name, 'code' => $item->code])->values()->all(),
+            'outlet' => Outlet::branches()->orderBy('name')->get(['id', 'name'])->map(fn ($item) => ['id' => $item->id, 'name' => $item->name])->values()->all(),
+            'toko' => Outlet::shops()->orderBy('name')->get(['id', 'name'])->map(fn ($item) => ['id' => $item->id, 'name' => $item->name])->values()->all(),
         ];
     }
 
@@ -774,6 +791,7 @@ class PenjualanController extends Controller
             'agent' => $request->agent_id,
             'canvas' => $request->canvas_id,
             'outlet' => $request->outlet_target_id,
+            'toko' => $request->toko_id,
         };
     }
 

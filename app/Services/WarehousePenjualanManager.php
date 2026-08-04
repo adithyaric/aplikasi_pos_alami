@@ -30,19 +30,20 @@ class WarehousePenjualanManager
             'agent' => Agent::findOrFail($buyerId),
             'canvas' => Canvas::findOrFail($buyerId),
             'outlet' => Outlet::findOrFail($buyerId),
+            'toko' => Outlet::shops()->findOrFail($buyerId),
         };
 
         $label = match ($buyerType) {
             'agent' => 'Agen',
             'canvas' => 'Canvas',
             'outlet' => 'Cabang',
+            'toko' => 'Toko',
         };
 
         return [
             'id' => (int) $model->id,
             'name' => $model->name,
             'label' => $label.' '.$model->name,
-            'termin_days' => (int) ($model->termin_days ?? 0),
         ];
     }
 

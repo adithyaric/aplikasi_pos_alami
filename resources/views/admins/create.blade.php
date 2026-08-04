@@ -73,7 +73,7 @@
                                     <option value="" selected disabled>Pilih Role</option>
                                     @foreach ($roles as $role)
                                         <option value="{{ $role }}" {{ old('role') == $role ? 'selected' : '' }}>
-                                            {{ $role }}
+                                            {{ ['superadmin' => 'Superadmin', 'admin-gudang' => 'Admin Gudang', 'admin-cabang' => 'Admin Cabang'][$role] ?? $role }}
                                         </option>
                                     @endforeach
                                 </select>
@@ -87,7 +87,7 @@
                                 <label>Cabang</label>
                                 <select class="form-control select2" name="outlet_id" data-placeholder="Pilih Cabang"
                                     style="width: 100%;">
-                                    <option value="" selected disabled>Pilih Cabang</option>
+                                    <option value="">Pilih Cabang</option>
                                     @foreach ($outlets as $outlet)
                                         <option value="{{ $outlet->id }}"
                                             {{ old('outlet_id') == $outlet->id ? 'selected' : '' }}>

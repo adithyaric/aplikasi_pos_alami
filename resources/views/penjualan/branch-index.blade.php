@@ -113,11 +113,9 @@
                                 <i class="fa fa-plus"></i> Tambah Penjualan
                             </a>
                         @endif
-                        @if ($canCreateCustomerShop)
-                            <button type="button" class="btn btn-sm btn-default" data-toggle="modal" data-target="#modalCustomerShop">
-                                <i class="fa fa-user-plus"></i> Tambah Customer/Toko
-                            </button>
-                        @endif
+                        <a href="{{ route('customer-penjualan.index', ['type' => 'toko']) }}" class="btn btn-sm btn-default">
+                            <i class="fa fa-users"></i> Customer Penjualan
+                        </a>
                     </div>
                     <div class="box-body table-responsive">
                         <table id="example1" class="table table-bordered table-striped">
@@ -174,76 +172,4 @@
         </div>
     </section>
 
-    <div class="modal fade" id="modalCustomerShop" tabindex="-1" role="dialog" aria-labelledby="modalCustomerShopLabel">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <form id="customerShopForm">
-                    @csrf
-                    <div class="modal-header">
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                        <h4 class="modal-title" id="modalCustomerShopLabel">
-                            <i class="fa fa-user-plus"></i> Tambah Customer/Toko
-                        </h4>
-                    </div>
-                    <div class="modal-body">
-                        <div class="alert alert-danger" id="customerShopErrors" style="display:none"></div>
-                        <div class="form-group">
-                            <label>Nama Customer/Toko</label>
-                            <input type="text" class="form-control" name="name" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Alamat</label>
-                            <input type="text" class="form-control" name="alamat" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Deskripsi</label>
-                            <input type="text" class="form-control" name="desc">
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-default" data-dismiss="modal">Tutup</button>
-                        <button type="submit" class="btn btn-primary" id="btnSaveCustomerShop">
-                            <i class="fa fa-save"></i> Simpan
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-@endsection
-
-@section('page-script')
-    <script>
-        $('#customerShopForm').on('submit', function(event) {
-            event.preventDefault();
-
-            var $form = $(this);
-            var $button = $('#btnSaveCustomerShop');
-            var $errors = $('#customerShopErrors');
-
-            $button.prop('disabled', true);
-            $errors.hide().empty();
-
-            $.post('{{ route('outlet.store-shop') }}', $form.serialize())
-                .done(function() {
-                    $('#modalCustomerShop').modal('hide');
-                    $form.trigger('reset');
-                    window.location.reload();
-                })
-                .fail(function(xhr) {
-                    var message = 'Gagal menyimpan customer/toko.';
-
-                    if (xhr.responseJSON && xhr.responseJSON.errors) {
-                        message = Object.values(xhr.responseJSON.errors).flat().join('<br>');
-                    }
-
-                    $errors.html(message).show();
-                })
-                .always(function() {
-                    $button.prop('disabled', false);
-                });
-        });
-    </script>
 @endsection

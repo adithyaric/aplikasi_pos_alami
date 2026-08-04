@@ -32,6 +32,14 @@
                                 <input type="hidden" name="date_from" id="inputDateFrom" value="{{ $dateFrom }}">
                                 <input type="hidden" name="date_to" id="inputDateTo" value="{{ $dateTo }}">
 
+                                <label style="margin:0 0 0 8px; white-space:nowrap;">Supplier:</label>
+                                <select name="supplier_id" class="form-control input-sm" style="width:220px">
+                                    <option value="">Semua Supplier</option>
+                                    @foreach ($suppliers as $supplier)
+                                        <option value="{{ $supplier->id }}" {{ (string) $supplierId === (string) $supplier->id ? 'selected' : '' }}>{{ $supplier->name }}</option>
+                                    @endforeach
+                                </select>
+
                                 <button type="submit" class="btn btn-sm btn-primary">
                                     <i class="fa fa-filter"></i> Terapkan Filter
                                 </button>

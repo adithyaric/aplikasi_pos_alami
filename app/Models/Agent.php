@@ -12,8 +12,6 @@ class Agent extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'credit_limit' => 'decimal:2',
         'is_active' => 'boolean',
-        'termin_days' => 'integer',
     ];
 }

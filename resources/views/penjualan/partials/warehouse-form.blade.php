@@ -5,6 +5,7 @@
     $selectedAgentId = old('agent_id', $selectedBuyerType === 'agent' ? $penjualan?->buyer_id : '');
     $selectedCanvasId = old('canvas_id', $selectedBuyerType === 'canvas' ? $penjualan?->buyer_id : '');
     $selectedOutletId = old('outlet_target_id', in_array($selectedBuyerType, ['outlet', 'toko'], true) ? $penjualan?->buyer_id : '');
+    $selectedShopId = old('toko_id', $selectedBuyerType === 'toko' && ! $isBranchSaleMode ? $penjualan?->buyer_id : '');
     $selectedPaymentType = old('payment_type', $penjualan?->payment_type ?? 'termin');
     $selectedPaymentStatus = old('payment_status', $penjualan?->payment_status ?? ($selectedPaymentType === 'cash' ? 'paid' : 'unpaid'));
 @endphp
@@ -60,7 +61,9 @@
                                             <option value="agent" {{ $selectedBuyerType === 'agent' ? 'selected' : '' }}>Agen</option>
                                             <option value="canvas" {{ $selectedBuyerType === 'canvas' ? 'selected' : '' }}>Canvas</option>
                                             <option value="outlet" {{ $selectedBuyerType === 'outlet' ? 'selected' : '' }}>Cabang</option>
+                                            <option value="toko" {{ $selectedBuyerType === 'toko' ? 'selected' : '' }}>Toko</option>
                                         </select>
+                                        <div style="margin-top:6px"><a href="{{ route('customer-penjualan.create') }}" target="_blank" class="btn btn-default btn-xs"><i class="fa fa-user-plus"></i> Tambah Customer Penjualan</a> <a href="{{ route('customer-penjualan.index') }}" target="_blank" class="btn btn-link btn-xs">Kelola Customer</a></div>
                                     @endif
                                     @error('buyer_type')
                                         <div class="text-danger">{{ $message }}</div>
@@ -73,12 +76,7 @@
                             @if ($isBranchSaleMode)
                             <div class="col-md-4 buyer-select buyer-toko" style="display:none">
                                 <div class="form-group">
-                                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-                                        <label style="margin-bottom:0;">Customer/Toko</label>
-                                        <button type="button" class="btn btn-default btn-xs" data-toggle="modal" data-target="#modalCustomerShopPenjualan">
-                                            <i class="fa fa-user-plus"></i> Tambah Customer/Toko
-                                        </button>
-                                    </div>
+                                    <label>Customer/Toko</label>
                                     <select class="form-control select2" id="outlet_target_id" name="outlet_target_id" style="width:100%">
                                         <option value="">Pilih Customer/Toko</option>
                                         @foreach ($outlets as $outlet)
@@ -100,7 +98,6 @@
                                         <option value="">Pilih Agen</option>
                                         @foreach ($agents as $agent)
                                             <option value="{{ $agent->id }}"
-                                                data-termin-days="{{ $agent->termin_days ?? 0 }}"
                                                 {{ (string) $selectedAgentId === (string) $agent->id ? 'selected' : '' }}>
                                                 {{ $agent->code ? $agent->code.' - ' : '' }}{{ $agent->name }}
                                             </option>
@@ -119,7 +116,6 @@
                                         <option value="">Pilih Canvas</option>
                                         @foreach ($canvases as $canvas)
                                             <option value="{{ $canvas->id }}"
-                                                data-termin-days="{{ $canvas->termin_days ?? 0 }}"
                                                 {{ (string) $selectedCanvasId === (string) $canvas->id ? 'selected' : '' }}>
                                                 {{ $canvas->code ? $canvas->code.' - ' : '' }}{{ $canvas->name }}
                                             </option>
@@ -145,6 +141,19 @@
                                     @error('outlet_target_id')
                                         <div class="text-danger">{{ $message }}</div>
                                     @enderror
+                                </div>
+                            </div>
+
+                            <div class="col-md-4 buyer-select buyer-toko" style="display:none">
+                                <div class="form-group">
+                                    <label>Toko</label>
+                                    <select class="form-control select2" id="toko_id" name="toko_id" style="width:100%">
+                                        <option value="">Pilih Toko</option>
+                                        @foreach ($shops as $shop)
+                                            <option value="{{ $shop->id }}" {{ (string) $selectedShopId === (string) $shop->id ? 'selected' : '' }}>{{ $shop->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('toko_id')<div class="text-danger">{{ $message }}</div>@enderror
                                 </div>
                             </div>
                             @endif
@@ -262,46 +271,6 @@
                         </div>
                     </div>
 
-                    @if ($isBranchSaleMode)
-                    <div class="modal fade" id="modalCustomerShopPenjualan" tabindex="-1" role="dialog" aria-labelledby="modalCustomerShopPenjualanLabel">
-                        <div class="modal-dialog" role="document">
-                            <div class="modal-content">
-                                <form id="customerShopPenjualanForm">
-                                    @csrf
-                                    <div class="modal-header">
-                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                            <span aria-hidden="true">&times;</span>
-                                        </button>
-                                        <h4 class="modal-title" id="modalCustomerShopPenjualanLabel">
-                                            <i class="fa fa-user-plus"></i> Tambah Customer/Toko
-                                        </h4>
-                                    </div>
-                                    <div class="modal-body">
-                                        <div class="alert alert-danger" id="customerShopPenjualanErrors" style="display:none"></div>
-                                        <div class="form-group">
-                                            <label>Nama Customer/Toko</label>
-                                            <input type="text" class="form-control" name="name" required>
-                                        </div>
-                                        <div class="form-group">
-                                            <label>Alamat</label>
-                                            <input type="text" class="form-control" name="alamat" required>
-                                        </div>
-                                        <div class="form-group">
-                                            <label>Deskripsi</label>
-                                            <input type="text" class="form-control" name="desc">
-                                        </div>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-default" data-dismiss="modal">Tutup</button>
-                                        <button type="submit" class="btn btn-primary" id="btnSaveCustomerShopPenjualan">
-                                            <i class="fa fa-save"></i> Simpan
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                    @endif
                 </form>
             </div>
         </div>

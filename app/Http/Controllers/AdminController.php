@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
@@ -15,8 +16,6 @@ class AdminController extends Controller
         'superadmin',
         'admin-gudang',
         'admin-cabang',
-        'staff-outlet',
-        'owner',
     ];
 
     public function index()
@@ -30,13 +29,14 @@ class AdminController extends Controller
     {
         return view('admins.create', [
             'roles' => self::MANAGED_ROLES,
-            'outlets' => Outlet::get(),
+            'outlets' => Outlet::branches()->orderBy('name')->get(),
         ]);
     }
 
     public function store(AdminRequest $request)
     {
         $data = $request->validated();
+        $data['outlet_id'] = $data['role'] === 'admin-cabang' ? ($data['outlet_id'] ?? null) : null;
         $data['password'] = Hash::make($data['password']);
 
         User::create($data);
@@ -56,7 +56,7 @@ class AdminController extends Controller
         return view('admins.edit', [
             'admin' => $admin,
             'roles' => self::MANAGED_ROLES,
-            'outlets' => Outlet::get(),
+            'outlets' => Outlet::branches()->orderBy('name')->get(),
         ]);
     }
 
@@ -65,7 +65,7 @@ class AdminController extends Controller
         $this->validate($request, [
             'name' => 'required',
             'username' => 'required',
-            'outlet_id' => 'required_if:role,staff-outlet|required_if:role,admin-gudang|required_if:role,admin-cabang|nullable|exists:outlets,id',
+            'outlet_id' => ['required_if:role,admin-cabang', 'nullable', Rule::exists('outlets', 'id')->where(fn ($query) => $query->where('jenis_outlet', 'branch'))],
             'role' => 'required|in:'.implode(',', self::MANAGED_ROLES),
             'status' => 'required',
             'email' => 'required|email|unique:users,email,'.$admin->id,
@@ -73,6 +73,7 @@ class AdminController extends Controller
         ]);
 
         $data = $request->all();
+        $data['outlet_id'] = $data['role'] === 'admin-cabang' ? ($data['outlet_id'] ?? null) : null;
         if (! empty($data['password'])) {
             $data['password'] = Hash::make($data['password']);
         } else {

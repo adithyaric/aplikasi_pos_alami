@@ -20,6 +20,7 @@ class Outlet extends Model
         'name',
         'jenis_outlet',
         'alamat',
+        'no_telp',
         'npwp',
         'slogan',
         'desc',

@@ -32,6 +32,15 @@
                                     @endforeach
                                 </select>
 
+                                <select name="buyer_id" id="buyer_id_filter" class="form-control input-sm" style="width:220px">
+                                    <option value="">Semua Pembeli</option>
+                                    @foreach (($buyerOptionsByType[$selectedBuyerType] ?? []) as $buyer)
+                                        <option value="{{ $buyer['id'] }}" {{ (string) $selectedBuyerId === (string) $buyer['id'] ? 'selected' : '' }}>
+                                            {{ !empty($buyer['code']) ? $buyer['code'].' - ' : '' }}{{ $buyer['name'] }}
+                                        </option>
+                                    @endforeach
+                                </select>
+
                                 <button type="submit" class="btn btn-sm btn-primary">
                                     <i class="fa fa-filter"></i> Terapkan Filter
                                 </button>
@@ -170,4 +179,20 @@
             </div>
         </div>
     </section>
+@endsection
+
+@section('page-script')
+<script>
+    (function () {
+        var options = @json($buyerOptionsByType);
+        var $type = $('select[name="buyer_type"]');
+        var $buyer = $('#buyer_id_filter');
+        $type.on('change', function () {
+            $buyer.empty().append(new Option('Semua Pembeli', ''));
+            (options[$type.val()] || []).forEach(function (item) {
+                $buyer.append(new Option((item.code ? item.code + ' - ' : '') + item.name, item.id));
+            });
+        });
+    }());
+</script>
 @endsection

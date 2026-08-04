@@ -22,7 +22,6 @@
         $canSeeProcurement = in_array($role, ['superadmin', 'admin-gudang', 'owner'], true);
         $canSeeStock = in_array($role, ['superadmin', 'admin-gudang', 'owner'], true);
         $canSeeBranchStock = in_array($role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true);
-        $canSeeMasters = in_array($role, ['superadmin', 'admin-gudang', 'owner'], true);
         $canSeeWarehouseSales = in_array($role, ['superadmin', 'admin-gudang', 'owner'], true);
         $canSeeBranchSales = in_array($role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true);
         $canSeePurchaseReturn = in_array($role, ['superadmin', 'admin-gudang', 'owner', 'staff-outlet'], true);
@@ -116,23 +115,13 @@
         </li>
         @endif
 
-        @if ($canSeeMasters)
-        <li class="treeview {{ in_array(Route::currentRouteName(), ['outlet.index', 'outlet.create', 'outlet.edit', 'outlet.show']) || request()->is('salesman*') ? 'active' : '' }}">
-            <a href="#"><i class="fa fa-home"></i><span>Data Cabang</span><i class="fa fa-angle-left pull-right"></i></a>
-            <ul class="treeview-menu">
-                <li class="{{ in_array(Route::currentRouteName(), ['outlet.index', 'outlet.create', 'outlet.edit', 'outlet.show']) ? 'active' : '' }}">
-                    <a href="/outlet"><i class="fa fa-building"></i><span>Cabang</span></a>
-                </li>
-                <li class="{{ request()->is('salesman*') ? 'active' : '' }}">
-                    <a href="/salesman"><i class="fa fa-users"></i><span>Salesman</span></a>
-                </li>
-            </ul>
-        </li>
-        @endif
-
         @if ($canSeeWarehouseSales)
-        <li class="{{ $warehouseSalesActive ? 'active' : '' }}">
-            <a href="{{ route('penjualan.index') }}"><i class="fa fa-tags"></i><span>Penjualan Gudang</span></a>
+        <li class="treeview {{ $warehouseSalesActive || request()->is('customer-penjualan*') ? 'active' : '' }}">
+            <a href="#"><i class="fa fa-tags"></i><span>Penjualan Gudang</span><i class="fa fa-angle-left pull-right"></i></a>
+            <ul class="treeview-menu">
+                <li class="{{ $warehouseSalesActive ? 'active' : '' }}"><a href="{{ route('penjualan.index') }}"><i class="fa fa-tags"></i><span>Penjualan</span></a></li>
+                <li class="{{ request()->is('customer-penjualan*') ? 'active' : '' }}"><a href="{{ route('customer-penjualan.index') }}"><i class="fa fa-users"></i><span>Customer Penjualan</span></a></li>
+            </ul>
         </li>
         @endif
 
@@ -224,19 +213,27 @@
         @endif
 
         @if ($isSuperadmin)
-        <li class="treeview {{ request()->is('branchs*') || request()->is('agents*') || request()->is('canvases*') ? 'active' : '' }}">
-            <a href="#"><i class="fa fa-trello"></i><span>Affiliate</span><i class="fa fa-angle-left pull-right"></i></a>
+        {{-- <li class="treeview {{ request()->is('branchs*') || request()->is('agents*') || request()->is('canvases*') ? 'active' : '' }}"> --}}
+            {{-- <a href="#"><i class="fa fa-trello"></i><span>Affiliate</span><i class="fa fa-angle-left pull-right"></i></a> --}}
+            {{-- <ul class="treeview-menu"> --}}
+                {{-- <li class="{{ request()->is('agents*') ? 'active' : '' }}"> --}}
+                    {{-- <a href="/agents"><i class="fa fa-archive"></i><span>Agen</span></a> --}}
+                {{-- </li> --}}
+                {{-- <li class="{{ request()->is('canvases*') ? 'active' : '' }}"> --}}
+                    {{-- <a href="/canvases"><i class="fa fa-archive"></i><span>Canvas</span></a> --}}
+                {{-- </li> --}}
+            {{-- </ul> --}}
+        {{-- </li> --}}
+        <li class="treeview {{ request()->is('admin*') || request()->is('salesman*') ? 'active' : '' }}">
+            <a href="#"><i class="fa fa-user-secret"></i><span>Admins</span><i class="fa fa-angle-left pull-right"></i></a>
             <ul class="treeview-menu">
-                <li class="{{ request()->is('agents*') ? 'active' : '' }}">
-                    <a href="/agents"><i class="fa fa-archive"></i><span>Agen</span></a>
+                <li class="{{ request()->is('admin*') ? 'active' : '' }}">
+                    <a href="/admin"><i class="fa fa-user-secret"></i><span>Admins</span></a>
                 </li>
-                <li class="{{ request()->is('canvases*') ? 'active' : '' }}">
-                    <a href="/canvases"><i class="fa fa-archive"></i><span>Canvas</span></a>
+                <li class="{{ request()->is('salesman*') ? 'active' : '' }}">
+                    <a href="{{ route('salesman.index') }}"><i class="fa fa-users"></i><span>Salesman</span></a>
                 </li>
             </ul>
-        </li>
-        <li class="{{ request()->is('admin*') ? 'active' : '' }}">
-            <a href="/admin"><i class="fa fa-user-secret"></i><span>Pengguna</span></a>
         </li>
         <li class="{{ request()->is('setting*') ? 'active' : '' }}">
             <a href="/setting"><i class="fa fa-gear"></i><span>Setting</span></a>

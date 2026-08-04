@@ -80,6 +80,13 @@ class RoleMiddleware
             'branch-stock.opname.data',
             'branch-stock.opname.save',
             'outlet.store-shop',
+            'customer-penjualan.index',
+            'customer-penjualan.create',
+            'customer-penjualan.store',
+            'customer-penjualan.edit',
+            'customer-penjualan.update',
+            'customer-penjualan.destroy',
+            'customer-penjualan.options',
         ];
 
         $adminCabangRoutes = [

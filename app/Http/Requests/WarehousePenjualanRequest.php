@@ -45,12 +45,13 @@ class WarehousePenjualanRequest extends FormRequest
 
         return [
             'sale_date' => 'required|date',
-            'buyer_type' => $isBranchSale ? 'required|in:toko' : 'required|in:agent,canvas,outlet',
+            'buyer_type' => $isBranchSale ? 'required|in:toko' : 'required|in:agent,canvas,outlet,toko',
             'agent_id' => $isBranchSale ? 'nullable' : 'nullable|required_if:buyer_type,agent|exists:agents,id',
             'canvas_id' => $isBranchSale ? 'nullable' : 'nullable|required_if:buyer_type,canvas|exists:canvases,id',
             'outlet_target_id' => $isBranchSale
                 ? 'required|exists:outlets,id'
                 : 'nullable|required_if:buyer_type,outlet|exists:outlets,id',
+            'toko_id' => $isBranchSale ? 'nullable' : 'nullable|required_if:buyer_type,toko|exists:outlets,id',
             'payment_type' => 'required|in:cash,termin',
             'payment_status' => 'nullable|in:paid,unpaid,partial',
             'due_date' => 'nullable|date|after_or_equal:sale_date',
@@ -72,6 +73,7 @@ class WarehousePenjualanRequest extends FormRequest
             'agent_id.required_if' => 'Agen wajib dipilih.',
             'canvas_id.required_if' => 'Canvas wajib dipilih.',
             'outlet_target_id.required_if' => 'Cabang wajib dipilih.',
+            'toko_id.required_if' => 'Toko wajib dipilih.',
             'payment_type.required' => 'Tipe pembayaran wajib dipilih.',
             'due_date.after_or_equal' => 'Jatuh tempo tidak boleh sebelum tanggal penjualan.',
             'items.required' => 'Minimal harus ada satu produk.',

@@ -26,8 +26,6 @@
                                     <td>Kode</td>
                                     <td>Nama</td>
                                     <td>Telepon</td>
-                                    <td>Termin</td>
-                                    <td>Limit Piutang</td>
                                     <td>Status</td>
                                     <td>Aksi</td>
                                 </tr>
@@ -38,8 +36,6 @@
                                     <td>{{ $value->code ?? '-' }}</td>
                                     <td>{{ $value->name }}</td>
                                     <td>{{ $value->no_telp ?? '-' }}</td>
-                                    <td>{{ $value->termin_days ?? 0 }} hari</td>
-                                    <td>@currency($value->credit_limit ?? 0)</td>
                                     <td>
                                         <span class="label label-{{ ($value->is_active ?? true) ? 'success' : 'default' }}">
                                             {{ ($value->is_active ?? true) ? 'Aktif' : 'Nonaktif' }}

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class AdminRequest extends FormRequest
 {
@@ -16,8 +17,8 @@ class AdminRequest extends FormRequest
         return [
             'name' => 'required',
             'username' => 'required',
-            'outlet_id' => 'required_if:role,staff-outlet|required_if:role,admin-gudang|required_if:role,admin-cabang|nullable|exists:outlets,id',
-            'role' => 'required|in:superadmin,admin-gudang,admin-cabang,staff-outlet,owner',
+            'outlet_id' => ['required_if:role,admin-cabang', 'nullable', Rule::exists('outlets', 'id')->where(fn ($query) => $query->where('jenis_outlet', 'branch'))],
+            'role' => 'required|in:superadmin,admin-gudang,admin-cabang',
             'status' => 'required',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|same:confirm-password',

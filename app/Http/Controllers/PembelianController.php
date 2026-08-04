@@ -84,6 +84,7 @@ class PembelianController extends Controller
         $filterPeriod = $request->input('period', 'all');
         $dateFrom     = $request->input('date_from');
         $dateTo       = $request->input('date_to');
+        $supplierId   = $request->integer('supplier_id') ?: null;
 
         $query = Pembelian::with([
             'supplier',
@@ -105,6 +106,10 @@ class PembelianController extends Controller
                 \Carbon\Carbon::parse($dateFrom)->startOfDay(),
                 \Carbon\Carbon::parse($dateTo)->endOfDay(),
             ]);
+        }
+
+        if ($supplierId) {
+            $query->where('supplier_id', $supplierId);
         }
 
         $pembelians = $query->get();
@@ -155,6 +160,8 @@ class PembelianController extends Controller
             'filterPeriod'        => $filterPeriod,
             'dateFrom'            => $dateFrom,
             'dateTo'              => $dateTo,
+            'supplierId'          => $supplierId,
+            'suppliers'           => Supplier::orderBy('name')->get(['id', 'name']),
             'totalPiutang'        => $totalPiutang,
             'countPiutang'        => $countPiutang,
             'totalLunas'          => $totalLunas,
