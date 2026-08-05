@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Agent;
-use App\Models\Canvas;
 use App\Models\Outlet;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,9 +11,6 @@ class SalesCustomerController extends Controller
 {
     private const TYPES = [
         'toko' => 'Toko',
-        'agent' => 'Agen',
-        'canvas' => 'Canvas',
-        'cabang' => 'Cabang',
     ];
 
     public function index(Request $request)
@@ -104,38 +99,25 @@ class SalesCustomerController extends Controller
     {
         return collect([
             ...Outlet::shops()->orderBy('name')->get()->map(fn (Outlet $item) => $this->serialize($item, 'toko')),
-            ...Agent::orderBy('name')->get()->map(fn (Agent $item) => $this->serialize($item, 'agent')),
-            ...Canvas::orderBy('name')->get()->map(fn (Canvas $item) => $this->serialize($item, 'canvas')),
-            ...Outlet::branches()->orderBy('name')->get()->map(fn (Outlet $item) => $this->serialize($item, 'cabang')),
         ])->sortBy(fn (array $item) => mb_strtolower($item['name']))->values();
     }
 
     private function availableTypes(): array
     {
-        if (in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true)) {
-            return ['toko' => self::TYPES['toko']];
-        }
-
         return self::TYPES;
     }
 
     private function find(string $type, int $id)
     {
         return match ($type) {
-            'agent' => Agent::findOrFail($id),
-            'canvas' => Canvas::findOrFail($id),
             'toko' => Outlet::shops()->findOrFail($id),
-            'cabang' => Outlet::branches()->findOrFail($id),
         };
     }
 
     private function persist(array $data)
     {
         return match ($data['type']) {
-            'agent' => Agent::create($this->modelAttributes($data)),
-            'canvas' => Canvas::create($this->modelAttributes($data)),
             'toko' => Outlet::create($this->modelAttributes($data) + ['jenis_outlet' => 'toko']),
-            'cabang' => Outlet::create($this->modelAttributes($data) + ['jenis_outlet' => 'branch']),
         };
     }
 
