@@ -149,7 +149,9 @@ class DocumentTemplateManager
                 ],
                 'Baris item Pembelian — otomatis mengikuti jumlah item' => [
                     '{{purchase.items.no}}', '{{purchase.items.code}}', '{{purchase.items.name}}',
-                    '{{purchase.items.qty}}', '{{purchase.items.unit}}',
+                    '{{purchase.items.qty}}', '{{purchase.items.qty_besar}}',
+                    '{{purchase.items.qty_terbesar}}', '{{purchase.items.qty_total}}',
+                    '{{purchase.items.unit}}',
                     '{{purchase.items.price}}', '{{purchase.items.discount}}', '{{purchase.items.subtotal}}',
                 ],
             ],

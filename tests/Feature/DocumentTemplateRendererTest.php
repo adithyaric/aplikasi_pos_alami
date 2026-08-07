@@ -72,6 +72,15 @@ class DocumentTemplateRendererTest extends TestCase
         ]));
 
         $pembelian = $this->createPurchaseWithItems();
+        $firstProduct = $pembelian->pembelianProducts()->first()->product;
+        $firstProduct->update([
+            'satuan' => 'Pack',
+            'satuan_besar' => 'Slop',
+            'konversi_qty' => 10,
+            'satuan_terbesar' => 'Ball',
+            'konversi_qty_terbesar' => 25,
+        ]);
+        $pembelian->pembelianProducts()->first()->update(['qty' => 265]);
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setCellValue('A1', 'PURCHASE ORDER');
@@ -84,6 +93,8 @@ class DocumentTemplateRendererTest extends TestCase
         $sheet->setCellValue('E17', '{{purchase.items.unit}}');
         $sheet->setCellValue('F17', '{{purchase.items.price}}');
         $sheet->setCellValue('G17', '{{purchase.items.subtotal}}');
+        $sheet->setCellValue('H17', '{{purchase.items.qty_besar}}');
+        $sheet->setCellValue('I17', '{{purchase.items.qty_terbesar}}');
         $sheet->setCellValue('J6', 'KEEP THIS TEMPLATE TEXT');
         $this->storeSpreadsheet($spreadsheet, 'templates/documents/test-purchase.xlsx');
 
@@ -94,6 +105,9 @@ class DocumentTemplateRendererTest extends TestCase
         $this->assertSame($pembelian->code, $result->getCell('B2')->getValue());
         $this->assertSame('PR-001', $result->getCell('B17')->getValue());
         $this->assertSame('PR-002', $result->getCell('B18')->getValue());
+        $this->assertSame(265, $result->getCell('D17')->getValue());
+        $this->assertSame(26, $result->getCell('H17')->getValue());
+        $this->assertSame(1, $result->getCell('I17')->getValue());
         $this->assertSame('KEEP THIS TEMPLATE TEXT', $result->getCell('J6')->getValue());
 
         @unlink($output);

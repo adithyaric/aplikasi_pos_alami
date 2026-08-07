@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Pembelian;
 use App\Models\Penjualan;
+use App\Support\ProductUnitConverter;
 use Carbon\Carbon;
 use DOMDocument;
 use DOMElement;
@@ -20,6 +21,7 @@ class DocumentTemplateRenderer
     public function __construct(
         private readonly DocumentTemplateManager $templates,
         private readonly PenjualanBalanceService $balances,
+        private readonly ProductUnitConverter $units,
     )
     {
     }
@@ -496,15 +498,30 @@ class DocumentTemplateRenderer
             'contact' => (string) ($supplierModel?->kode_supplier ?? '-'),
         ];
         $date = $pembelian->created_at ?: now();
-        $items = $pembelian->pembelianProducts->values()->map(fn ($item, $index) => $this->itemContext(
-            $item->product?->code,
-            $item->product?->name,
-            $item->qty,
-            $item->product?->satuan,
-            $item->harga_beli,
-            $item->subtotal,
-            $index + 1
-        ))->all();
+        $items = $pembelian->pembelianProducts->values()->map(function ($item, $index) {
+            $itemContext = $this->itemContext(
+                $item->product?->code,
+                $item->product?->name,
+                $item->qty,
+                $item->product?->satuan,
+                $item->harga_beli,
+                $item->subtotal,
+                $index + 1
+            );
+            $breakdown = $item->product
+                ? $this->units->breakdown($item->product, $item->qty)
+                : [
+                    'qty' => (int) $item->qty,
+                    'qty_besar' => 0,
+                    'qty_terbesar' => 0,
+                    'qty_total' => (int) $item->qty,
+                ];
+
+            return [
+                ...$itemContext,
+                ...$breakdown,
+            ];
+        })->all();
 
         $purchase = [
             'number' => (string) $pembelian->code,

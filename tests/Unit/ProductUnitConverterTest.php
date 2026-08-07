@@ -23,6 +23,12 @@ class ProductUnitConverterTest extends TestCase
         $this->assertSame(20, $converter->normalize($product, 2, 'Slop'));
         $this->assertSame(250, $converter->normalize($product, 1, 'Ball'));
         $this->assertSame('1 Ball 1 Slop 5 Pack', $converter->display($product, 265));
+        $this->assertSame([
+            'qty' => 265,
+            'qty_besar' => 26,
+            'qty_terbesar' => 1,
+            'qty_total' => 265,
+        ], $converter->breakdown($product, 265));
         $this->assertSame('260 Pack | 1 Ball 1 Slop', $converter->detailedDisplay($product, 260));
     }
 

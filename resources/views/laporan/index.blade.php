@@ -51,7 +51,8 @@
                         <ul style="margin:5px 0 0 18px;padding:0">
                             <li>Untuk data header Penjualan, gunakan <code>@{{sale.date}}</code>, <code>@{{sale.number}}</code>, dan variable <code>sale.*</code> lainnya.</li>
                             <li>Untuk tabel Pembelian, letakkan <code>@{{purchase.items.name}}</code> di baris barang. Untuk tabel Penjualan, gunakan <code>@{{sale.items.name}}</code>. Sistem mengulang baris dan mengisi <code>@{{sale.items.no}}</code> mulai dari 1.</li>
-                            <li>Gunakan field lain dengan pola yang sama, misalnya <code>@{{purchase.items.qty}}</code>, <code>@{{sale.items.price}}</code>, atau <code>@{{sale.items.subtotal}}</code>.</li>
+                            <li>Pada Pembelian, <code>@{{purchase.items.qty}}</code> adalah total satuan kecil (contoh Pack), <code>@{{purchase.items.qty_besar}}</code> adalah jumlah ekuivalen satuan besar (contoh Slop), dan <code>@{{purchase.items.qty_terbesar}}</code> adalah jumlah ekuivalen satuan terbesar (contoh Ball). <code>@{{purchase.items.qty_total}}</code> adalah alias total Pack.</li>
+                            <li>Gunakan field lain dengan pola yang sama, misalnya <code>@{{sale.items.price}}</code> atau <code>@{{sale.items.subtotal}}</code>.</li>
                             <li>Pada Penjualan, <code>@{{sale.old_debt}}</code> adalah tunggakan lama otomatis (atau nilai override), <code>@{{sale.shipping_cost}}</code> adalah ongkos kirim, <code>@{{sale.payment}}</code> adalah pembayaran tercatat, dan <code>@{{sale.new_debt}}</code> adalah tunggakan baru.</li>
                             <li><code>@{{sale.paid}}</code> tetap tersedia sebagai alias dari <code>@{{sale.payment}}</code> untuk template lama.</li>
                             <li>Data transaksi hanya diisi pada sel atau paragraf yang berisi variable; teks/desain lain pada template tetap dipertahankan.</li>

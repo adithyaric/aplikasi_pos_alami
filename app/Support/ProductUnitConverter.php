@@ -139,6 +139,40 @@ class ProductUnitConverter
         return implode(' ', $parts);
     }
 
+    /**
+     * Keep the total base quantity and calculate equivalent larger-unit quantities.
+     *
+     * For example, with 10 Pack per Slop and 25 Slop per Ball,
+     * 265 Pack becomes 265 Pack, 26 Slop, and 1 Ball.
+     */
+    public function breakdown(Product $product, int|float $qty): array
+    {
+        $total = (int) round($qty);
+        $bigFactor = $product->konversi_qty
+            ? (int) round((float) $product->konversi_qty)
+            : null;
+        $largestFactor = ($bigFactor && $product->konversi_qty_terbesar)
+            ? $bigFactor * (int) round((float) $product->konversi_qty_terbesar)
+            : null;
+
+        $qtyTerbesar = 0;
+        if ($largestFactor && $product->satuan_terbesar) {
+            $qtyTerbesar = intdiv($total, $largestFactor);
+        }
+
+        $qtyBesar = 0;
+        if ($bigFactor && $product->satuan_besar) {
+            $qtyBesar = intdiv($total, $bigFactor);
+        }
+
+        return [
+            'qty' => $total,
+            'qty_besar' => $qtyBesar,
+            'qty_terbesar' => $qtyTerbesar,
+            'qty_total' => $total,
+        ];
+    }
+
     public function detailedDisplay(Product $product, int|float $qty): string
     {
         $qty = (int) round($qty);
