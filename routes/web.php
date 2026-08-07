@@ -47,7 +47,6 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/setting', [DashboardController::class, 'setting'])->name('setting');
     Route::post('/setting-store', [DashboardController::class, 'store'])->name('setting.store');
-    Route::get('/setting/po-template/{format}', [DashboardController::class, 'downloadPoTemplate'])->name('setting.po-template.download');
     Route::get('/get-customer/{penjualan_id}', [CustomerController::class, 'getCustomer']);
     Route::get('/get-penjualan/{outlet_id}', [PenjualanController::class, 'getPenjualan']);
     Route::get('/penjualan-detail/{penjualan_id}/items', [PenjualanController::class, 'getItems']);
@@ -106,7 +105,6 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::post('/pembelian/{pembelian}/penerimaan', [PembelianController::class, 'storePenerimaan'])->name('pembelian.store-penerimaan');
     Route::post('/pembelian/{pembelian}/update-penerimaan', [PembelianController::class, 'updatePenerimaan'])->name('pembelian.update-penerimaan');
 
-    Route::get('/pembelian/{pembelian}/print', [PembelianController::class, 'print'])->name('pembelian.print');
     Route::get('/pembelian/{id}/destroy', [PembelianController::class, 'stockDestroy'])->name('pembelian.stock.destroy');
     Route::get('/supplier/{supplier}/products', [App\Http\Controllers\PembelianController::class, 'getProductsBySupplier'])->name('supplier.products');
 
@@ -129,6 +127,7 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::get('/penjualan', [PenjualanController::class, 'index'])->name('penjualan.index');
     Route::get('/penjualan/cabang', [PenjualanController::class, 'branchIndex'])->name('penjualan.branch-index');
     Route::get('/penjualan/last-price', [PenjualanController::class, 'lastPrice'])->name('penjualan.last-price');
+    Route::get('/penjualan/old-debt', [PenjualanController::class, 'oldDebt'])->name('penjualan.old-debt');
     Route::get('/penjualan/create', [PenjualanController::class, 'create'])->name('penjualan.create');
     Route::post('/penjualan/warehouse', [PenjualanController::class, 'storeWarehouseSale'])->name('penjualan.store');
     Route::get('/penjualan/{penjualan}/edit', [PenjualanController::class, 'edit'])->name('penjualan.edit');
@@ -136,8 +135,6 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::get('/penjualan/{penjualan}/pembayaran/edit', [PenjualanController::class, 'editPembayaran'])->name('penjualan.pembayaran.edit');
     Route::put('/penjualan/{penjualan}/pembayaran', [PenjualanController::class, 'updatePembayaran'])->name('penjualan.pembayaran.update');
     Route::get('/penjualan/{penjualan}', [PenjualanController::class, 'show'])->name('penjualan.show');
-    Route::get('/penjualan/{penjualan}/print', [PenjualanController::class, 'print'])->name('penjualan.print');
-    Route::get('/penjualan/{penjualan}/surat-jalan', [PenjualanController::class, 'suratJalan'])->name('penjualan.surat-jalan');
     Route::delete('/penjualan/{penjualan}', [PenjualanController::class, 'destroy'])->name('penjualan.destroy');
 
     Route::get('/branch-stock', [BranchStockController::class, 'index'])->name('branch-stock.index');
@@ -156,8 +153,13 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     // Route::post('/wishlist/move-to-cart', [CartController::class, 'moveToCart']);
 
     Route::get('/laporan', [LaporanController::class, 'index'])->name('laporan.index');
+    Route::post('/laporan/templates', [LaporanController::class, 'updateTemplates'])->name('laporan.templates.update');
+    Route::get('/laporan/templates/{type}/download', [LaporanController::class, 'downloadTemplate'])->name('laporan.templates.download');
     // Route::get('/laporan/pembelian', [LaporanController::class, 'exportPembelian'])->name('laporan.pembelian');
     Route::get('/laporan/pembelian/{id?}', [LaporanController::class, 'exportPembelian'])->name('laporan.pembelian');
+    Route::get('/laporan/pembelian/{pembelian}/docx', [LaporanController::class, 'exportPembelianDocx'])->name('laporan.pembelian.docx');
+    Route::get('/laporan/penjualan/{penjualan}/invoice', [LaporanController::class, 'exportPenjualanInvoice'])->name('laporan.penjualan.invoice');
+    Route::get('/laporan/penjualan/{penjualan}/surat-jalan', [LaporanController::class, 'exportPenjualanSuratJalan'])->name('laporan.penjualan.surat-jalan');
     Route::get('/laporan/pickinglist/{id?}', [LaporanController::class, 'exportPickingList'])->name('laporan.pickinglist');
     Route::get('/laporan/request-order/{id?}', [LaporanController::class, 'exportRequestOrder'])->name('laporan.request-order');
     Route::get('/laporan/delivery-order/{id?}', [LaporanController::class, 'exportDeliveryOrder'])->name('laporan.delivery-order');
@@ -247,12 +249,10 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::get('laporan/pdf/stok', [LaporanController::class, 'pdfStok'])->name('laporan.pdf.stok');
     Route::get('laporan/pdf/kartu-stok/{id}', [LaporanController::class, 'pdfKartuStok'])->name('laporan.pdf.kartu-stok');
     Route::get('laporan/pdf/penerimaan', [LaporanController::class, 'pdfPenerimaanBarang'])->name('laporan.pdf.penerimaan');
-    Route::get('laporan/pdf/penerimaan/{id}', [LaporanController::class, 'pdfPenerimaanSingle'])->name('laporan.pdf.penerimaan-single');
     Route::get('laporan/pdf/pengiriman', [LaporanController::class, 'pdfPengiriman'])->name('laporan.pdf.pengiriman');
     Route::get('laporan/pdf/picking', [LaporanController::class, 'pdfPicking'])->name('laporan.pdf.picking');
     Route::get('laporan/pdf/aktifitas', [LaporanController::class, 'pdfAktifitas'])->name('laporan.pdf.aktifitas');
     Route::get('laporan/pdf/pembelian', [LaporanController::class, 'pdfPembelianBarang'])->name('laporan.pdf.pembelian');
-    Route::get('laporan/pdf/faktur-pembelian/{id}', [LaporanController::class, 'pdfFakturPembelian'])->name('laporan.pdf.faktur-pembelian');
     Route::get('laporan/pdf/opname', [LaporanController::class, 'pdfOpname'])->name('laporan.pdf.opname');
     Route::get('laporan/pdf/pergerakan', [LaporanController::class, 'pdfPergerakan'])->name('laporan.pdf.pergerakan');
 

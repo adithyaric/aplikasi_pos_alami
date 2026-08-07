@@ -122,9 +122,6 @@
                                                    class="btn btn-xs btn-success" title="Export Pembelian">
                                                     <i class="fa fa-file-excel-o"></i> Cetak Excel
                                                 </a>
-                                                <a href="{{ route('laporan.pdf.penerimaan-single', $value->id) }}" target="_blank" class="btn btn-xs btn-danger" title="Export PDF Pembelian">
-                                                    <i class="fa fa-file-pdf-o"></i> Cetak Pdf
-                                                </a>
                                             {{-- @endif --}}
                                         </td>
                                     </tr>

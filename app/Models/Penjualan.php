@@ -29,12 +29,16 @@ class Penjualan extends Model
         'notes',
         'discount',
         'total',
+        'shipping_cost',
+        'old_debt_override',
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
         'sale_date' => 'date',
         'due_date' => 'date',
+        'shipping_cost' => 'integer',
+        'old_debt_override' => 'integer',
     ];
 
     public function customer()
@@ -119,7 +123,7 @@ class Penjualan extends Model
 
     public function getFinalTotalAttribute()
     {
-        return $this->total - $this->discount;
+        return $this->total;
     }
 
     public function scopeWarehouseSales($query)

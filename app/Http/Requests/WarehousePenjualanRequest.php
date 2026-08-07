@@ -19,6 +19,8 @@ class WarehousePenjualanRequest extends FormRequest
                     $item['price'] = $this->cleanNumeric($item['price']);
                 }
 
+                $item['discount'] = $this->cleanNumeric($item['discount'] ?? 0);
+
                 return $item;
             })
             ->values()
@@ -31,10 +33,17 @@ class WarehousePenjualanRequest extends FormRequest
             $paymentStatus = $paymentType === 'cash' ? 'paid' : 'unpaid';
         }
 
+        $oldDebtOverride = $this->input('old_debt_override');
+        $oldDebtOverride = $oldDebtOverride === null || trim((string) $oldDebtOverride) === ''
+            ? null
+            : $this->cleanNumeric($oldDebtOverride);
+
         $this->merge([
             'payment_type' => $paymentType,
             'payment_status' => $paymentStatus,
             'discount' => $this->cleanNumeric($this->input('discount')),
+            'shipping_cost' => $this->cleanNumeric($this->input('shipping_cost')),
+            'old_debt_override' => $oldDebtOverride,
             'items' => $items,
         ]);
     }
@@ -56,12 +65,15 @@ class WarehousePenjualanRequest extends FormRequest
             'payment_status' => 'nullable|in:paid,unpaid,partial',
             'due_date' => 'nullable|date|after_or_equal:sale_date',
             'discount' => 'nullable|numeric|min:0',
+            'shipping_cost' => 'nullable|numeric|min:0',
+            'old_debt_override' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id|distinct',
             'items.*.qty' => 'required|numeric|min:1',
             'items.*.unit' => 'required|string|max:255',
             'items.*.price' => 'required|numeric|min:0',
+            'items.*.discount' => 'nullable|numeric|min:0',
         ];
     }
 
@@ -84,6 +96,7 @@ class WarehousePenjualanRequest extends FormRequest
             'items.*.unit.required' => 'Satuan wajib dipilih.',
             'items.*.price.required' => 'Harga jual wajib diisi.',
             'items.*.price.min' => 'Harga jual tidak boleh negatif.',
+            'items.*.discount.min' => 'Diskon item tidak boleh negatif.',
         ];
     }
 

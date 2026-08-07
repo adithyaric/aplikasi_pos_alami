@@ -211,8 +211,6 @@ class DashboardController extends Controller
             'address' => $settings['address'] ?? '',
             'website' => $settings['website'] ?? '',
             'logo'    => $settings['logo'] ?? '',
-            'poTemplateDocx' => $this->resolvePoTemplateMeta($settings, 'docx'),
-            'poTemplateXlsx' => $this->resolvePoTemplateMeta($settings, 'xlsx'),
         ]);
     }
 
@@ -227,16 +225,10 @@ class DashboardController extends Controller
             'address' => 'required',
             'website' => 'nullable|url',
             'logo'    => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'po_template_docx' => 'nullable|file|mimes:docx|max:10240',
-            'po_template_xlsx' => 'nullable|file|mimes:xlsx,xls|max:10240',
         ], [
             'logo.image' => 'File yang diunggah harus berupa gambar.',
             'logo.mimes' => 'Logo harus bertipe: jpeg, png, jpg, atau gif.',
             'logo.max'   => 'Ukuran logo maksimal 2 MB.',
-            'po_template_docx.mimes' => 'Template DOCX harus bertipe .docx.',
-            'po_template_docx.max' => 'Ukuran template DOCX maksimal 10 MB.',
-            'po_template_xlsx.mimes' => 'Template Excel harus bertipe .xlsx atau .xls.',
-            'po_template_xlsx.max' => 'Ukuran template Excel maksimal 10 MB.',
         ]);
 
         $data = array_merge($settings, [
@@ -246,6 +238,7 @@ class DashboardController extends Controller
             'address' => $request->address,
             'website' => $request->website,
         ]);
+        unset($data['po_template_docx'], $data['po_template_xlsx']);
 
         if ($request->hasFile('logo')) {
             $this->deletePublicFile($settings['logo'] ?? null);
@@ -253,42 +246,9 @@ class DashboardController extends Controller
             $data['logo'] = $path;
         }
 
-        if ($request->boolean('reset_po_template_docx')) {
-            $this->deletePublicFile($settings['po_template_docx'] ?? null);
-            $data['po_template_docx'] = null;
-        }
-
-        if ($request->boolean('reset_po_template_xlsx')) {
-            $this->deletePublicFile($settings['po_template_xlsx'] ?? null);
-            $data['po_template_xlsx'] = null;
-        }
-
-        if ($request->hasFile('po_template_docx')) {
-            $this->deletePublicFile($settings['po_template_docx'] ?? null);
-            $data['po_template_docx'] = $this->storePoTemplate($request->file('po_template_docx'), 'docx');
-        }
-
-        if ($request->hasFile('po_template_xlsx')) {
-            $this->deletePublicFile($settings['po_template_xlsx'] ?? null);
-            $data['po_template_xlsx'] = $this->storePoTemplate($request->file('po_template_xlsx'), 'xlsx');
-        }
-
         Storage::disk('public')->put('settings.json', json_encode($data));
 
         return redirect(route('setting'))->with('toast_success', 'Berhasil Menyimpan Data!');
-    }
-
-    public function downloadPoTemplate(string $format)
-    {
-        abort_unless(in_array($format, ['docx', 'xlsx'], true), 404);
-
-        $settings = $this->getSettingsData();
-        $template = $this->resolvePoTemplateMeta($settings, $format);
-        $downloadName = $this->resolvePoTemplateDownloadName($template['download_name'], $format);
-
-        abort_unless($template['absolute_path'] && file_exists($template['absolute_path']), 404);
-
-        return response()->download($template['absolute_path'], $downloadName);
     }
 
     private function getSettingsData(): array
@@ -298,56 +258,6 @@ class DashboardController extends Controller
         }
 
         return json_decode(Storage::disk('public')->get('settings.json'), true) ?? [];
-    }
-
-    private function resolvePoTemplateMeta(array $settings, string $format): array
-    {
-        $settingKey = $format === 'docx' ? 'po_template_docx' : 'po_template_xlsx';
-        $defaultPath = $format === 'docx'
-            ? base_path('contoh-po-docs.docx')
-            : base_path('contoh-po-excel.xlsx');
-        $customPath = $settings[$settingKey] ?? null;
-
-        if ($customPath && Storage::disk('public')->exists($customPath)) {
-            return [
-                'source' => 'custom',
-                'label' => basename($customPath),
-                'absolute_path' => Storage::disk('public')->path($customPath),
-                'download_name' => basename($customPath),
-            ];
-        }
-
-        return [
-            'source' => 'default',
-            'label' => basename($defaultPath),
-            'absolute_path' => file_exists($defaultPath) ? $defaultPath : null,
-            'download_name' => basename($defaultPath),
-        ];
-    }
-
-    private function storePoTemplate($file, string $type): string
-    {
-        $extension = $file->getClientOriginalExtension();
-
-        return $file->storeAs('templates/po', "po-template-{$type}.{$extension}", 'public');
-    }
-
-    private function resolvePoTemplateDownloadName(string $defaultName, string $format): string
-    {
-        $requestedName = trim((string) request('filename'));
-
-        if ('' === $requestedName) {
-            return $defaultName;
-        }
-
-        $requestedName = basename($requestedName);
-        $extension = '.'.$format;
-
-        if (! str_ends_with(strtolower($requestedName), $extension)) {
-            $requestedName .= $extension;
-        }
-
-        return $requestedName;
     }
 
     private function deletePublicFile(?string $path): void

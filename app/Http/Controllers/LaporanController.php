@@ -16,7 +16,6 @@ use App\Exports\LaporanPickingPackingExport;
 use App\Exports\LaporanPOExport;
 use App\Exports\LaporanPRExport;
 use App\Exports\PembelianExport;
-use App\Exports\PembelianSingleExport;
 use App\Exports\PembelianSupplierExport;
 use App\Exports\PenerimaanExport;
 use App\Exports\PengeluaranExport;
@@ -34,6 +33,7 @@ use App\Exports\StockOpnameExport;
 use App\Models\DeliveryOrder;
 use App\Models\Outlet;
 use App\Models\Pembelian;
+use App\Models\Penjualan;
 use App\Models\PickingList;
 use App\Models\ProductMinimumAdjustment;
 use App\Models\RefundPembelian;
@@ -43,6 +43,8 @@ use App\Models\StockAdjustment;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\DocumentTemplateManager;
+use App\Services\DocumentTemplateRenderer;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -50,13 +52,64 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class LaporanController extends Controller
 {
+    public function __construct(
+        private readonly DocumentTemplateManager $templateManager,
+        private readonly DocumentTemplateRenderer $templateRenderer
+    ) {
+    }
+
     public function index()
     {
         return view('laporan.index', [
             'cashiers' => User::where('role', 'staff-outlet')->get(),
             'outlets' => Outlet::get(),
             'suppliers' => Supplier::get(),
+            'documentTemplates' => $this->templateManager->metadata(),
+            'templateVariables' => $this->templateManager->variableGroups(),
+            'canManageTemplates' => in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner'], true),
         ]);
+    }
+
+    public function updateTemplates(Request $request)
+    {
+        abort_unless(in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner'], true), 403);
+
+        $this->validate($request, [
+            'purchase_template_docx' => 'nullable|file|mimes:docx|max:10240',
+            'purchase_template_xlsx' => 'nullable|file|mimes:xlsx|max:10240',
+            'sales_invoice_template_xlsx' => 'nullable|file|mimes:xlsx|max:10240',
+            'sales_delivery_template_xlsx' => 'nullable|file|mimes:xlsx|max:10240',
+        ], [
+            '*.mimes' => 'Template harus menggunakan format file yang sesuai.',
+            '*.max' => 'Ukuran template maksimal 10 MB.',
+        ]);
+
+        $settings = $this->templateManager->settings();
+        foreach ($this->templateManager->definitions() as $type => $definition) {
+            $key = $definition['setting_key'];
+            if ($request->boolean('reset_'.$key)) {
+                $this->templateManager->reset($type, $settings);
+                $settings[$key] = null;
+            }
+
+            if ($request->hasFile($key)) {
+                $settings[$key] = $this->templateManager->store($type, $request->file($key), $settings);
+            }
+        }
+
+        Storage::disk('public')->put('settings.json', json_encode($settings));
+
+        return redirect()->route('laporan.index')->with('toast_success', 'Template dokumen berhasil disimpan.');
+    }
+
+    public function downloadTemplate(string $type)
+    {
+        abort_unless(in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner'], true), 403);
+
+        $template = $this->templateManager->resolve($type);
+        abort_unless(is_file($template['path']), 404);
+
+        return response()->download($template['path'], $template['download_name']);
     }
 
     public function exportPembelian(Request $request, $id = null)
@@ -64,12 +117,40 @@ class LaporanController extends Controller
         $settings = json_decode(Storage::disk('public')->get('settings.json'), true) ?? [];
 
         if ($id) {
-            $pembelian = Pembelian::with(['supplier', 'pembelianProducts.product'])->findOrFail($id);
+            $pembelian = Pembelian::findOrFail($id);
+            $path = $this->templateRenderer->renderPurchaseXlsx($pembelian);
 
-            return Excel::download(new PembelianSingleExport($pembelian, $settings), 'Dokumen_PO-'.$pembelian->code.'.xlsx');
+            return response()->download($path, $this->documentFilename('Dokumen_PO-', $pembelian->code, 'xlsx'))
+                ->deleteFileAfterSend(true);
         }
 
         return Excel::download(new PembelianExport($request, $settings), 'laporan-pembelian.xlsx');
+    }
+
+    public function exportPembelianDocx(Pembelian $pembelian)
+    {
+        $path = $this->templateRenderer->renderPurchaseDocx($pembelian);
+
+        return response()->download($path, $this->documentFilename('Dokumen_PO-', $pembelian->code, 'docx'))
+            ->deleteFileAfterSend(true);
+    }
+
+    public function exportPenjualanInvoice(Penjualan $penjualan)
+    {
+        $this->ensurePenjualanTemplateAccess($penjualan);
+        $path = $this->templateRenderer->renderSalesInvoiceXlsx($penjualan);
+
+        return response()->download($path, $this->documentFilename('Invoice-', $penjualan->code, 'xlsx'))
+            ->deleteFileAfterSend(true);
+    }
+
+    public function exportPenjualanSuratJalan(Penjualan $penjualan)
+    {
+        $this->ensurePenjualanTemplateAccess($penjualan);
+        $path = $this->templateRenderer->renderSalesDeliveryXlsx($penjualan);
+
+        return response()->download($path, $this->documentFilename('Surat_Jalan-', $penjualan->code, 'xlsx'))
+            ->deleteFileAfterSend(true);
     }
 
     public function exportPickingList(Request $request, $id = null)
@@ -558,21 +639,6 @@ class LaporanController extends Controller
             ->setPaper('a4', 'landscape')->stream('Laporan_Penerimaan_Barang.pdf');
     }
 
-    public function pdfPenerimaanSingle($id)
-    {
-        $settings = $this->getSettings();
-
-        $pembelian = Pembelian::with([
-            'supplier',
-            'pembelianProducts.product',
-            'stocks.product',
-        ])->findOrFail($id);
-
-        return Pdf::loadView('exports.pdf.laporan-penerimaan-single', compact('pembelian', 'settings'))
-            ->setPaper('a4', 'portrait')
-            ->stream('Penerimaan_Barang-'.($pembelian->code_gr ?? $pembelian->code).'.pdf');
-    }
-
     public function pdfPengiriman(Request $request)
     {
         [$mulai, $selesai] = $this->dateRange($request);
@@ -710,23 +776,6 @@ class LaporanController extends Controller
             ->setPaper('a4', 'landscape')->stream('Laporan_Pembelian_Barang.pdf');
     }
 
-    public function pdfFakturPembelian($id)
-    {
-        $settings = $this->getSettings();
-
-        $pembelian = Pembelian::with([
-            'supplier',
-            'pembelianProducts.product',
-            'pembelianTransaction',
-        ])->findOrFail($id);
-
-        $paymentHistory = $pembelian->pembelianTransaction?->payment_history ?? [];
-
-        return Pdf::loadView('exports.pdf.faktur-pembelian', compact('pembelian', 'paymentHistory', 'settings'))
-            ->setPaper('a4', 'portrait')
-            ->stream('Faktur_Pembelian-'.$pembelian->code.'.pdf');
-    }
-
     public function pdfOpname(Request $request)
     {
         [$mulai, $selesai] = $this->dateRange($request);
@@ -839,5 +888,33 @@ class LaporanController extends Controller
     public function exportPergerakan(Request $request)
     {
         return Excel::download(new LaporanPergerakanExport($request), 'laporan-pergerakan-stok.xlsx');
+    }
+
+    private function ensurePenjualanTemplateAccess(Penjualan $penjualan): void
+    {
+        $user = auth()->user();
+        abort_unless($user, 403);
+
+        if ($user->isBranchScoped()) {
+            abort_unless(
+                $penjualan->isBranchSale() && (int) $penjualan->outlet_id === (int) $user->branchId(),
+                403
+            );
+
+            if ($user->role === 'sales') {
+                abort_unless((int) $penjualan->user_id === (int) $user->id, 403);
+            }
+
+            return;
+        }
+
+        abort_unless(in_array($user->role, ['superadmin', 'admin-gudang', 'owner'], true), 403);
+    }
+
+    private function documentFilename(string $prefix, string $code, string $extension): string
+    {
+        $safeCode = preg_replace('/[^A-Za-z0-9._-]+/', '-', $code) ?: 'dokumen';
+
+        return $prefix.$safeCode.'.'.$extension;
     }
 }

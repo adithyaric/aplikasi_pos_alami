@@ -27,7 +27,7 @@ class PenjualanSupplierExport implements FromView
 
     public function view(): View
     {
-        $penjualans = Penjualan::when($this->hari, function ($query, $hari) {
+        $penjualans = Penjualan::with('items')->when($this->hari, function ($query, $hari) {
             return $query->whereDate('created_at', $hari);
         })
             ->when($this->startDate && $this->endDate, function ($query) {

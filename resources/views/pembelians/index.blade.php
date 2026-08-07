@@ -263,8 +263,8 @@
                                                 class="btn btn-xs btn-success" title="Export XLSX PO">
                                                 <i class="fa fa-file-excel-o"></i> XLSX
                                             </a>
-                                            <a href="{{ route('setting.po-template.download', ['format' => 'docx', 'filename' => 'Dokumen_PO-'.$value->code.'.docx']) }}"
-                                                class="btn btn-xs btn-primary" title="Download Template DOCX Aktif">
+                                            <a href="{{ route('laporan.pembelian.docx', $value->id) }}"
+                                                class="btn btn-xs btn-primary" title="Export DOCX PO">
                                                 <i class="fa fa-file-word-o"></i> DOCX
                                             </a>
                                         </td>

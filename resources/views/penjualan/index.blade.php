@@ -161,12 +161,12 @@
                                                 <i class="fa fa-credit-card"></i> Pembayaran
                                             </a>
                                             @if ($penjualan->buyer_type === 'outlet')
-                                                <a class="btn btn-info btn-xs" href="{{ route('penjualan.surat-jalan', $penjualan) }}" target="_blank">
-                                                    <i class="fa fa-truck"></i> Surat Jalan
+                                                <a class="btn btn-info btn-xs" href="{{ route('laporan.penjualan.surat-jalan', $penjualan) }}">
+                                                    <i class="fa fa-file-excel-o"></i> Surat Jalan
                                                 </a>
                                             @else
-                                                <a class="btn btn-warning btn-xs" href="{{ route('penjualan.print', $penjualan) }}" target="_blank">
-                                                    <i class="fa fa-print"></i> Invoice
+                                                <a class="btn btn-warning btn-xs" href="{{ route('laporan.penjualan.invoice', $penjualan) }}">
+                                                    <i class="fa fa-file-excel-o"></i> Invoice
                                                 </a>
                                             @endif
                                         </td>

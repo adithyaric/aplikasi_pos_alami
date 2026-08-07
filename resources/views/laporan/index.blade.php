@@ -8,6 +8,88 @@
 
 @php $role = auth()->user()->role; @endphp
 
+@if ($canManageTemplates)
+<div class="row">
+    <div class="col-md-12">
+        <div class="box box-solid box-primary">
+            <div class="box-header with-border">
+                <h3 class="box-title"><i class="fa fa-files-o"></i> Template Dokumen Pembelian &amp; Penjualan</h3>
+            </div>
+            <form method="POST" action="{{ route('laporan.templates.update') }}" enctype="multipart/form-data">
+                @csrf
+                <div class="box-body">
+                    <div class="alert alert-info">
+                        Template DOCX/XLSX dipakai saat export PO, invoice, dan surat jalan. Data contoh akan diganti dengan data transaksi.
+                        Format nomor PO tetap mengikuti format supplier.
+                    </div>
+                    <div class="row">
+                        @foreach ($documentTemplates as $type => $template)
+                            <div class="col-md-6">
+                                <div class="well well-sm" style="min-height:150px">
+                                    <strong>{{ $template['label'] }}</strong>
+                                    <span class="label {{ $template['source'] === 'custom' ? 'label-success' : 'label-default' }} pull-right">
+                                        {{ $template['source'] === 'custom' ? 'Custom' : 'Default' }}
+                                    </span>
+                                    <p class="text-muted small" style="margin-top:8px">{{ $template['label'] }}</p>
+                                    <div class="form-group" style="margin-bottom:8px">
+                                        <input class="form-control" type="file" name="{{ $template['setting_key'] }}"
+                                            accept=".{{ $template['extension'] }}">
+                                    </div>
+                                    <label class="checkbox-inline">
+                                        <input type="checkbox" name="reset_{{ $template['setting_key'] }}" value="1">
+                                        Pakai default
+                                    </label>
+                                    <a class="btn btn-default btn-xs pull-right" href="{{ route('laporan.templates.download', $type) }}">
+                                        <i class="fa fa-download"></i> Download
+                                    </a>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <div class="alert alert-warning small" style="margin-bottom:0">
+                        <strong>Cara memakai variable:</strong>
+                        <ul style="margin:5px 0 0 18px;padding:0">
+                            <li>Untuk data header Penjualan, gunakan <code>@{{sale.date}}</code>, <code>@{{sale.number}}</code>, dan variable <code>sale.*</code> lainnya.</li>
+                            <li>Untuk tabel Pembelian, letakkan <code>@{{purchase.items.name}}</code> di baris barang. Untuk tabel Penjualan, gunakan <code>@{{sale.items.name}}</code>. Sistem mengulang baris dan mengisi <code>@{{sale.items.no}}</code> mulai dari 1.</li>
+                            <li>Gunakan field lain dengan pola yang sama, misalnya <code>@{{purchase.items.qty}}</code>, <code>@{{sale.items.price}}</code>, atau <code>@{{sale.items.subtotal}}</code>.</li>
+                            <li>Pada Penjualan, <code>@{{sale.old_debt}}</code> adalah tunggakan lama otomatis (atau nilai override), <code>@{{sale.shipping_cost}}</code> adalah ongkos kirim, <code>@{{sale.payment}}</code> adalah pembayaran tercatat, dan <code>@{{sale.new_debt}}</code> adalah tunggakan baru.</li>
+                            <li><code>@{{sale.paid}}</code> tetap tersedia sebagai alias dari <code>@{{sale.payment}}</code> untuk template lama.</li>
+                            <li>Data transaksi hanya diisi pada sel atau paragraf yang berisi variable; teks/desain lain pada template tetap dipertahankan.</li>
+                            <li>Data <code>company.*</code> berasal dari Profil Perusahaan di Dashboard Setting.</li>
+                        </ul>
+                    </div>
+                    <p class="small text-muted" style="margin:12px 0 5px"><strong>Variable yang tersedia untuk template custom:</strong></p>
+                    <table class="table table-condensed table-bordered small" style="margin-bottom:0">
+                        <thead>
+                            <tr>
+                                <th style="width:28%">Kelompok</th>
+                                <th>Variable</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($templateVariables as $documentGroup => $groups)
+                                <tr class="info">
+                                    <th colspan="2">{{ $documentGroup }}</th>
+                                </tr>
+                                @foreach ($groups as $group => $variables)
+                                    <tr>
+                                        <td>{{ $group }}</td>
+                                        <td><code>{{ implode(', ', $variables) }}</code></td>
+                                    </tr>
+                                @endforeach
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                <div class="box-footer">
+                    <button type="submit" class="btn btn-primary"><i class="fa fa-save"></i> Simpan Template</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
 <div class="row">
     {{-- Laporan PO --}}
     @if (in_array($role, ['superadmin', 'admin-gudang']))

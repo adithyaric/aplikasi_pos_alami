@@ -158,8 +158,8 @@
                                                     <i class="fa fa-pencil"></i> Edit
                                                 </a>
                                             @endif
-                                            <a class="btn btn-warning btn-xs" href="{{ route('penjualan.print', $penjualan) }}" target="_blank">
-                                                <i class="fa fa-print"></i> Invoice
+                                            <a class="btn btn-warning btn-xs" href="{{ route('laporan.penjualan.invoice', $penjualan) }}">
+                                                <i class="fa fa-file-excel-o"></i> Invoice
                                             </a>
                                         </td>
                                     </tr>

@@ -13,6 +13,7 @@ use App\Models\Product;
 use App\Models\Salesman;
 use App\Models\Stock;
 use App\Services\BranchPenjualanManager;
+use App\Services\PenjualanBalanceService;
 use App\Services\WarehousePenjualanManager;
 use App\Support\ProductUnitConverter;
 use Carbon\Carbon;
@@ -23,7 +24,8 @@ class PenjualanController extends Controller
 {
     public function __construct(
         private readonly WarehousePenjualanManager $warehousePenjualanManager,
-        private readonly BranchPenjualanManager $branchPenjualanManager
+        private readonly BranchPenjualanManager $branchPenjualanManager,
+        private readonly PenjualanBalanceService $balanceService
     ) {
     }
 
@@ -198,7 +200,7 @@ class PenjualanController extends Controller
         $this->ensurePenjualanAccess();
         $this->ensureSaleCanBeManaged($penjualan);
 
-        $penjualan->load('items.product');
+        $penjualan->load(['items.product', 'paymentTransaction']);
 
         return view('penjualan.edit', $penjualan->isBranchSale()
             ? $this->branchSaleFormData($penjualan)
@@ -219,6 +221,8 @@ class PenjualanController extends Controller
                     'sale_date' => $request->sale_date,
                     'payment_type' => $request->payment_type,
                     'payment_status' => $request->payment_status,
+                    'shipping_cost' => (int) ($request->shipping_cost ?? 0),
+                    'old_debt_override' => $request->old_debt_override,
                     'discount' => (int) ($request->discount ?? 0),
                     'notes' => $request->notes,
                     'items' => collect($request->items)->map(fn ($item) => [
@@ -226,6 +230,7 @@ class PenjualanController extends Controller
                         'qty' => (float) $item['qty'],
                         'unit' => (string) $item['unit'],
                         'price' => (int) $item['price'],
+                        'discount' => (int) ($item['discount'] ?? 0),
                     ])->all(),
                 ], (int) auth()->id(), (int) auth()->user()->branchId(), $this->currentSalesmanId());
 
@@ -240,12 +245,15 @@ class PenjualanController extends Controller
                 'sale_date' => $request->sale_date,
                 'payment_type' => $request->payment_type,
                 'payment_status' => $request->payment_status,
+                'shipping_cost' => (int) ($request->shipping_cost ?? 0),
+                'old_debt_override' => $request->old_debt_override,
                 'discount' => (int) ($request->discount ?? 0),
                 'items' => collect($request->items)->map(fn ($item) => [
                     'product_id' => (int) $item['product_id'],
                     'qty' => (float) $item['qty'],
                     'unit' => (string) $item['unit'],
                     'price' => (int) $item['price'],
+                    'discount' => (int) ($item['discount'] ?? 0),
                 ])->all(),
             ], (int) auth()->id());
 
@@ -270,6 +278,8 @@ class PenjualanController extends Controller
                     'sale_date' => $request->sale_date,
                     'payment_type' => $request->payment_type,
                     'payment_status' => $request->payment_status,
+                    'shipping_cost' => (int) ($request->shipping_cost ?? 0),
+                    'old_debt_override' => $request->old_debt_override,
                     'discount' => (int) ($request->discount ?? 0),
                     'notes' => $request->notes,
                     'items' => collect($request->items)->map(fn ($item) => [
@@ -277,6 +287,7 @@ class PenjualanController extends Controller
                         'qty' => (float) $item['qty'],
                         'unit' => (string) $item['unit'],
                         'price' => (int) $item['price'],
+                        'discount' => (int) ($item['discount'] ?? 0),
                     ])->all(),
                 ], (int) auth()->id(), (int) auth()->user()->branchId(), $this->currentSalesmanId());
 
@@ -290,12 +301,15 @@ class PenjualanController extends Controller
                 'sale_date' => $request->sale_date,
                 'payment_type' => $request->payment_type,
                 'payment_status' => $request->payment_status,
+                'shipping_cost' => (int) ($request->shipping_cost ?? 0),
+                'old_debt_override' => $request->old_debt_override,
                 'discount' => (int) ($request->discount ?? 0),
                 'items' => collect($request->items)->map(fn ($item) => [
                     'product_id' => (int) $item['product_id'],
                     'qty' => (float) $item['qty'],
                     'unit' => (string) $item['unit'],
                     'price' => (int) $item['price'],
+                    'discount' => (int) ($item['discount'] ?? 0),
                 ])->all(),
             ], (int) auth()->id());
 
@@ -338,6 +352,28 @@ class PenjualanController extends Controller
 
         return response()->json([
             'price' => $price !== null ? (int) $price : null,
+        ]);
+    }
+
+    public function oldDebt(Request $request)
+    {
+        $this->ensurePenjualanAccess();
+
+        $validated = $request->validate([
+            'buyer_type' => 'required|in:agent,canvas,outlet,toko',
+            'buyer_id' => 'required|integer',
+            'sale_date' => 'nullable|date',
+            'exclude_id' => 'nullable|integer',
+        ]);
+
+        return response()->json([
+            'old_debt' => $this->balanceService->calculateOldDebt(
+                $validated['buyer_type'],
+                (int) $validated['buyer_id'],
+                null,
+                $validated['sale_date'] ?? now(),
+                isset($validated['exclude_id']) ? (int) $validated['exclude_id'] : null,
+            ),
         ]);
     }
 
@@ -447,50 +483,6 @@ class PenjualanController extends Controller
         return view('penjualan.show', [
             'penjualan' => $penjualan,
             'backRoute' => $penjualan->isBranchSale() ? route('penjualan.branch-index') : route('penjualan.index'),
-        ]);
-    }
-
-    public function print(Penjualan $penjualan)
-    {
-        $this->ensureSaleCanBeViewed($penjualan);
-
-        $penjualan->load([
-            'items.product',
-            'operator',
-            'customer',
-            'kasir',
-            'outlet',
-            'salesman',
-            'agent',
-            'canvasBuyer',
-            'outletBuyer',
-            'tokoBuyer',
-            'transaction.payment',
-            'paymentTransaction',
-            'totalAdjustments.refund',
-        ]);
-
-        return view('penjualan.print', [
-            'penjualan' => $penjualan,
-        ]);
-    }
-
-    public function suratJalan(Penjualan $penjualan)
-    {
-        $this->ensureSaleCanBeViewed($penjualan);
-
-        $penjualan->load([
-            'items.product',
-            'operator',
-            'salesman',
-            'agent',
-            'canvasBuyer',
-            'outletBuyer',
-            'tokoBuyer',
-        ]);
-
-        return view('penjualan.surat-jalan', [
-            'penjualan' => $penjualan,
         ]);
     }
 
@@ -620,13 +612,16 @@ class PenjualanController extends Controller
             'products' => $products,
             'initialItems' => old('items')
                 ?: ($penjualan
-                    ? $penjualan->items->map(fn ($item) => [
+                    ? $penjualan->items->map(fn ($item, $index) => [
                         'product_id' => (int) $item->product_id,
                         'qty' => (float) ($item->qty_input ?? $item->qty),
                         'unit' => $item->unit ?: $item->product?->satuan,
                         'price' => (int) $item->price,
+                        // Move a legacy invoice-level discount into the first line while editing.
+                        'discount' => (int) $item->discount + ($index === 0 ? (int) ($penjualan->discount ?? 0) : 0),
                     ])->values()->all()
                     : []),
+            'calculatedOldDebt' => $penjualan ? $this->balanceService->calculatedOldDebt($penjualan) : 0,
         ];
     }
 
@@ -692,13 +687,16 @@ class PenjualanController extends Controller
             'products' => $products,
             'initialItems' => old('items')
                 ?: ($penjualan
-                    ? $penjualan->items->map(fn ($item) => [
+                    ? $penjualan->items->map(fn ($item, $index) => [
                         'product_id' => (int) $item->product_id,
                         'qty' => (float) ($item->qty_input ?? $item->qty),
                         'unit' => $item->unit ?: $item->product?->satuan,
                         'price' => (int) $item->price,
+                        // Move a legacy invoice-level discount into the first line while editing.
+                        'discount' => (int) $item->discount + ($index === 0 ? (int) ($penjualan->discount ?? 0) : 0),
                     ])->values()->all()
                     : []),
+            'calculatedOldDebt' => $penjualan ? $this->balanceService->calculatedOldDebt($penjualan) : 0,
         ];
     }
 

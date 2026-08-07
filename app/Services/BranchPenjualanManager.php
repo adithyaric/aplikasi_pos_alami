@@ -25,6 +25,7 @@ class BranchPenjualanManager
         return DB::transaction(function () use ($payload, $operatorId, $branchId, $salesmanId) {
             $buyer = Outlet::shops()->findOrFail((int) $payload['buyer_id']);
             [$saleDate, $paymentStatus] = $this->resolvePaymentFields($payload);
+            $items = $this->normalizeItemDiscounts($payload['items'], (int) ($payload['discount'] ?? 0));
 
             $penjualan = Penjualan::create([
                 'code' => $payload['code'],
@@ -40,11 +41,14 @@ class BranchPenjualanManager
                 'payment_status' => $paymentStatus,
                 'due_date' => null,
                 'notes' => $payload['notes'] ?? null,
-                'discount' => (int) ($payload['discount'] ?? 0),
+                'shipping_cost' => (int) ($payload['shipping_cost'] ?? 0),
+                'old_debt_override' => $payload['old_debt_override'] ?? null,
+                // New sales keep discounts on each item. This parent field remains only for legacy records.
+                'discount' => 0,
                 'total' => 0,
             ]);
 
-            $this->syncItems($penjualan, $payload['items'], $operatorId);
+            $this->syncItems($penjualan, $items, $operatorId);
             $this->syncPaymentTransaction($penjualan);
 
             return $penjualan->fresh([
@@ -71,6 +75,7 @@ class BranchPenjualanManager
 
             $buyer = Outlet::shops()->findOrFail((int) $payload['buyer_id']);
             [$saleDate, $paymentStatus] = $this->resolvePaymentFields($payload);
+            $items = $this->normalizeItemDiscounts($payload['items'], (int) ($payload['discount'] ?? 0));
 
             $penjualan->update([
                 'buyer_type' => 'toko',
@@ -84,11 +89,13 @@ class BranchPenjualanManager
                 'payment_status' => $paymentStatus,
                 'due_date' => null,
                 'notes' => $payload['notes'] ?? null,
-                'discount' => (int) ($payload['discount'] ?? 0),
+                'shipping_cost' => (int) ($payload['shipping_cost'] ?? 0),
+                'old_debt_override' => $payload['old_debt_override'] ?? null,
+                'discount' => 0,
                 'total' => 0,
             ]);
 
-            $this->syncItems($penjualan, $payload['items'], $operatorId);
+            $this->syncItems($penjualan, $items, $operatorId);
             $this->syncPaymentTransaction($penjualan);
 
             return $penjualan->fresh([
@@ -130,7 +137,14 @@ class BranchPenjualanManager
 
             $allocations = $this->allocateBranchStock((int) $penjualan->outlet_id, $product, $qty);
             $price = (int) $itemData['price'];
-            $lineSubtotal = (int) round($qty * $price);
+            $lineGrossSubtotal = (int) round($qty * $price);
+            $lineDiscount = max(0, (int) ($itemData['discount'] ?? 0));
+
+            if ($lineDiscount > $lineGrossSubtotal) {
+                throw new \RuntimeException("Diskon produk {$product->name} tidak boleh melebihi subtotal item.");
+            }
+
+            $lineSubtotal = $lineGrossSubtotal - $lineDiscount;
             $subtotal += $lineSubtotal;
 
             $saleItem = $penjualan->items()->create([
@@ -140,6 +154,7 @@ class BranchPenjualanManager
                 'qty_input' => $inputQty,
                 'unit' => $unit,
                 'price' => $price,
+                'discount' => $lineDiscount,
                 'subtotal' => $lineSubtotal,
             ]);
 
@@ -176,8 +191,26 @@ class BranchPenjualanManager
         }
 
         $penjualan->update([
-            'total' => max(0, $subtotal - (int) $penjualan->discount),
+            'total' => max(0, $subtotal),
         ]);
+    }
+
+    private function normalizeItemDiscounts(array $items, int $legacyDiscount): array
+    {
+        if ($legacyDiscount <= 0 || collect($items)->contains(fn (array $item) => array_key_exists('discount', $item))) {
+            return $items;
+        }
+
+        return collect($items)
+            ->values()
+            ->map(function (array $item, int $index) use ($legacyDiscount) {
+                if ($index === 0) {
+                    $item['discount'] = $legacyDiscount;
+                }
+
+                return $item;
+            })
+            ->all();
     }
 
     private function rollbackSale(Penjualan $penjualan, int $operatorId): void

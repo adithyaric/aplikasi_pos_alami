@@ -11,6 +11,7 @@ use App\Models\PenjualanPayment;
 use App\Models\Product;
 use App\Models\Stock;
 use App\Models\StockMovement;
+use App\Services\PenjualanBalanceService;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -34,6 +35,10 @@ class WarehousePenjualanFlowTest extends TestCase
         $response->assertSee('Cek Barang');
         $response->assertSee('type="hidden" id="payment_type" name="payment_type" value="termin"', false);
         $response->assertSee('type="hidden" id="payment_status" name="payment_status" value="unpaid"', false);
+        $response->assertSee('name="old_debt_override"', false);
+        $response->assertSee('name="shipping_cost"', false);
+        $response->assertSee('id="payment_display"', false);
+        $response->assertSee('id="new_debt_display"', false);
         $response->assertDontSee('Tipe Pembayaran');
         $response->assertDontSee('Status Pembayaran');
     }
@@ -136,6 +141,69 @@ class WarehousePenjualanFlowTest extends TestCase
         $this->assertSame('unpaid', $penjualan->payment_status);
     }
 
+    public function test_penjualan_balance_uses_previous_unpaid_amount_and_supports_override(): void
+    {
+        $agent = Agent::create([
+            'name' => 'Agen Saldo Test',
+            'code' => 'AGN-BAL-001',
+            'termin_days' => 14,
+            'credit_limit' => 5000000,
+            'is_active' => true,
+        ]);
+
+        $previousSale = Penjualan::create([
+            'code' => 'PNJ-BAL-001',
+            'sale_channel' => 'warehouse',
+            'buyer_type' => 'agent',
+            'buyer_id' => $agent->id,
+            'buyer_name' => $agent->name,
+            'sale_date' => now()->subDay()->toDateString(),
+            'payment_type' => 'termin',
+            'payment_status' => 'partial',
+            'total' => 1000,
+        ]);
+        $previousSale->paymentTransaction()->create([
+            'status' => 'partial',
+            'amount' => 400,
+        ]);
+
+        $sale = Penjualan::create([
+            'code' => 'PNJ-BAL-002',
+            'sale_channel' => 'warehouse',
+            'buyer_type' => 'agent',
+            'buyer_id' => $agent->id,
+            'buyer_name' => $agent->name,
+            'sale_date' => now()->toDateString(),
+            'payment_type' => 'termin',
+            'payment_status' => 'unpaid',
+            'shipping_cost' => 100,
+            'total' => 2000,
+        ]);
+
+        $balance = app(PenjualanBalanceService::class);
+
+        $this->assertSame(600, (int) $balance->oldDebt($sale));
+        $this->assertSame(2700, (int) $balance->newDebt($sale));
+
+        $user = User::factory()->create([
+            'role' => 'superadmin',
+            'username' => 'warehouse-balance-endpoint-admin',
+            'email' => 'warehouse-balance-endpoint-admin@alami.test',
+        ]);
+        $response = $this->actingAs($user)->get(route('penjualan.old-debt', [
+            'buyer_type' => 'agent',
+            'buyer_id' => $agent->id,
+            'sale_date' => now()->toDateString(),
+            'exclude_id' => $sale->id,
+        ]));
+        $response->assertOk()->assertJson(['old_debt' => 600]);
+
+        $sale->update(['old_debt_override' => 800]);
+
+        $this->assertSame(800, (int) $balance->oldDebt($sale->fresh()));
+        $this->assertSame(2900, (int) $balance->newDebt($sale->fresh()));
+    }
+
     public function test_warehouse_sale_to_agent_reduces_stock_and_stores_base_unit_qty(): void
     {
         $user = User::factory()->create([
@@ -192,7 +260,8 @@ class WarehousePenjualanFlowTest extends TestCase
                     'product_id' => $product->id,
                     'qty' => 2,
                     'unit' => 'Slop',
-                    'price' => '220000',
+                    'price' => '220.000',
+                    'discount' => '150.000',
                 ],
             ],
         ]);
@@ -206,7 +275,7 @@ class WarehousePenjualanFlowTest extends TestCase
         $this->assertSame('warehouse', $penjualan->sale_channel);
         $this->assertSame('agent', $penjualan->buyer_type);
         $this->assertSame($agent->id, $penjualan->buyer_id);
-        $this->assertSame(4400000, (int) $penjualan->total);
+        $this->assertSame(4250000, (int) $penjualan->total);
         $this->assertSame(30, (int) $stock->qty);
 
         $this->assertDatabaseHas('penjualan_items', [
@@ -216,7 +285,8 @@ class WarehousePenjualanFlowTest extends TestCase
             'qty_input' => 2,
             'unit' => 'Slop',
             'price' => 220000,
-            'subtotal' => 4400000,
+            'discount' => 150000,
+            'subtotal' => 4250000,
         ]);
 
         $this->assertDatabaseHas('stock_movements', [

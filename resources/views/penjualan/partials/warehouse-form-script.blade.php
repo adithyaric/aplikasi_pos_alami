@@ -17,6 +17,23 @@
         return (parseInt(value, 10) || 0).toLocaleString('id-ID');
     }
 
+    function recalcDebtPreview() {
+        var $oldDebt = $('#old_debt_override');
+        var oldDebt = String($oldDebt.val() || '').trim() !== ''
+            ? parseMoney($oldDebt.val())
+            : parseMoney($oldDebt.data('auto-value'));
+        var shippingCost = parseMoney($('#shipping_cost').val());
+        var total = parseMoney($('#grand_total_display').val());
+        var payment = parseMoney($('#payment_display').val());
+
+        if (($('#payment_type').val() || '') === 'cash') {
+            payment = total;
+            $('#payment_display').val(formatMoney(payment));
+        }
+
+        $('#new_debt_display').val(formatMoney(Math.max(0, oldDebt + shippingCost + total - payment)));
+    }
+
     function escapeHtml(value) {
         return $('<div>').text(value || '').html();
     }
@@ -139,6 +156,27 @@
         };
     }
 
+    function refreshOldDebtPreview() {
+        var buyer = selectedBuyerPayload();
+        var $oldDebt = $('#old_debt_override');
+
+        if (!buyer.buyer_type || !buyer.buyer_id) {
+            $oldDebt.data('auto-value', '0');
+            recalcDebtPreview();
+            return;
+        }
+
+        $.get('{{ route('penjualan.old-debt') }}', {
+            buyer_type: buyer.buyer_type,
+            buyer_id: buyer.buyer_id,
+            sale_date: $('input[name="sale_date"]').val(),
+            exclude_id: $('#warehouse-sale-form').data('penjualan-id') || null,
+        }).done(function(response) {
+            $oldDebt.data('auto-value', formatMoney(response.old_debt || 0));
+            recalcDebtPreview();
+        });
+    }
+
     function buildProductOptions(selectedValue) {
         var html = '<option value="">Pilih Produk</option>';
 
@@ -175,6 +213,7 @@
         var currentIndex = rowIndex++;
         var selectedProduct = findProduct(item.product_id);
         var priceValue = item.price ? formatMoney(item.price) : (selectedProduct ? formatMoney(selectedProduct.harga_jual) : '0');
+        var discountValue = item.discount ? formatMoney(item.discount) : '0';
         var qtyValue = item.qty || 1;
 
         var html = '' +
@@ -194,6 +233,10 @@
             '  </td>' +
             '  <td>' +
             '    <input type="number" min="1" step="1" class="form-control item-qty" name="items[' + currentIndex + '][qty]" value="' + qtyValue + '" required>' +
+            '  </td>' +
+            '  <td>' +
+            '    <input type="text" class="form-control numeral-mask item-discount" name="items[' + currentIndex + '][discount]" value="' + discountValue + '">' +
+            '    <div class="text-muted small">Nominal per baris</div>' +
             '  </td>' +
             '  <td>' +
             '    <input type="text" class="form-control numeral-mask item-price" name="items[' + currentIndex + '][price]" value="' + priceValue + '" required>' +
@@ -221,21 +264,36 @@
         var unit = $row.find('.item-unit').val();
         var normalizedQty = normalizedQtyFor(product, qty, unit);
         var price = parseMoney($row.find('.item-price').val());
+        var discount = parseMoney($row.find('.item-discount').val());
+        var lineGrossSubtotal = Math.round(normalizedQty * price);
         updateConversionHint($row, product, qty, unit);
-        $row.find('.item-subtotal').text(formatMoney(Math.round(normalizedQty * price)));
+        $row.find('.item-subtotal').text(formatMoney(Math.max(0, lineGrossSubtotal - discount)));
         recalcTotals();
     }
 
     function recalcTotals() {
         var subtotal = 0;
+        var discount = 0;
+        var total = 0;
 
         $('#items-body tr').each(function() {
-            subtotal += parseMoney($(this).find('.item-subtotal').text());
+            var $row = $(this);
+            var product = findProduct($row.find('.item-product').val());
+            var qty = parseFloat($row.find('.item-qty').val()) || 0;
+            var unit = $row.find('.item-unit').val();
+            var normalizedQty = normalizedQtyFor(product, qty, unit);
+            var price = parseMoney($row.find('.item-price').val());
+            var itemDiscount = parseMoney($row.find('.item-discount').val());
+
+            subtotal += Math.round(normalizedQty * price);
+            discount += itemDiscount;
+            total += parseMoney($row.find('.item-subtotal').text());
         });
 
-        var discount = parseMoney($('#discount').val());
         $('#subtotal_display').val(formatMoney(subtotal));
-        $('#grand_total_display').val(formatMoney(Math.max(0, subtotal - discount)));
+        $('#discount_display').val(formatMoney(discount));
+        $('#grand_total_display').val(formatMoney(Math.max(0, total)));
+        recalcDebtPreview();
     }
 
     function applySuggestedPrice($row, forceOverride) {
@@ -320,7 +378,7 @@
         applySuggestedPrice($row, true);
     });
 
-    $(document).on('input change', '.item-qty, .item-price, .item-unit, #discount', function() {
+    $(document).on('input change', '.item-qty, .item-discount, .item-price, .item-unit', function() {
         if ($(this).hasClass('item-price') && $(this).is(':focus')) {
             $(this).closest('tr').data('price-source', 'manual');
         }
@@ -332,6 +390,8 @@
             recalcTotals();
         }
     });
+
+    $(document).on('input change', '#old_debt_override, #shipping_cost', recalcDebtPreview);
 
     $(document).on('click', '.btn-remove-row', function() {
         if ($('#items-body tr').length === 1) {
@@ -490,12 +550,17 @@
             $('#items-body tr').each(function() {
                 applySuggestedPrice($(this), false);
             });
+
+            refreshOldDebtPreview();
         }
     });
+
+    $('input[name="sale_date"]').on('change', refreshOldDebtPreview);
 
     $(function() {
         moneyMask();
         updateBuyerFields();
+        refreshOldDebtPreview();
 
         if (oldItems.length) {
             oldItems.forEach(function(item) {

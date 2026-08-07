@@ -42,31 +42,41 @@
                                             <tr>
                                                 <th>Product</th>
                                                 <th>Banyak</th>
+                                                <th>Diskon / Item</th>
                                                 <th>Harga Jual</th>
                                                 <th>Sub total</th>
                                             </tr>
-                                            @php $totalCost = 0; @endphp
+                                            @php
+                                                $totalCost = 0;
+                                                $totalDiscount = (int) ($value->discount ?? 0);
+                                            @endphp
                                             @foreach ($value->items as $item)
+                                                @php
+                                                    $itemDiscount = (int) ($item->discount ?? 0);
+                                                    $lineSubtotal = (int) ($item->subtotal ?? ($item->qty * $item->price));
+                                                    $totalCost += $lineSubtotal + $itemDiscount;
+                                                    $totalDiscount += $itemDiscount;
+                                                @endphp
                                                 <tr>
                                                     <td>{{ $item->product->name }}</td>
                                                     <td>{{ $item->qty }}</td>
+                                                    <td>@currency($itemDiscount)</td>
                                                     <td>@currency($item->price)</td>
-                                                    <td>@currency($item->qty * $item->price)</td>
+                                                    <td>@currency($lineSubtotal)</td>
                                                 </tr>
-                                            @php $totalCost += $item->qty * $item->price; @endphp
                                             @endforeach
                                             <tr>
-                                                <th>Diskon : @currency($value->discount)</th>
+                                                <th colspan="2">Diskon : @currency($totalDiscount)</th>
                                                 <th colspan="3" class="text-right">Total : @currency($totalCost)</th>
                                             </tr>
                                             <tr>
-                                                <th colspan="4" class="text-right">Grand Total : @currency($totalCost - $value->discount)</th>
+                                                <th colspan="5" class="text-right">Grand Total : @currency($totalCost - $totalDiscount)</th>
                                             </tr>
                                         </table>
                                     </td>
                                     <td>
                                         <a class="btn btn-info" href="{{ route('penjualan.show', $value->id) }}">Show</a>
-                                        <a class="btn btn-warning" href="{{ route('penjualan.print', $value->id) }}">Print</a>
+                                        <a class="btn btn-warning" href="{{ route('laporan.penjualan.invoice', $value->id) }}">Invoice XLSX</a>
                                         <form action="{{ route('penjualan.destroy', $value->id) }}" method="post"
                                             style="display: inline;">
                                             @method('delete')

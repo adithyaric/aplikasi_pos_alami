@@ -17,7 +17,6 @@ use App\Models\Supplier;
 use App\Support\ProductUnitConverter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use PDF;
 
 class PembelianController extends Controller
 {
@@ -236,13 +235,6 @@ class PembelianController extends Controller
         return view('pembelian.show', [
             'pembelian' => $pembelian,
         ]);
-    }
-
-    public function print(Pembelian $pembelian)
-    {
-        $pdf = PDF::loadView('pembelians.pembelian_pdf', ['pembelian' => $pembelian]);
-
-        return $pdf->download('pembelian_'.$pembelian->id.'.pdf');
     }
 
     public function edit(Pembelian $pembelian)

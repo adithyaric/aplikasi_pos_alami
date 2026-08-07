@@ -73,6 +73,7 @@
                                     <th>Produk</th>
                                     <th>Qty Input</th>
                                     <th>Qty Database</th>
+                                    <th>Diskon / Item</th>
                                     <th>Harga</th>
                                     <th>Subtotal</th>
                                 </tr>
@@ -80,10 +81,14 @@
                             <tbody>
                                 @php
                                     $subtotal = 0;
+                                    $itemDiscountTotal = 0;
                                     $returnAdjustment = $penjualan->totalAdjustments->sum('amount');
                                 @endphp
                                 @foreach ($penjualan->items as $item)
-                                    @php $subtotal += (int) $item->subtotal; @endphp
+                                    @php
+                                        $subtotal += (int) $item->subtotal + (int) ($item->discount ?? 0);
+                                        $itemDiscountTotal += (int) ($item->discount ?? 0);
+                                    @endphp
                                     <tr>
                                         <td>{{ $loop->iteration }}</td>
                                         <td>{{ $item->product?->name ?? '-' }}</td>
@@ -92,6 +97,7 @@
                                             {{ $item->unit ?? $item->product?->satuan ?? '' }}
                                         </td>
                                         <td>{{ $item->product?->qtyDisplay((int) $item->qty) ?? $item->qty }}</td>
+                                        <td>@currency($item->discount ?? 0)</td>
                                         <td>
                                             @currency($item->price)
                                             <small class="text-muted">/ {{ $item->product?->satuan ?? 'unit' }}</small>
@@ -102,21 +108,21 @@
                             </tbody>
                             <tfoot>
                                 <tr>
-                                    <th colspan="5" class="text-right">Subtotal</th>
+                                    <th colspan="6" class="text-right">Subtotal Sebelum Diskon</th>
                                     <th>@currency($subtotal)</th>
                                 </tr>
                                 <tr>
-                                    <th colspan="5" class="text-right">Diskon</th>
-                                    <th>@currency($penjualan->discount)</th>
+                                    <th colspan="6" class="text-right">Total Diskon Item</th>
+                                    <th>@currency($itemDiscountTotal + (int) ($penjualan->discount ?? 0))</th>
                                 </tr>
                                 @if ($returnAdjustment > 0)
                                     <tr>
-                                        <th colspan="5" class="text-right">Potongan Retur</th>
+                                        <th colspan="6" class="text-right">Potongan Retur</th>
                                         <th class="text-danger">- @currency($returnAdjustment)</th>
                                     </tr>
                                 @endif
                                 <tr>
-                                    <th colspan="5" class="text-right">Total</th>
+                                    <th colspan="6" class="text-right">Total</th>
                                     <th>@currency($penjualan->total)</th>
                                 </tr>
                             </tfoot>
@@ -138,13 +144,13 @@
                             {{-- <i class="fa fa-undo"></i> Retur --}}
                         {{-- </a> --}}
                         @if ($penjualan->isBranchSale() || $penjualan->buyer_type_label != 'Cabang')
-                        <a href="{{ route('penjualan.print', $penjualan) }}" class="btn btn-warning" target="_blank">
-                            <i class="fa fa-print"></i> Invoice
+                        <a href="{{ route('laporan.penjualan.invoice', $penjualan) }}" class="btn btn-warning">
+                            <i class="fa fa-file-excel-o"></i> Invoice
                         </a>
                         @else
                         @if (! in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true))
-                        <a href="{{ route('penjualan.surat-jalan', $penjualan) }}" class="btn btn-info" target="_blank">
-                            <i class="fa fa-truck"></i> Surat Jalan
+                        <a href="{{ route('laporan.penjualan.surat-jalan', $penjualan) }}" class="btn btn-info">
+                            <i class="fa fa-file-excel-o"></i> Surat Jalan
                         </a>
                         @endif
                         @endif

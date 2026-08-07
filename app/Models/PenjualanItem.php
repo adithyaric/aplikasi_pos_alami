@@ -17,12 +17,16 @@ class PenjualanItem extends Model
         'qty_input',
         'unit',
         'price',
+        'discount',
         'subtotal',
         'serial_number',
     ];
 
     protected $casts = [
         'qty_input' => 'decimal:2',
+        'price' => 'integer',
+        'discount' => 'integer',
+        'subtotal' => 'integer',
     ];
 
     public function penjualan()

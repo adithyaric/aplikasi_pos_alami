@@ -8,6 +8,13 @@
     $selectedShopId = old('toko_id', $selectedBuyerType === 'toko' && ! $isBranchSaleMode ? $penjualan?->buyer_id : '');
     $selectedPaymentType = old('payment_type', $penjualan?->payment_type ?? 'termin');
     $selectedPaymentStatus = old('payment_status', $penjualan?->payment_status ?? ($selectedPaymentType === 'cash' ? 'paid' : 'unpaid'));
+    $oldDebtOverride = old('old_debt_override', $penjualan?->old_debt_override);
+    $shippingCost = old('shipping_cost', $penjualan?->shipping_cost ?? 0);
+    $paidAmount = (float) ($penjualan?->paymentTransaction?->amount ?? 0);
+    $oldDebtPreview = $oldDebtOverride === null || $oldDebtOverride === ''
+        ? (float) ($calculatedOldDebt ?? 0)
+        : (float) $oldDebtOverride;
+    $newDebtPreview = max(0, $oldDebtPreview + (float) $shippingCost + (float) ($penjualan?->total ?? 0) - $paidAmount);
 @endphp
 
 <section class="content-header">
@@ -22,7 +29,8 @@
                     <h3 class="box-title">{{ $boxTitle }}</h3>
                 </div>
 
-                <form action="{{ $formAction }}" method="POST" id="warehouse-sale-form">
+                <form action="{{ $formAction }}" method="POST" id="warehouse-sale-form"
+                    data-penjualan-id="{{ $penjualan?->id ?? '' }}">
                     @csrf
                     @if ($formMethod !== 'POST')
                         @method($formMethod)
@@ -175,13 +183,14 @@
                             <table class="table table-bordered" id="items-table">
                                 <thead>
                                     <tr>
-                                        <th style="width:28%">Produk</th>
-                                        <th style="width:14%">Stok Tersedia</th>
-                                        <th style="width:12%">Satuan</th>
-                                        <th style="width:10%">Qty</th>
-                                        <th style="width:16%">Harga / Satuan Dasar</th>
-                                        <th style="width:14%">Subtotal</th>
-                                        <th style="width:6%">Aksi</th>
+                                        <th style="width:25%">Produk</th>
+                                        <th style="width:12%">Stok Tersedia</th>
+                                        <th style="width:11%">Satuan</th>
+                                        <th style="width:8%">Qty</th>
+                                        <th style="width:13%">Diskon / Item (Rp)</th>
+                                        <th style="width:15%">Harga / Satuan Dasar</th>
+                                        <th style="width:11%">Subtotal</th>
+                                        <th style="width:5%">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody id="items-body"></tbody>
@@ -204,20 +213,48 @@
                         <div class="row" style="margin-top:20px">
                             <div class="col-md-4 col-md-offset-8">
                                 <div class="form-group">
-                                    <label>Diskon</label>
-                                    <input type="text" class="form-control numeral-mask" name="discount" id="discount"
-                                        value="{{ old('discount', $penjualan?->discount ?? 0) }}">
-                                    @error('discount')
-                                        <div class="text-danger">{{ $message }}</div>
-                                    @enderror
+                                    <label>Subtotal Sebelum Diskon</label>
+                                    <input type="text" class="form-control" id="subtotal_display" value="0" readonly>
                                 </div>
                                 <div class="form-group">
-                                    <label>Subtotal</label>
-                                    <input type="text" class="form-control" id="subtotal_display" value="0" readonly>
+                                    <label>Total Diskon Item</label>
+                                    <input type="text" class="form-control" id="discount_display" value="0" readonly>
                                 </div>
                                 <div class="form-group">
                                     <label>Total Akhir</label>
                                     <input type="text" class="form-control" id="grand_total_display" value="0" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label>Tunggakan Lama (Rp)</label>
+                                    <input type="text" class="form-control numeral-mask" name="old_debt_override"
+                                        id="old_debt_override"
+                                        value="{{ $oldDebtOverride === null || $oldDebtOverride === '' ? '' : number_format((float) $oldDebtOverride, 0, ',', '.') }}"
+                                        data-auto-value="{{ number_format((float) ($calculatedOldDebt ?? 0), 0, ',', '.') }}"
+                                        placeholder="Otomatis">
+                                    <div class="text-muted small">Kosongkan untuk menghitung dari invoice pelanggan yang belum lunas.</div>
+                                    @error('old_debt_override')
+                                        <div class="text-danger">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="form-group">
+                                    <label>Ongkos Kirim (Rp)</label>
+                                    <input type="text" class="form-control numeral-mask" name="shipping_cost"
+                                        id="shipping_cost" value="{{ number_format((float) $shippingCost, 0, ',', '.') }}">
+                                    @error('shipping_cost')
+                                        <div class="text-danger">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                <div class="form-group">
+                                    <label>Pembayaran Saat Ini (Rp)</label>
+                                    <input type="text" class="form-control" id="payment_display"
+                                        value="{{ number_format($paidAmount, 0, ',', '.') }}" readonly>
+                                    <div class="text-muted small">Diubah melalui menu pembayaran setelah invoice dibuat.</div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Tunggakan Baru (Rp)</label>
+                                    <input type="text" class="form-control" id="new_debt_display"
+                                        value="{{ number_format($newDebtPreview, 0, ',', '.') }}" readonly>
+                                    <div class="text-muted small">Otomatis: Tunggakan Lama + Ongkos Kirim + Total - Pembayaran.</div>
                                 </div>
                             </div>
                         </div>

@@ -8,6 +8,8 @@
         $remainingAmount = max(0, (float) $penjualan->total - $paidAmount);
         $paymentStatus = $penjualan->paymentTransaction?->status ?? $penjualan->payment_status ?? 'unpaid';
         $defaultReference = 'PAY-' . $penjualan->code . '-' . now()->format('YmdHis');
+        $subtotalBeforeDiscount = $penjualan->items->sum(fn ($item) => (int) $item->subtotal + (int) ($item->discount ?? 0));
+        $itemDiscountTotal = $penjualan->items->sum(fn ($item) => (int) ($item->discount ?? 0));
     @endphp
 
     <section class="content">
@@ -46,6 +48,7 @@
                                     <tr>
                                         <th>Produk</th>
                                         <th>Qty Input</th>
+                                        <th class="text-right">Diskon / Item</th>
                                         <th class="text-right">Harga / Satuan Dasar</th>
                                         <th class="text-right">Subtotal</th>
                                     </tr>
@@ -58,6 +61,7 @@
                                                 {{ rtrim(rtrim(number_format((float) ($item->qty_input ?? $item->qty), 2, ',', '.'), '0'), ',') }}
                                                 {{ $item->unit ?? $item->product?->satuan ?? '' }}
                                             </td>
+                                            <td class="text-right">@currency($item->discount ?? 0)</td>
                                             <td class="text-right">
                                                 @currency($item->price)
                                                 <div class="text-muted small">/ {{ $item->product?->satuan ?? 'unit' }}</div>
@@ -68,11 +72,15 @@
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <th colspan="3" class="text-right">Diskon</th>
-                                        <th class="text-right">@currency($penjualan->discount)</th>
+                                        <th colspan="4" class="text-right">Subtotal Sebelum Diskon</th>
+                                        <th class="text-right">@currency($subtotalBeforeDiscount)</th>
                                     </tr>
                                     <tr>
-                                        <th colspan="3" class="text-right">Total</th>
+                                        <th colspan="4" class="text-right">Total Diskon Item</th>
+                                        <th class="text-right">@currency($itemDiscountTotal + (int) ($penjualan->discount ?? 0))</th>
+                                    </tr>
+                                    <tr>
+                                        <th colspan="4" class="text-right">Total</th>
                                         <th class="text-right">@currency($penjualan->total)</th>
                                     </tr>
                                 </tfoot>
