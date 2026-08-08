@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Pembelian;
 use App\Models\Penjualan;
+use App\Models\Supplier;
 use App\Support\ProductUnitConverter;
 use Carbon\Carbon;
 use DOMDocument;
@@ -29,7 +30,9 @@ class DocumentTemplateRenderer
     public function renderPurchaseDocx(Pembelian $pembelian): string
     {
         $pembelian->loadMissing(['supplier', 'pembelianProducts.product']);
-        $source = $this->templates->resolve(DocumentTemplateManager::PURCHASE_DOCX)['path'];
+        $source = $pembelian->supplier
+            ? $this->templates->resolvePurchase(DocumentTemplateManager::PURCHASE_DOCX, $pembelian->supplier)['path']
+            : $this->templates->resolve(DocumentTemplateManager::PURCHASE_DOCX)['path'];
         $target = $this->temporaryPath('docx');
 
         $zip = new ZipArchive();
@@ -63,7 +66,45 @@ class DocumentTemplateRenderer
         $pembelian->loadMissing(['supplier', 'pembelianProducts.product']);
         $context = $this->purchaseContext($pembelian);
 
-        return $this->renderXlsx(DocumentTemplateManager::PURCHASE_XLSX, $context);
+        return $this->renderXlsx(DocumentTemplateManager::PURCHASE_XLSX, $context, $pembelian->supplier);
+    }
+
+    public function renderPurchaseDocument(Pembelian $pembelian): array
+    {
+        $pembelian->loadMissing(['supplier']);
+        $type = $pembelian->supplier
+            ? $this->templates->purchaseTemplateType($pembelian->supplier)
+            : DocumentTemplateManager::PURCHASE_XLSX;
+
+        $path = $type === DocumentTemplateManager::PURCHASE_DOCX
+            ? $this->renderPurchaseDocx($pembelian)
+            : $this->renderPurchaseXlsx($pembelian);
+
+        return [
+            'path' => $path,
+            'type' => $type,
+            'extension' => $this->templates->definition($type)['extension'],
+            'number' => $this->purchaseNumber($pembelian),
+        ];
+    }
+
+    public function purchaseNumber(Pembelian $pembelian): string
+    {
+        $pembelian->loadMissing('supplier');
+        if (! $pembelian->supplier) {
+            return (string) $pembelian->code;
+        }
+
+        $sequence = 1;
+        if (preg_match('/(\d+)$/', (string) $pembelian->code, $matches)) {
+            $sequence = max(1, (int) $matches[1]);
+        }
+
+        return $pembelian->supplier->previewPoCode(
+            $pembelian->created_at ?: now(),
+            null,
+            $sequence,
+        );
     }
 
     public function renderSalesInvoiceXlsx(Penjualan $penjualan): string
@@ -88,9 +129,11 @@ class DocumentTemplateRenderer
         return $this->renderXlsx(DocumentTemplateManager::SALES_DELIVERY_XLSX, $context);
     }
 
-    private function renderXlsx(string $type, array $context): string
+    private function renderXlsx(string $type, array $context, ?Supplier $supplier = null): string
     {
-        $source = $this->templates->resolve($type)['path'];
+        $source = $supplier
+            ? $this->templates->resolvePurchase($type, $supplier)['path']
+            : $this->templates->resolve($type)['path'];
         $spreadsheet = IOFactory::load($source);
         $itemRowIndexes = $this->expandXlsxItemRows($spreadsheet, $type, count($context['items']));
 
@@ -524,7 +567,7 @@ class DocumentTemplateRenderer
         })->all();
 
         $purchase = [
-            'number' => (string) $pembelian->code,
+            'number' => $this->purchaseNumber($pembelian),
             'date' => $this->date($date),
             'date_serial' => $this->excelDate($date),
             'total' => (int) $pembelian->total,

@@ -21,7 +21,7 @@
                             <div class="form-group">
                                 <label for="">Kode PO</label>
                                 <input type="text" class="form-control" name="code"
-                                    value="{{ old('code', $pembelian->code) }}" placeholder="Masukkan Kode PO">
+                                    value="{{ old('code', $pembelian->code) }}" placeholder="Kode PO" readonly>
                             @error('code')
                             <div class="invalid-feedback text-danger">
                                 {{ $message }}

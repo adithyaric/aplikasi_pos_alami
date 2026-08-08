@@ -20,6 +20,7 @@ class SupplierRequest extends FormRequest
             'no_telp'                  => 'required|string',
             'po_number_prefix'         => 'nullable|string|max:255',
             'po_number_padding'        => 'nullable|integer|min:3|max:10',
+            'po_template'              => 'nullable|file|mimes:docx,xlsx|max:10240',
             'deadline_days'            => 'nullable|array',
             'deadline_days.*'          => 'integer|between:1,7',
             'deadline_interval_weeks'  => 'nullable|integer|in:1,2,3',
@@ -47,6 +48,9 @@ class SupplierRequest extends FormRequest
             'po_number_padding.integer' => 'Panjang nomor urut PO harus berupa angka.',
             'po_number_padding.min' => 'Panjang nomor urut PO minimal 3 digit.',
             'po_number_padding.max' => 'Panjang nomor urut PO maksimal 10 digit.',
+            'po_template.file' => 'Template PO harus berupa file.',
+            'po_template.mimes' => 'Template PO harus menggunakan format DOCX atau XLSX.',
+            'po_template.max' => 'Ukuran template PO maksimal 10 MB.',
 
             'deadline_days.array' => 'Format deadline days harus berupa array.',
 

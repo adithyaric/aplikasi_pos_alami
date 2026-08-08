@@ -379,8 +379,7 @@ class PenjualanController extends Controller
 
     public function editPembayaran(Penjualan $penjualan)
     {
-        $this->ensureWarehouseSaleAccess();
-        abort_unless($penjualan->isWarehouseSale(), 404);
+        $this->ensureSalePaymentAccess($penjualan);
 
         $penjualan->load([
             'items.product',
@@ -399,8 +398,7 @@ class PenjualanController extends Controller
 
     public function updatePembayaran(Request $request, Penjualan $penjualan)
     {
-        $this->ensureWarehouseSaleAccess();
-        abort_unless($penjualan->isWarehouseSale(), 404);
+        $this->ensureSalePaymentAccess($penjualan);
 
         $currentAmount = (float) ($penjualan->paymentTransaction?->amount ?? 0);
         $remainingAmount = max(0, (float) $penjualan->total - $currentAmount);
@@ -503,6 +501,34 @@ class PenjualanController extends Controller
     private function ensureWarehouseSaleAccess(): void
     {
         abort_unless(in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner'], true), 403);
+    }
+
+    private function ensureSalePaymentAccess(Penjualan $penjualan): void
+    {
+        if ($penjualan->isWarehouseSale()) {
+            $this->ensureWarehouseSaleAccess();
+
+            return;
+        }
+
+        abort_unless($penjualan->isBranchSale(), 404);
+
+        if ($this->isBranchMode()) {
+            abort_unless((int) $penjualan->outlet_id === (int) auth()->user()->branchId(), 403);
+
+            if (auth()->user()?->role === 'sales') {
+                $salesmanId = $this->currentSalesmanId();
+                abort_unless(
+                    (int) $penjualan->user_id === (int) auth()->id()
+                    || ($salesmanId && (int) $penjualan->salesman_id === $salesmanId),
+                    403
+                );
+            }
+
+            return;
+        }
+
+        $this->ensureWarehouseSaleAccess();
     }
 
     private function ensureBranchSaleCreateAccess(): void

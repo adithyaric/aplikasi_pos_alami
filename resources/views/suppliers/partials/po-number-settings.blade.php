@@ -126,5 +126,35 @@
                 @error('po_number_prefix')<div class="invalid-feedback text-danger">{{ $message }}</div>@enderror
             </div>
         </div>
+
+        <hr>
+        <h4>Template PO Supplier</h4>
+        <p class="text-muted">
+            Upload satu template khusus supplier ini dalam format XLSX atau DOCX. Saat PO dibuat untuk supplier ini,
+            template tersebut dipakai lebih dulu. Jika kosong, sistem memakai template PO default.
+        </p>
+        @php $templatePath = data_get($currentSupplier, 'po_template'); @endphp
+        <div class="well well-sm" style="min-height:130px; margin-bottom:10px;">
+            <label>Template PO (XLSX atau DOCX)</label>
+            <input class="form-control" type="file" name="po_template" accept=".xlsx,.docx">
+            <small class="text-muted">Format file otomatis menentukan jenis export PO.</small>
+            @error('po_template')
+                <div class="invalid-feedback text-danger">{{ $message }}</div>
+            @enderror
+            @if ($templatePath)
+                <p class="small text-success" style="margin:8px 0 4px;">
+                    <i class="fa fa-check"></i> {{ basename($templatePath) }}
+                    @if ($currentSupplier)
+                        <a href="{{ route('supplier.po-template.download', $currentSupplier) }}" class="pull-right">
+                            Download
+                        </a>
+                    @endif
+                </p>
+                <label class="checkbox-inline">
+                    <input type="checkbox" name="reset_po_template" value="1">
+                    Hapus template supplier
+                </label>
+            @endif
+        </div>
     </div>
 </div>

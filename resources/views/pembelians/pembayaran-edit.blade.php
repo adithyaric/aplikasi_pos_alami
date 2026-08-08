@@ -92,10 +92,7 @@
                             </div>
                             <div class="col-sm-4 text-right">
                                 <a href="{{ route('laporan.pembelian', $pembelian->id) }}" class="btn btn-success" style="margin-top: 18px;">
-                                    <i class="fa fa-file-excel-o"></i> PO XLSX
-                                </a>
-                                <a href="{{ route('laporan.pembelian.docx', $pembelian->id) }}" class="btn btn-primary" style="margin-top: 18px;">
-                                    <i class="fa fa-file-word-o"></i> PO DOCX
+                                    <i class="fa fa-file-text-o"></i> Export PO
                                 </a>
                             </div>
                         </div>

@@ -159,8 +159,13 @@
                                                 </a>
                                             @endif
                                             <a class="btn btn-warning btn-xs" href="{{ route('laporan.penjualan.invoice', $penjualan) }}">
-                                                <i class="fa fa-file-excel-o"></i> Invoice
+                                                <i class="fa fa-print"></i> Print Nota
                                             </a>
+                                            @if (($penjualan->payment_status ?? 'unpaid') !== 'paid')
+                                                <a class="btn btn-success btn-xs" href="{{ route('penjualan.pembayaran.edit', $penjualan) }}">
+                                                    <i class="fa fa-credit-card"></i> Pembayaran
+                                                </a>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach

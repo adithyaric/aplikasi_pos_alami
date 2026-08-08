@@ -19,8 +19,8 @@
                             <div class="form-group">
                                 <label for="">Kode PO</label>
                                 <input type="text" class="form-control" name="code" value="{{ old('code', $code) }}"
-                                    placeholder="Masukkan Kode PO">
-                                <small class="text-muted">Kode PO bisa auto mengikuti format supplier yang dipilih.</small>
+                                    placeholder="Pilih supplier untuk membuat nomor PO" readonly>
+                                <small class="text-muted">Nomor PO otomatis mengikuti format dan urutan supplier yang dipilih.</small>
                                 @error('code')
                                     <div class="invalid-feedback text-danger">
                                         {{ $message }}

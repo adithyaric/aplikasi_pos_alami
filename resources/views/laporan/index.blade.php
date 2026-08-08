@@ -13,14 +13,14 @@
     <div class="col-md-12">
         <div class="box box-solid box-primary">
             <div class="box-header with-border">
-                <h3 class="box-title"><i class="fa fa-files-o"></i> Template Dokumen Pembelian &amp; Penjualan</h3>
+                <h3 class="box-title"><i class="fa fa-files-o"></i> Template Dokumen Penjualan</h3>
             </div>
             <form method="POST" action="{{ route('laporan.templates.update') }}" enctype="multipart/form-data">
                 @csrf
                 <div class="box-body">
                     <div class="alert alert-info">
-                        Template DOCX/XLSX dipakai saat export PO, invoice, dan surat jalan. Data contoh akan diganti dengan data transaksi.
-                        Format nomor PO tetap mengikuti format supplier.
+                        Template XLSX dipakai saat export invoice dan surat jalan. Data contoh akan diganti dengan data transaksi.
+                        Template dan format nomor PO dikelola pada menu Supplier.
                     </div>
                     <div class="row">
                         @foreach ($documentTemplates as $type => $template)
@@ -83,7 +83,7 @@
                     </table>
                 </div>
                 <div class="box-footer">
-                    <button type="submit" class="btn btn-primary"><i class="fa fa-save"></i> Simpan Template</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa fa-save"></i> Simpan Template Penjualan</button>
                 </div>
             </form>
         </div>

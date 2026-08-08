@@ -6,11 +6,18 @@ use App\Exports\SuppliersExport;
 use App\Http\Requests\SupplierRequest;
 use App\Imports\SuppliersImport;
 use App\Models\Supplier;
+use App\Services\DocumentTemplateManager;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
 class SupplierController extends Controller
 {
+    public function __construct(
+        private readonly DocumentTemplateManager $templateManager,
+    ) {
+    }
+
     public function index()
     {
         return view('suppliers.index', [
@@ -29,8 +36,10 @@ class SupplierController extends Controller
     public function store(SupplierRequest $request)
     {
         $data = $request->validated();
+        unset($data['po_template']);
 
-        Supplier::create($data);
+        $supplier = Supplier::create($data);
+        $this->syncPoTemplates($supplier, $request);
 
         return redirect(route('supplier.index'))->with('toast_success', 'Berhasil Menyimpan Data!');
     }
@@ -60,8 +69,10 @@ class SupplierController extends Controller
     public function update(SupplierRequest $request, Supplier $supplier)
     {
         $data = $request->validated();
+        unset($data['po_template']);
 
         $supplier->update($data);
+        $this->syncPoTemplates($supplier, $request);
 
         return redirect(route('supplier.index'))->with('toast_success', 'Berhasil Menyimpan Data!');
     }
@@ -71,6 +82,15 @@ class SupplierController extends Controller
         $supplier->delete();
 
         return redirect(route('supplier.index'))->with('toast_success', 'Berhasil Menghapus Data!');
+    }
+
+    public function downloadPoTemplate(Supplier $supplier)
+    {
+        $path = $supplier->po_template;
+
+        abort_unless($path && Storage::disk('public')->exists($path), 404);
+
+        return response()->download(Storage::disk('public')->path($path), basename($path));
     }
 
     ///-----------------------------------------------------------------------------------------------
@@ -91,5 +111,21 @@ class SupplierController extends Controller
         Excel::import(new SuppliersImport(), $request->file('file'));
 
         return redirect()->back()->with('toast_success', 'Berhasil Import Data!');
+    }
+
+    private function syncPoTemplates(Supplier $supplier, Request $request): void
+    {
+        if ($request->boolean('reset_po_template')) {
+            $this->templateManager->resetSupplierPurchaseTemplate($supplier);
+            $supplier->update(['po_template' => null]);
+        }
+
+        if ($request->hasFile('po_template')) {
+            $path = $this->templateManager->storeSupplierPurchaseTemplate(
+                $supplier,
+                $request->file('po_template'),
+            );
+            $supplier->update(['po_template' => $path]);
+        }
     }
 }

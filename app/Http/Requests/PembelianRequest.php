@@ -54,7 +54,7 @@ class PembelianRequest extends FormRequest
     public function rules()
     {
         return [
-            'code'                         => 'required',
+            'code'                         => 'nullable|string|max:255',
             'customer_po'                  => 'nullable|string|max:255',
             'supplier_id'                  => 'required|exists:suppliers,id',
             'subtotal'                     => 'nullable',
@@ -73,7 +73,8 @@ class PembelianRequest extends FormRequest
     public function messages()
     {
         return [
-            'code.required'                      => 'Kode pembelian wajib diisi.',
+            'code.string'                       => 'Kode pembelian harus berupa teks.',
+            'code.max'                          => 'Kode pembelian maksimal 255 karakter.',
             'customer_po.string'                => 'Customer PO harus berupa teks.',
             'customer_po.max'                   => 'Customer PO maksimal 255 karakter.',
             'supplier_id.required'               => 'Supplier wajib dipilih.',

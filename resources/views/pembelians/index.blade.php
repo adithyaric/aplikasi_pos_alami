@@ -258,14 +258,10 @@
                                                 @endif
                                             {{-- @endif --}}
 
-                                            {{-- Export PO --}}
+                                            {{-- Export PO menggunakan template supplier --}}
                                             <a href="{{ route('laporan.pembelian', $value->id) }}"
-                                                class="btn btn-xs btn-success" title="Export XLSX PO">
-                                                <i class="fa fa-file-excel-o"></i> XLSX
-                                            </a>
-                                            <a href="{{ route('laporan.pembelian.docx', $value->id) }}"
-                                                class="btn btn-xs btn-primary" title="Export DOCX PO">
-                                                <i class="fa fa-file-word-o"></i> DOCX
+                                                class="btn btn-xs btn-success" title="Export PO sesuai template supplier">
+                                                <i class="fa fa-file-text-o"></i> Export PO
                                             </a>
                                         </td>
                                     </tr>
@@ -357,24 +353,6 @@
                 $(this).data('state', 'closed');
             }
         });
-    });
-</script>
-<script>
-    $(document).on('click', '.btn-toggle-items', function () {
-        var id = $(this).data('target');
-        var state = $(this).data('state');
-        var $extra = $('.extra-item-' + id);
-        var $badge = $(this).find('.label');
-
-        if (state === 'closed') {
-            $extra.show();
-            $badge.text('Tutup');
-            $(this).data('state', 'open');
-        } else {
-            $extra.hide();
-            $badge.text('Selengkapnya (' + $extra.length + ')');
-            $(this).data('state', 'closed');
-        }
     });
 </script>
 @endsection

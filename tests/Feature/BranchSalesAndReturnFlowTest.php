@@ -7,6 +7,7 @@ use App\Models\Outlet;
 use App\Models\OwnerStock;
 use App\Models\OwnerStockMovement;
 use App\Models\Penjualan;
+use App\Models\PenjualanPayment;
 use App\Models\PenjualanTotalAdjustment;
 use App\Models\Product;
 use App\Models\Refund;
@@ -202,6 +203,109 @@ class BranchSalesAndReturnFlowTest extends TestCase
                 ],
             ])
             ->assertRedirect(route('dashboard'));
+    }
+
+    public function test_branch_sale_can_be_viewed_and_paid_in_installments(): void
+    {
+        $branch = Outlet::create([
+            'name' => 'Cabang Payment Test',
+            'jenis_outlet' => 'branch',
+        ]);
+
+        $shop = Outlet::create([
+            'name' => 'Toko Payment Test',
+            'jenis_outlet' => 'toko',
+        ]);
+
+        $salesUser = User::factory()->create([
+            'role' => 'sales',
+            'outlet_id' => $branch->id,
+            'email' => 'sales-branch-payment@alami.test',
+        ]);
+
+        Salesman::create([
+            'name' => 'Sales Branch Payment',
+            'alamat' => 'Jakarta',
+            'no_telp' => '0800000002',
+            'outlet_id' => $branch->id,
+            'user_id' => $salesUser->id,
+        ]);
+
+        $category = Category::create([
+            'name' => 'Rokok Payment Test',
+            'type' => 'product',
+        ]);
+
+        $product = Product::create([
+            'code' => 'ALM-BR-PAY-001',
+            'name' => 'ALAMI Branch Payment Product',
+            'category_id' => $category->id,
+            'is_serialized' => false,
+            'harga_beli' => 7000,
+            'harga_jual' => 10000,
+            'status_produk' => 'sudah',
+            'satuan' => 'Pack',
+        ]);
+
+        OwnerStock::create([
+            'owner_id' => $branch->id,
+            'product_id' => $product->id,
+            'stock_id' => null,
+            'qty' => 10,
+            'sku' => 'BR-STOCK-PAY-001',
+            'harga_beli' => 7000,
+        ]);
+
+        $this->actingAs($salesUser)->post(route('penjualan.store'), [
+            'sale_date' => now()->toDateString(),
+            'buyer_type' => 'toko',
+            'outlet_target_id' => $shop->id,
+            'payment_type' => 'termin',
+            'payment_status' => 'unpaid',
+            'discount' => 0,
+            'items' => [[
+                'product_id' => $product->id,
+                'qty' => 2,
+                'unit' => 'Pack',
+                'price' => '10.000',
+            ]],
+        ]);
+
+        $sale = Penjualan::firstOrFail();
+
+        $this->actingAs($salesUser)
+            ->get(route('penjualan.show', $sale))
+            ->assertOk()
+            ->assertSee('Pembayaran');
+
+        $this->actingAs($salesUser)
+            ->get(route('penjualan.pembayaran.edit', $sale))
+            ->assertOk()
+            ->assertSee('Input Pembayaran');
+
+        $this->actingAs($salesUser)->put(route('penjualan.pembayaran.update', $sale), [
+            'payment_date' => now()->format('Y-m-d H:i:s'),
+            'payment_method' => 'bank_transfer',
+            'payment_reference' => 'PAY-'.$sale->code.'-1',
+            'amount' => 10000,
+            'notes' => 'Cicilan pertama',
+        ])->assertRedirect(route('penjualan.pembayaran.edit', $sale));
+
+        $sale->refresh();
+        $this->assertSame('partial', $sale->payment_status);
+        $this->assertSame(10000.0, (float) $sale->paymentTransaction->amount);
+
+        $this->actingAs($salesUser)->put(route('penjualan.pembayaran.update', $sale), [
+            'payment_date' => now()->format('Y-m-d H:i:s'),
+            'payment_method' => 'cash',
+            'payment_reference' => 'PAY-'.$sale->code.'-2',
+            'amount' => 10000,
+            'notes' => 'Cicilan kedua',
+        ])->assertRedirect(route('penjualan.pembayaran.edit', $sale));
+
+        $sale->refresh();
+        $this->assertSame('paid', $sale->payment_status);
+        $this->assertCount(2, PenjualanPayment::firstOrFail()->payment_history ?? []);
     }
 
     public function test_admin_cabang_requests_branch_return_to_warehouse_and_superadmin_confirms_it(): void

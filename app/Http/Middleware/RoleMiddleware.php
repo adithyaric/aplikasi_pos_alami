@@ -63,6 +63,8 @@ class RoleMiddleware
             'penjualan.branch-index',
             'penjualan.last-price',
             'penjualan.show',
+            'penjualan.pembayaran.edit',
+            'penjualan.pembayaran.update',
             'laporan.penjualan.invoice',
             'laporan.penjualan.surat-jalan',
             'refund.index',

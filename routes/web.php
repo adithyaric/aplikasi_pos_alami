@@ -72,6 +72,7 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::put('/customer-penjualan/{type}/{id}', [SalesCustomerController::class, 'update'])->name('customer-penjualan.update');
     Route::delete('/customer-penjualan/{type}/{id}', [SalesCustomerController::class, 'destroy'])->name('customer-penjualan.destroy');
     Route::get('/supplier/{supplier}/next-po-code', [SupplierController::class, 'nextPoCode'])->name('supplier.next-po-code');
+    Route::get('/supplier/{supplier}/po-template/download', [SupplierController::class, 'downloadPoTemplate'])->name('supplier.po-template.download');
     Route::resource('/salesman', SalesmanController::class);
     Route::resource('/category', CategoryController::class);
     Route::get('/category-product', [CategoryController::class, 'indexProduct'])->name('category.product.index');

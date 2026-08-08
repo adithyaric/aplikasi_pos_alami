@@ -23,6 +23,7 @@ class Supplier extends Model
         'deadline_reference_date',
         'po_number_prefix',
         'po_number_padding',
+        'po_template',
     ];
 
     protected $casts = [

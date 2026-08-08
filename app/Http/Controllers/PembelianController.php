@@ -193,38 +193,44 @@ class PembelianController extends Controller
         }
 
         $request->validated();
-        $supplier = Supplier::findOrFail($request->supplier_id);
-        $code = trim((string) $request->code);
-        $customerPo = $this->syncCustomerPoMaster($request->customer_po);
+        $pembelian = DB::transaction(function () use ($request) {
+            $supplier = Supplier::whereKey($request->supplier_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $code = trim((string) $request->code);
+            $customerPo = $this->syncCustomerPoMaster($request->customer_po);
 
-        $pembelian = Pembelian::create([
-            'code' => $code !== '' ? $code : $supplier->generateNextPoCode(),
-            'customer_po' => $customerPo,
-            // 'outlet_id' => $request->outlet_id,
-            'supplier_id' => $request->supplier_id,
-            // 'kas_id' => $request->kas_id,
-            'total' => $request->total,
-            'is_published' => false,
-            'owner_approval_status' => 'approved',
-            'owner_approved_by' => null,
-            'owner_approved_at' => null,
-            'owner_approval_note' => null,
-        ]);
+            $pembelian = Pembelian::create([
+                'code' => $code !== '' ? $code : $supplier->generateNextPoCode(),
+                'customer_po' => $customerPo,
+                // 'outlet_id' => $request->outlet_id,
+                'supplier_id' => $request->supplier_id,
+                // 'kas_id' => $request->kas_id,
+                'total' => $request->total,
+                'is_published' => false,
+                'owner_approval_status' => 'approved',
+                'owner_approved_by' => null,
+                'owner_approved_at' => null,
+                'owner_approval_note' => null,
+            ]);
 
-        $this->updateStock($request, $pembelian);
+            $this->updateStock($request, $pembelian);
 
-        PembelianTransaction::create([
-            'pembelian_id' => $pembelian->id,
-            'payment_date' => null,
-            'payment_method' => 'bank_transfer',
-            'payment_reference' => (($supplier->bank_no_rek ?? null) && ($supplier->bank_nama ?? null))
-                ? $supplier->bank_no_rek.'-'.$supplier->bank_nama
-                : 'TRX-'.now()->format('YmdHis'),
-            // 'amount' => $grandTotal,
-            'amount' => 0,
-            'status' => 'unpaid',
-            'notes' => null,
-        ]);
+            PembelianTransaction::create([
+                'pembelian_id' => $pembelian->id,
+                'payment_date' => null,
+                'payment_method' => 'bank_transfer',
+                'payment_reference' => (($supplier->bank_no_rek ?? null) && ($supplier->bank_nama ?? null))
+                    ? $supplier->bank_no_rek.'-'.$supplier->bank_nama
+                    : 'TRX-'.now()->format('YmdHis'),
+                // 'amount' => $grandTotal,
+                'amount' => 0,
+                'status' => 'unpaid',
+                'notes' => null,
+            ]);
+
+            return $pembelian;
+        });
 
         return redirect(route('pembelian.index'))->with('toast_success', 'Berhasil Menyimpan Data!');
     }

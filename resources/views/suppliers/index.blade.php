@@ -31,6 +31,7 @@
                                 <th>Alamat</th>
                                 <th>Nomor Telp</th>
                                 <th>Format PO</th>
+                                <th>Template PO</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
@@ -49,9 +50,12 @@
                                     <br>
                                     <small class="text-muted">Digit: {{ $value->po_number_padding ?: 5 }}</small>
                                 </td>
+                                <td class="small">
+                                    {{ $value->po_template ? basename($value->po_template) : 'Default' }}
+                                </td>
 
                                 <td>
-                                    <a class="btn btn-warning btn-xs" href="{{ route('supplier.edit', $value->id) }}">Edit</a>
+                                    <a class="btn btn-warning btn-xs" href="{{ route('supplier.edit', $value->id) }}">Kelola PO</a>
                                     <form action="{{ route('supplier.destroy', $value->id) }}" method="post" style="display:inline">
                                         @method('delete')
                                         @csrf

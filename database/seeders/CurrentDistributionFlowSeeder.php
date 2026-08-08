@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Agent;
 use App\Models\Canvas;
+use App\Models\CustomerPo;
 use App\Models\Kas;
 use App\Models\Outlet;
 use App\Models\Pembelian;
@@ -167,6 +168,35 @@ class CurrentDistributionFlowSeeder extends Seeder
             );
         });
 
+        collect([
+            [
+                'name' => 'PT Sumber Makmur',
+                'company_name' => 'PT Sumber Makmur Distribusi',
+                'address' => 'Jl. Malioboro No. 101, Yogyakarta',
+                'phone' => '+622741110101',
+                'email' => 'purchasing@sumbermakmur.test',
+            ],
+            [
+                'name' => 'CV Retail Sejahtera',
+                'company_name' => 'CV Retail Sejahtera',
+                'address' => 'Jl. Solo KM 8, Yogyakarta',
+                'phone' => '+622741110102',
+                'email' => 'po@retailsejahtera.test',
+            ],
+            [
+                'name' => 'Toko Mitra Distribusi',
+                'company_name' => null,
+                'address' => 'Jl. Wates KM 5, Kulon Progo',
+                'phone' => '+628121110103',
+                'email' => null,
+            ],
+        ])->each(function (array $customerPo) {
+            CustomerPo::updateOrCreate(
+                ['name' => $customerPo['name']],
+                $customerPo
+            );
+        });
+
         $agents = [
             ['code' => 'AGN-001', 'name' => 'Superindo', 'alamat' => 'Jl. Magelang, Sleman', 'no_telp' => '+622740001001', 'termin_days' => 14, 'credit_limit' => 15000000],
             ['code' => 'AGN-002', 'name' => 'Alfamart Jogja 1', 'alamat' => 'Jl. Kaliurang KM 5, Yogyakarta', 'no_telp' => '+622740001002', 'termin_days' => 21, 'credit_limit' => 12500000],
@@ -205,11 +235,14 @@ class CurrentDistributionFlowSeeder extends Seeder
             ->get()
             ->keyBy('code');
         $converter = app(ProductUnitConverter::class);
+        $warehouseOrderCode = $supplier->generateNextPoCode();
 
         $warehouseOrder = Pembelian::updateOrCreate(
-            ['code' => 'PO-ALAMI-00001'],
+            ['code' => $warehouseOrderCode],
             [
+                'code' => $warehouseOrderCode,
                 'code_gr' => 'GR-ALAMI-00001',
+                'customer_po' => 'PT Sumber Makmur',
                 'supplier_id' => $supplier->id,
                 'total' => 0,
                 'is_published' => true,
@@ -293,7 +326,7 @@ class CurrentDistributionFlowSeeder extends Seeder
             [
                 'payment_date' => null,
                 'payment_method' => 'bank_transfer',
-                'payment_reference' => 'SEED-PO-ALAMI-00001',
+                'payment_reference' => 'SEED-'.$warehouseOrderCode,
                 'amount' => 0,
                 'payment_history' => [],
                 'status' => 'unpaid',

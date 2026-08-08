@@ -9,6 +9,7 @@ use App\Models\Penjualan;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Services\DocumentTemplateRenderer;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -102,7 +103,10 @@ class DocumentTemplateRendererTest extends TestCase
         $result = IOFactory::load($output)->getActiveSheet();
 
         $this->assertSame('Configured Company', $result->getCell('A2')->getValue());
-        $this->assertSame($pembelian->code, $result->getCell('B2')->getValue());
+        $this->assertSame(
+            app(DocumentTemplateRenderer::class)->purchaseNumber($pembelian),
+            $result->getCell('B2')->getValue(),
+        );
         $this->assertSame('PR-001', $result->getCell('B17')->getValue());
         $this->assertSame('PR-002', $result->getCell('B18')->getValue());
         $this->assertSame(265, $result->getCell('D17')->getValue());
@@ -111,6 +115,80 @@ class DocumentTemplateRendererTest extends TestCase
         $this->assertSame('KEEP THIS TEMPLATE TEXT', $result->getCell('J6')->getValue());
 
         @unlink($output);
+    }
+
+    public function test_purchase_xlsx_prefers_the_selected_supplier_template(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('settings.json', json_encode([
+            'purchase_template_xlsx' => 'templates/documents/global-purchase.xlsx',
+        ]));
+
+        $pembelian = $this->createPurchaseWithItems();
+        $pembelian->supplier->update([
+            'po_template' => 'templates/documents/suppliers/'.$pembelian->supplier_id.'/template-po-supplier-a.xlsx',
+        ]);
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setCellValue('A1', 'SUPPLIER A TEMPLATE');
+        $sheet->setCellValue('A2', '{{purchase.number}}');
+        $this->storeSpreadsheet($spreadsheet, 'templates/documents/suppliers/'.$pembelian->supplier_id.'/template-po-supplier-a.xlsx');
+
+        $globalSpreadsheet = new Spreadsheet();
+        $globalSpreadsheet->getActiveSheet()->setCellValue('A1', 'GLOBAL TEMPLATE');
+        $this->storeSpreadsheet($globalSpreadsheet, 'templates/documents/global-purchase.xlsx');
+
+        $output = app(DocumentTemplateRenderer::class)->renderPurchaseXlsx($pembelian);
+        $result = IOFactory::load($output)->getActiveSheet();
+
+        $this->assertSame('SUPPLIER A TEMPLATE', $result->getCell('A1')->getValue());
+        $this->assertSame(
+            app(DocumentTemplateRenderer::class)->purchaseNumber($pembelian),
+            $result->getCell('A2')->getValue(),
+        );
+        @unlink($output);
+    }
+
+    public function test_dynamic_purchase_export_uses_the_supplier_template_extension(): void
+    {
+        Storage::fake('public');
+        $pembelian = $this->createPurchaseWithItems();
+        $xlsxPath = 'templates/documents/suppliers/'.$pembelian->supplier_id.'/supplier-po.xlsx';
+        $pembelian->supplier->update(['po_template' => $xlsxPath]);
+
+        $spreadsheet = new Spreadsheet();
+        $spreadsheet->getActiveSheet()->setCellValue('A1', '{{purchase.number}}');
+        $this->storeSpreadsheet($spreadsheet, $xlsxPath);
+
+        $document = app(DocumentTemplateRenderer::class)->renderPurchaseDocument($pembelian);
+        $this->assertSame('pembelian-xlsx', $document['type']);
+        $this->assertSame('xlsx', $document['extension']);
+        @unlink($document['path']);
+
+        $docxPath = 'templates/documents/suppliers/'.$pembelian->supplier_id.'/supplier-po.docx';
+        Storage::disk('public')->put($docxPath, file_get_contents(base_path('template_alami_pembelian.docx')));
+        $pembelian->supplier->update(['po_template' => $docxPath]);
+
+        $document = app(DocumentTemplateRenderer::class)->renderPurchaseDocument($pembelian);
+        $this->assertSame('pembelian-docx', $document['type']);
+        $this->assertSame('docx', $document['extension']);
+        @unlink($document['path']);
+    }
+
+    public function test_purchase_number_reformats_a_legacy_code_using_supplier_format(): void
+    {
+        Carbon::setTestNow('2026-08-08 10:00:00');
+        $pembelian = $this->createPurchaseWithItems();
+        $pembelian->update(['code' => 'PO-ALAMI-00001']);
+        $pembelian->supplier->update(['kode_supplier' => 'S00001']);
+
+        $this->assertSame(
+            'PO-S00001-202608-00001',
+            app(DocumentTemplateRenderer::class)->purchaseNumber($pembelian),
+        );
+
+        Carbon::setTestNow();
     }
 
     public function test_tokenized_purchase_docx_is_not_overwritten_by_legacy_paragraph_data(): void

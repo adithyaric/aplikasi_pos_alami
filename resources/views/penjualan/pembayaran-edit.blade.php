@@ -1,6 +1,6 @@
 @extends('layouts.master')
 
-@section('title', 'Pembayaran Penjualan')
+@section('title', $penjualan->isBranchSale() ? 'Pembayaran Penjualan Cabang' : 'Pembayaran Penjualan')
 
 @section('container')
     @php
@@ -142,7 +142,12 @@
             <div class="col-md-4">
                 <div class="box box-success">
                     <div class="box-header with-border">
-                        <h3 class="box-title">Input Pembayaran</h3>
+                        <h3 class="box-title">
+                            Input Pembayaran
+                            @if ($penjualan->isBranchSale())
+                                <small>(Termin / Cicilan)</small>
+                            @endif
+                        </h3>
                     </div>
 
                     <form action="{{ route('penjualan.pembayaran.update', $penjualan) }}" method="POST">

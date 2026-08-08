@@ -22,11 +22,49 @@ class CigaretteProductSeeder extends Seeder
                 'name' => 'Pabrik ALAMI',
                 'alamat' => 'Jl. Industri Tembakau No. 88, Yogyakarta',
                 'no_telp' => '+622741110001',
+                'po_number_prefix' => Supplier::DEFAULT_PO_NUMBER_FORMAT,
+                'po_number_padding' => 5,
                 'deadline_days' => [1, 4],
                 'deadline_interval_weeks' => 1,
                 'deadline_reference_date' => now()->startOfWeek(),
             ]
         );
+
+        $additionalSuppliers = collect([
+            [
+                'kode_supplier' => 'S00002',
+                'name' => 'PT Nusantara Tobacco',
+                'alamat' => 'Jl. Raya Industri No. 12, Surakarta',
+                'no_telp' => '+622716660002',
+                'po_number_prefix' => 'PO-{YYYY}{MM}-{SUPPLIER_CODE}-{SEQ}',
+                'po_number_padding' => 5,
+            ],
+            [
+                'kode_supplier' => 'S00003',
+                'name' => 'CV Mitra Kretek',
+                'alamat' => 'Jl. Tembakau Sejahtera No. 7, Kudus',
+                'no_telp' => '+622916660003',
+                'po_number_prefix' => 'PO-{SEQ}-{SUPPLIER_CODE}-{YYYY}{MM}',
+                'po_number_padding' => 4,
+            ],
+            [
+                'kode_supplier' => 'S00004',
+                'name' => 'PT Sumber Rasa Indonesia',
+                'alamat' => 'Jl. Pabrik Makmur No. 45, Malang',
+                'no_telp' => '+623416660004',
+                'po_number_prefix' => 'PO-{SUPPLIER_CODE}-{YYYY}-{MM}-{SEQ}',
+                'po_number_padding' => 6,
+            ],
+        ])->map(function (array $attributes) {
+            return Supplier::updateOrCreate(
+                ['kode_supplier' => $attributes['kode_supplier']],
+                array_merge($attributes, [
+                    'deadline_days' => [2, 5],
+                    'deadline_interval_weeks' => 2,
+                    'deadline_reference_date' => now()->startOfWeek(),
+                ])
+            );
+        });
 
         $products = [
             [
@@ -86,7 +124,9 @@ class CigaretteProductSeeder extends Seeder
                 ])
             );
 
-            $product->suppliers()->syncWithoutDetaching([$supplier->id]);
+            $product->suppliers()->syncWithoutDetaching(
+                collect([$supplier])->merge($additionalSuppliers)->pluck('id')->all()
+            );
         }
     }
 }

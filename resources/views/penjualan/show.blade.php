@@ -135,7 +135,7 @@
                             <i class="fa fa-pencil"></i> Edit
                         </a>
                         @endif
-                        @if ($penjualan->isWarehouseSale() && ! in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true))
+                        @if (($penjualan->isWarehouseSale() && ! in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true)) || $penjualan->isBranchSale())
                         <a href="{{ route('penjualan.pembayaran.edit', $penjualan) }}" class="btn btn-success">
                             <i class="fa fa-credit-card"></i> Pembayaran
                         </a>
@@ -143,7 +143,11 @@
                         {{-- <a href="{{ route('refund.create', ['penjualan_id' => $penjualan->id]) }}" class="btn btn-danger"> --}}
                             {{-- <i class="fa fa-undo"></i> Retur --}}
                         {{-- </a> --}}
-                        @if ($penjualan->isBranchSale() || $penjualan->buyer_type_label != 'Cabang')
+                        @if ($penjualan->isBranchSale())
+                        <a href="{{ route('laporan.penjualan.invoice', $penjualan) }}" class="btn btn-warning">
+                            <i class="fa fa-print"></i> Print Nota
+                        </a>
+                        @elseif ($penjualan->buyer_type_label != 'Cabang')
                         <a href="{{ route('laporan.penjualan.invoice', $penjualan) }}" class="btn btn-warning">
                             <i class="fa fa-file-excel-o"></i> Invoice
                         </a>

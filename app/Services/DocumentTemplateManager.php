@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Supplier;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class DocumentTemplateManager
 {
@@ -91,6 +93,102 @@ class DocumentTemplateManager
             'path' => $definition['default_path'],
             'download_name' => $definition['default_name'],
         ];
+    }
+
+    /**
+     * Resolve a purchase template for a supplier, falling back to the legacy
+     * global purchase template and then the bundled default template.
+     */
+    public function resolvePurchase(string $type, Supplier $supplier, ?array $settings = null): array
+    {
+        $supplierPath = $supplier->po_template;
+
+        if ($supplierPath
+            && $this->purchaseTypeFromPath($supplierPath) === $type
+            && Storage::disk('public')->exists($supplierPath)) {
+            return $this->supplierPurchaseMetadata($supplierPath, $supplier);
+        }
+
+        return $this->resolve($type, $settings);
+    }
+
+    public function resolveSupplierPurchaseTemplate(Supplier $supplier, ?array $settings = null): array
+    {
+        $supplierPath = $supplier->po_template;
+        if ($supplierPath
+            && Storage::disk('public')->exists($supplierPath)
+            && $this->purchaseTypeFromPath($supplierPath)) {
+            return $this->supplierPurchaseMetadata($supplierPath, $supplier);
+        }
+
+        $settings ??= $this->settings();
+        foreach ([self::PURCHASE_XLSX, self::PURCHASE_DOCX] as $type) {
+            $template = $this->resolve($type, $settings);
+            if ($template['source'] === 'custom') {
+                return [...$template, 'type' => $type];
+            }
+        }
+
+        return [
+            ...$this->resolve(self::PURCHASE_XLSX, $settings),
+            'type' => self::PURCHASE_XLSX,
+        ];
+    }
+
+    public function purchaseTemplateType(Supplier $supplier, ?array $settings = null): string
+    {
+        return $this->resolveSupplierPurchaseTemplate($supplier, $settings)['type'];
+    }
+
+    public function storeSupplierPurchaseTemplate(Supplier $supplier, UploadedFile $file): string
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+        abort_unless(in_array($extension, ['docx', 'xlsx'], true), 422, 'Template PO harus DOCX atau XLSX.');
+
+        $oldPath = $supplier->po_template;
+        $baseName = Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME));
+        $baseName = $baseName ?: 'template-po-'.$supplier->id;
+        $path = 'templates/documents/suppliers/'.$supplier->id.'/'.$baseName.'.'.$extension;
+
+        $storedPath = $file->storeAs(dirname($path), basename($path), 'public');
+        if ($oldPath && $oldPath !== $storedPath && Storage::disk('public')->exists($oldPath)) {
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        return $storedPath;
+    }
+
+    public function resetSupplierPurchaseTemplate(Supplier $supplier): void
+    {
+        $path = $supplier->po_template;
+
+        if ($path && Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+        }
+    }
+
+    private function supplierPurchaseMetadata(string $path, Supplier $supplier): array
+    {
+        $type = $this->purchaseTypeFromPath($path);
+
+        return [
+            ...$this->definition($type),
+            'source' => 'supplier',
+            'label' => basename($path),
+            'path' => Storage::disk('public')->path($path),
+            'download_name' => basename($path),
+            'supplier_id' => $supplier->id,
+            'type' => $type,
+        ];
+    }
+
+    private function purchaseTypeFromPath(string $path): ?string
+    {
+        return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'docx' => self::PURCHASE_DOCX,
+            'xlsx' => self::PURCHASE_XLSX,
+            default => null,
+        };
     }
 
     public function store(string $type, UploadedFile $file, array $settings): string

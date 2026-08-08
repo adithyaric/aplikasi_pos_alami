@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Agent;
 use App\Models\Canvas;
+use App\Models\CustomerPo;
 use App\Models\Outlet;
 use App\Models\OwnerStock;
+use App\Models\Pembelian;
 use App\Models\Penjualan;
 use App\Models\Product;
 use App\Models\Salesman;
@@ -34,6 +36,21 @@ class CurrentDistributionFlowSeederTest extends TestCase
         $this->assertTrue(User::where('email', 'admin-gudang@alami.test')->where('role', 'admin-gudang')->exists());
         $this->assertTrue(User::where('email', 'owner@alami.test')->where('role', 'owner')->exists());
         $this->assertTrue(Supplier::where('name', 'Pabrik ALAMI')->exists());
+        $supplier = Supplier::where('kode_supplier', 'S00001')->firstOrFail();
+        $this->assertSame(
+            Supplier::DEFAULT_PO_NUMBER_FORMAT,
+            $supplier->po_number_prefix,
+        );
+        $this->assertSame(4, Supplier::count());
+        $this->assertSame(
+            'PO-'.now()->format('Ym').'-S00002-00001',
+            Supplier::where('kode_supplier', 'S00002')->firstOrFail()->generateNextPoCode(),
+        );
+        $this->assertSame(3, CustomerPo::count());
+        $this->assertTrue(CustomerPo::where('name', 'PT Sumber Makmur')->exists());
+        $this->assertTrue(Pembelian::where('supplier_id', $supplier->id)
+            ->where('code', 'PO-S00001-'.now()->format('Ym').'-00001')
+            ->exists());
         $this->assertGreaterThanOrEqual(4, Product::where('satuan', 'Pack')
             ->where('satuan_besar', 'Slop')
             ->where('satuan_terbesar', 'Ball')

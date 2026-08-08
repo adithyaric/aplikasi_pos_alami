@@ -60,11 +60,18 @@ class LaporanController extends Controller
 
     public function index()
     {
+        $documentTemplates = collect($this->templateManager->metadata())
+            ->except([
+                DocumentTemplateManager::PURCHASE_DOCX,
+                DocumentTemplateManager::PURCHASE_XLSX,
+            ])
+            ->all();
+
         return view('laporan.index', [
             'cashiers' => User::where('role', 'staff-outlet')->get(),
             'outlets' => Outlet::get(),
             'suppliers' => Supplier::get(),
-            'documentTemplates' => $this->templateManager->metadata(),
+            'documentTemplates' => $documentTemplates,
             'templateVariables' => $this->templateManager->variableGroups(),
             'canManageTemplates' => in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner'], true),
         ]);
@@ -118,9 +125,12 @@ class LaporanController extends Controller
 
         if ($id) {
             $pembelian = Pembelian::findOrFail($id);
-            $path = $this->templateRenderer->renderPurchaseXlsx($pembelian);
+            $document = $this->templateRenderer->renderPurchaseDocument($pembelian);
 
-            return response()->download($path, $this->documentFilename('Dokumen_PO-', $pembelian->code, 'xlsx'))
+            return response()->download(
+                $document['path'],
+                $this->documentFilename('Dokumen_PO-', $document['number'], $document['extension']),
+            )
                 ->deleteFileAfterSend(true);
         }
 
@@ -129,9 +139,12 @@ class LaporanController extends Controller
 
     public function exportPembelianDocx(Pembelian $pembelian)
     {
-        $path = $this->templateRenderer->renderPurchaseDocx($pembelian);
+        $document = $this->templateRenderer->renderPurchaseDocument($pembelian);
 
-        return response()->download($path, $this->documentFilename('Dokumen_PO-', $pembelian->code, 'docx'))
+        return response()->download(
+            $document['path'],
+            $this->documentFilename('Dokumen_PO-', $document['number'], $document['extension']),
+        )
             ->deleteFileAfterSend(true);
     }
 
