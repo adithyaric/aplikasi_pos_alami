@@ -15,6 +15,7 @@ use App\Exports\LaporanPergerakanExport;
 use App\Exports\LaporanPickingPackingExport;
 use App\Exports\LaporanPOExport;
 use App\Exports\LaporanPRExport;
+use App\Exports\PembelianBulkExport;
 use App\Exports\PembelianExport;
 use App\Exports\PembelianSupplierExport;
 use App\Exports\PenerimaanExport;
@@ -137,6 +138,44 @@ class LaporanController extends Controller
         return Excel::download(new PembelianExport($request, $settings), 'laporan-pembelian.xlsx');
     }
 
+    public function exportPembelianBulk(Request $request)
+    {
+        $request->validate([
+            'supplier_id' => 'required|integer|exists:suppliers,id',
+            'period' => 'nullable|in:all,hari,minggu,bulan,daterange',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from',
+        ]);
+
+        $supplier = Supplier::findOrFail($request->integer('supplier_id'));
+        $query = Pembelian::with(['supplier', 'pembelianProducts.product', 'pembelianTransaction'])
+            ->where('supplier_id', $supplier->id)
+            ->latest();
+        $period = $request->input('period', 'all');
+
+        if ($period === 'hari') {
+            $query->whereDate('created_at', today());
+        } elseif ($period === 'minggu') {
+            $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
+        } elseif ($period === 'bulan') {
+            $query->whereMonth('created_at', now()->month)
+                ->whereYear('created_at', now()->year);
+        } elseif ($period === 'daterange' && $request->filled('date_from') && $request->filled('date_to')) {
+            $query->whereBetween('created_at', [
+                \Carbon\Carbon::parse($request->date_from)->startOfDay(),
+                \Carbon\Carbon::parse($request->date_to)->endOfDay(),
+            ]);
+        }
+
+        $pembelians = $query->get();
+        abort_if($pembelians->isEmpty(), 404, 'Tidak ada PO untuk supplier yang dipilih.');
+
+        return Excel::download(
+            new PembelianBulkExport($pembelians, $this->getSettings()),
+            $this->documentFilename('Dokumen_PO-Bulk-', $supplier->name, 'xlsx'),
+        );
+    }
+
     public function exportPembelianDocx(Pembelian $pembelian)
     {
         $document = $this->templateRenderer->renderPurchaseDocument($pembelian);
@@ -155,6 +194,29 @@ class LaporanController extends Controller
 
         return response()->download($path, $this->documentFilename('Invoice-', $penjualan->code, 'xlsx'))
             ->deleteFileAfterSend(true);
+    }
+
+    public function printPenjualanNota(Penjualan $penjualan)
+    {
+        $this->ensurePenjualanTemplateAccess($penjualan);
+        $penjualan->loadMissing([
+            'items.product',
+            'operator',
+            'customer',
+            'outlet',
+            'agent',
+            'canvasBuyer',
+            'outletBuyer',
+            'tokoBuyer',
+        ]);
+
+        $settings = $this->getSettings();
+        $logoPath = $settings['logo'] ?? null;
+        $logoUrl = $logoPath && Storage::disk('public')->exists($logoPath)
+            ? Storage::disk('public')->url($logoPath)
+            : asset('img/logo.jpeg');
+
+        return response()->view('penjualan.nota', compact('penjualan', 'settings', 'logoUrl'));
     }
 
     public function exportPenjualanSuratJalan(Penjualan $penjualan)
@@ -214,19 +276,15 @@ class LaporanController extends Controller
             return abort(404);
         }
 
-        $stock = Stock::with(['product', 'pembelian.supplier'])->findOrFail($id);
+        $stock = Stock::with(['product', 'pembelian.supplier'])
+            ->where('product_id', $id)
+            ->orderBy('id')
+            ->firstOrFail();
         $movements = StockMovement::where('product_id', $stock->product_id)
-            ->where(function ($q) use ($stock) {
-                $q->where('notes', 'like', "%SKU: {$stock->sku}%")
-                    ->orWhere(function ($q2) use ($stock) {
-                        $q2->where('reference_type', 'App\Models\Pembelian')
-                            ->where('reference_id', $stock->pembelian_id);
-                    });
-            })
             ->orderBy('created_at', 'asc')
             ->get();
 
-        return Excel::download(new KartuStokExport($stock, $movements, $settings), 'Kartu_Stok-'.$stock->sku.'.xlsx');
+        return Excel::download(new KartuStokExport($stock, $movements, $settings), 'Kartu_Stok-'.$stock->product->code.'.xlsx');
     }
 
     public function exportStockOpname(Request $request)
@@ -237,6 +295,7 @@ class LaporanController extends Controller
         $mulai   = $request->input('tanggal_mulai', $request->input('tanggal', $today)) ?: $today;
         $selesai = $request->input('tanggal_selesai', $mulai) ?: $mulai;
         $lokasi  = $request->input('lokasi');
+        $supplierId = $request->integer('supplier_id') ?: null;
 
         $lokasiFilter = $lokasi ? fn ($q) => $q->where('lokasi', $lokasi) : null;
 
@@ -247,21 +306,20 @@ class LaporanController extends Controller
         if ($lokasiFilter) {
             $query->whereHas('product', $lokasiFilter);
         }
-
-        $adjustments = $query->get();
-
-        // No data for the selected date — fall back to all adjustments (no date limit)
-        if ($adjustments->isEmpty()) {
-            $fallback = StockAdjustment::with(['product', 'stock'])
-                ->orderByDesc('adjustment_date')
-                ->limit(500);
-            if ($lokasiFilter) {
-                $fallback->whereHas('product', $lokasiFilter);
-            }
-            $adjustments = $fallback->get();
+        if ($supplierId) {
+            $query->whereHas('stock.pembelian', fn ($q) => $q->where('supplier_id', $supplierId));
         }
 
-        return Excel::download(new StockOpnameExport($adjustments, $mulai, $settings), 'Stock_Opname-'.$mulai.'.xlsx');
+        $adjustments = $query
+            ->orderBy('adjustment_date')
+            ->orderBy('id')
+            ->get();
+
+        $filename = $mulai === $selesai
+            ? 'Stock_Opname-'.$mulai.'.xlsx'
+            : 'Stock_Opname-'.$mulai.'-'.$selesai.'.xlsx';
+
+        return Excel::download(new StockOpnameExport($adjustments, $mulai, $selesai, $settings), $filename);
     }
 
     public function exportPenerimaan(Request $request, Pembelian $pembelian, $type = 'po')
@@ -296,9 +354,25 @@ class LaporanController extends Controller
         return Excel::download(new PenjualanSupplierExport($request), 'laporan-penjualan-supplier.xlsx');
     }
 
-    public function exportStock()
+    public function exportStock(Request $request)
     {
-        return Excel::download(new StockExport, 'laporan-stock.xlsx');
+        $today = now()->toDateString();
+        $mulai = $request->input('date_from', now()->startOfMonth()->toDateString()) ?: $today;
+        $selesai = $request->input('date_to', $today) ?: $mulai;
+
+        if ($mulai > $selesai) {
+            [$mulai, $selesai] = [$selesai, $mulai];
+        }
+
+        $settings = json_decode(Storage::disk('public')->get('settings.json'), true) ?? [];
+        $outputPath = tempnam(storage_path('app'), 'rekap-stok-');
+
+        (new StockExport($mulai, $selesai, $settings))->store($outputPath);
+
+        return response()->download(
+            $outputPath,
+            'rekap_stok_harian-'.$mulai.'-'.$selesai.'.xlsx'
+        )->deleteFileAfterSend(true);
     }
 
     public function exportPengeluaran()

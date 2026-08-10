@@ -158,8 +158,10 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::get('/laporan/templates/{type}/download', [LaporanController::class, 'downloadTemplate'])->name('laporan.templates.download');
     // Route::get('/laporan/pembelian', [LaporanController::class, 'exportPembelian'])->name('laporan.pembelian');
     Route::get('/laporan/pembelian/{id?}', [LaporanController::class, 'exportPembelian'])->name('laporan.pembelian');
+    Route::get('/laporan/pembelian-bulk', [LaporanController::class, 'exportPembelianBulk'])->name('laporan.pembelian.bulk');
     Route::get('/laporan/pembelian/{pembelian}/docx', [LaporanController::class, 'exportPembelianDocx'])->name('laporan.pembelian.docx');
     Route::get('/laporan/penjualan/{penjualan}/invoice', [LaporanController::class, 'exportPenjualanInvoice'])->name('laporan.penjualan.invoice');
+    Route::get('/laporan/penjualan/{penjualan}/nota', [LaporanController::class, 'printPenjualanNota'])->name('laporan.penjualan.nota');
     Route::get('/laporan/penjualan/{penjualan}/surat-jalan', [LaporanController::class, 'exportPenjualanSuratJalan'])->name('laporan.penjualan.surat-jalan');
     Route::get('/laporan/pickinglist/{id?}', [LaporanController::class, 'exportPickingList'])->name('laporan.pickinglist');
     Route::get('/laporan/request-order/{id?}', [LaporanController::class, 'exportRequestOrder'])->name('laporan.request-order');

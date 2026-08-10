@@ -13,6 +13,16 @@
                             <select id="filterKategori" class="form-control input-sm select2" style="width:auto; min-width:160px;">
                                 <option value="">Semua Kategori</option>
                             </select>
+
+                            <form method="GET" action="{{ route('laporan.stock') }}" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:0 0 0 auto;">
+                                <span class="text-muted">Periode export:</span>
+                                <input type="date" name="date_from" class="form-control input-sm" value="{{ now()->startOfMonth()->toDateString() }}" required>
+                                <span>s/d</span>
+                                <input type="date" name="date_to" class="form-control input-sm" value="{{ now()->toDateString() }}" required>
+                                <button type="submit" class="btn btn-sm btn-success">
+                                    <i class="fa fa-file-excel-o"></i> Export Rekap Stok
+                                </button>
+                            </form>
                         </div>
                     </div>
                     <div class="box-body table-responsive">

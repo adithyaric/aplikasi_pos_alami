@@ -140,6 +140,13 @@
                                 <i class="fa fa-plus"></i> Buat PO Baru
                             </a>
                         @endif
+                        @if ($supplierId && $pembelians->isNotEmpty())
+                            <a href="{{ route('laporan.pembelian.bulk', request()->query()) }}"
+                                class="btn btn-md btn-success" target="_blank"
+                                title="Cetak semua PO pada supplier dan filter periode aktif">
+                                <i class="fa fa-print"></i> Cetak Semua PO Supplier
+                            </a>
+                        @endif
                         {{-- <a href="{{ route('refundPembelian.index') }}" class="btn btn-md bg-green"> --}}
                             {{-- <i class="fa fa-refresh"></i> Refund PO --}}
                         {{-- </a> --}}

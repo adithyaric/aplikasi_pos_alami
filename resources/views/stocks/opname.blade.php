@@ -27,6 +27,15 @@
                                         @endforeach
                                     </select>
                                 </td>
+                                <td style="white-space:nowrap;padding-left:16px">Supplier</td>
+                                <td>
+                                    <select id="filterSupplier" class="form-control select2">
+                                        <option value="">-- Semua Supplier --</option>
+                                        @foreach($supplierOptions as $supplier)
+                                            <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </td>
                             </tr>
                         </table>
 
@@ -66,6 +75,7 @@
                             <form method="GET" action="{{ route('laporan.stock-opname') }}" style="display:inline;">
                                 <input type="hidden" name="tanggal" id="exportTanggal" value="{{ date('Y-m-d') }}" />
                                 <input type="hidden" name="lokasi" id="exportLokasi" value="" />
+                                <input type="hidden" name="supplier_id" id="exportSupplier" value="" />
                                 <button type="submit" class="btn btn-sm btn-success">
                                     <i class="fa fa-file-excel-o"></i> Export Laporan
                                 </button>
@@ -115,7 +125,8 @@
 
             function loadStockData() {
                 const lokasi = $('#filterLokasi').val();
-                $.get('{{ route('stock.opname.data') }}', { lokasi: lokasi }, function(data) {
+                const supplierId = $('#filterSupplier').val();
+                $.get('{{ route('stock.opname.data') }}', { lokasi: lokasi, supplier_id: supplierId }, function(data) {
                     allStockData = data.stocks;
                     renderInitialRows();
                 }).fail(function() {
@@ -298,9 +309,18 @@
             $('#filterLokasi').on('change', function() {
                 var lok  = $(this).val();
                 var base = '{{ route('stock.opname.export-template') }}';
-                $('#btnExportTemplate').attr('href', lok ? base + '?lokasi=' + encodeURIComponent(lok) : base);
+                var supplierId = $('#filterSupplier').val();
+                var templateParams = [];
+                if (lok) templateParams.push('lokasi=' + encodeURIComponent(lok));
+                if (supplierId) templateParams.push('supplier_id=' + encodeURIComponent(supplierId));
+                $('#btnExportTemplate').attr('href', templateParams.length ? base + '?' + templateParams.join('&') : base);
                 $('#exportLokasi').val(lok);
+                $('#exportSupplier').val(supplierId);
                 loadStockData();
+            });
+
+            $('#filterSupplier').on('change', function() {
+                $('#filterLokasi').trigger('change');
             });
 
             $('#btnSaveOpname').on('click', function() {

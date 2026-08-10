@@ -235,6 +235,121 @@ class DocumentTemplateRendererTest extends TestCase
         @unlink($output);
     }
 
+    public function test_purchase_batch_keeps_each_po_on_its_own_supplier_xlsx_sheet_and_borders_item_rows(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('settings.json', json_encode([
+            'name' => 'Configured Company',
+            'address' => 'Configured Address',
+            'telp' => '08123456789',
+        ]));
+
+        $first = $this->createPurchaseWithItems();
+        $first->load(['supplier', 'pembelianProducts.product']);
+        $product = $first->pembelianProducts->first()->product;
+        $second = Pembelian::create([
+            'code' => 'PO-RENDERER-002',
+            'supplier_id' => $first->supplier_id,
+            'total' => 100,
+        ]);
+        $second->pembelianProducts()->create([
+            'product_id' => $product->id,
+            'harga_beli' => 100,
+            'qty' => 1,
+            'subtotal' => 100,
+        ]);
+
+        $templatePath = 'templates/documents/suppliers/'.$first->supplier_id.'/bulk-purchase.xlsx';
+        $first->supplier->update(['po_template' => $templatePath]);
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setCellValue('A1', '{{sale.number}}');
+        $sheet->setCellValue('A2', '{{buyer.name}}');
+        $sheet->setCellValue('A4', '{{sale.items.no}}');
+        $sheet->setCellValue('B4', '{{sale.items.code}}');
+        $sheet->setCellValue('C4', '{{sale.items.name}}');
+        $this->storeSpreadsheet($spreadsheet, $templatePath);
+
+        $pembelians = Pembelian::whereIn('id', [$first->id, $second->id])
+            ->orderBy('id')
+            ->get();
+        $output = app(DocumentTemplateRenderer::class)->renderPurchaseBatch($pembelians);
+        $result = IOFactory::load($output['path']);
+
+        $this->assertSame('xlsx', $output['extension']);
+        $this->assertSame(2, $output['count']);
+        $this->assertCount(1, $result->getAllSheets());
+        $this->assertSame(
+            app(DocumentTemplateRenderer::class)->purchaseNumber($first),
+            $result->getActiveSheet()->getCell('A1')->getValue(),
+        );
+        $stackedNumberRow = null;
+        for ($row = 2; $row <= $result->getActiveSheet()->getHighestDataRow(); $row++) {
+            if ($result->getActiveSheet()->getCell('A'.$row)->getValue()
+                === app(DocumentTemplateRenderer::class)->purchaseNumber($second)) {
+                $stackedNumberRow = $row;
+                break;
+            }
+        }
+        $this->assertNotNull($stackedNumberRow);
+        $this->assertGreaterThan(4, $stackedNumberRow);
+        $this->assertNotEmpty($result->getActiveSheet()->getRowBreaks());
+        $this->assertSame('Configured Company', $result->getActiveSheet()->getCell('A2')->getValue());
+        $this->assertSame('Purchase Product One', $result->getActiveSheet()->getCell('C4')->getValue());
+        $this->assertSame('Purchase Product One', $result->getActiveSheet()->getCell('C'.($stackedNumberRow + 3))->getValue());
+        $this->assertSame(
+            \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+            $result->getActiveSheet()->getStyle('A'.($stackedNumberRow + 3).':C'.($stackedNumberRow + 3))->getBorders()->getTop()->getBorderStyle(),
+        );
+
+        @unlink($output['path']);
+    }
+
+    public function test_purchase_batch_keeps_each_po_on_its_own_docx_page_and_borders_item_rows(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('settings.json', json_encode([
+            'name' => 'Configured Company',
+        ]));
+
+        $first = $this->createPurchaseWithItems();
+        $first->load(['supplier', 'pembelianProducts.product']);
+        $product = $first->pembelianProducts->first()->product;
+        $second = Pembelian::create([
+            'code' => 'PO-RENDERER-002',
+            'supplier_id' => $first->supplier_id,
+            'total' => 100,
+        ]);
+        $second->pembelianProducts()->create([
+            'product_id' => $product->id,
+            'harga_beli' => 100,
+            'qty' => 1,
+            'subtotal' => 100,
+        ]);
+
+        $templatePath = 'templates/documents/suppliers/'.$first->supplier_id.'/bulk-purchase.docx';
+        $first->supplier->update(['po_template' => $templatePath]);
+        Storage::disk('public')->put($templatePath, file_get_contents(base_path('template_alami_pembelian.docx')));
+
+        $pembelians = Pembelian::whereIn('id', [$first->id, $second->id])
+            ->orderBy('id')
+            ->get();
+        $output = app(DocumentTemplateRenderer::class)->renderPurchaseBatch($pembelians);
+        $zip = new ZipArchive();
+        $this->assertTrue($zip->open($output['path']) === true);
+        $xml = $zip->getFromName('word/document.xml');
+        $zip->close();
+
+        $this->assertSame('docx', $output['extension']);
+        $this->assertGreaterThanOrEqual(1, substr_count($xml, 'w:type="page"'));
+        $this->assertGreaterThanOrEqual(2, substr_count($xml, 'Configured Company'));
+        $this->assertStringContainsString('Purchase Product One', $xml);
+        $this->assertStringContainsString('<w:tcBorders>', $xml);
+        $this->assertStringContainsString('<w:top w:val="single"', $xml);
+
+        @unlink($output['path']);
+    }
+
     private function createSaleWithItems(): Penjualan
     {
         $category = Category::create(['name' => 'Renderer Test Category', 'type' => 'product']);

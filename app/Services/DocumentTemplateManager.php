@@ -252,6 +252,14 @@ class DocumentTemplateManager
                     '{{purchase.items.unit}}',
                     '{{purchase.items.price}}', '{{purchase.items.discount}}', '{{purchase.items.subtotal}}',
                 ],
+                'Alias kompatibilitas template supplier lama' => [
+                    '{{sale.number}}', '{{sale.date}}', '{{sale.subtotal}}',
+                    '{{sale.old_debt}}', '{{sale.shipping_cost}}', '{{sale.payment}}',
+                    '{{sale.new_debt}}', '{{buyer.name}}', '{{buyer.address}}',
+                    '{{buyer.phone}}', '{{sale.items.no}}', '{{sale.items.code}}',
+                    '{{sale.items.name}}', '{{sale.items.qty}}', '{{sale.items.unit}}',
+                    '{{sale.items.discount}}', '{{sale.items.price}}', '{{sale.items.subtotal}}',
+                ],
             ],
             'Penjualan / Invoice / Surat Jalan' => [
                 'Nomor, tanggal, dan nilai' => [

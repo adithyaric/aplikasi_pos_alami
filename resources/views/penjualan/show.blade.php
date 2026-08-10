@@ -143,8 +143,8 @@
                         {{-- <a href="{{ route('refund.create', ['penjualan_id' => $penjualan->id]) }}" class="btn btn-danger"> --}}
                             {{-- <i class="fa fa-undo"></i> Retur --}}
                         {{-- </a> --}}
-                        @if ($penjualan->isBranchSale())
-                        <a href="{{ route('laporan.penjualan.invoice', $penjualan) }}" class="btn btn-warning">
+                        @if ($penjualan->isBranchSale() || $penjualan->isWarehouseSale())
+                        <a href="{{ route('laporan.penjualan.nota', $penjualan) }}" class="btn btn-warning">
                             <i class="fa fa-print"></i> Print Nota
                         </a>
                         @elseif ($penjualan->buyer_type_label != 'Cabang')

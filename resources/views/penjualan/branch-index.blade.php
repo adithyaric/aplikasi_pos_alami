@@ -158,7 +158,7 @@
                                                     <i class="fa fa-pencil"></i> Edit
                                                 </a>
                                             @endif
-                                            <a class="btn btn-warning btn-xs" href="{{ route('laporan.penjualan.invoice', $penjualan) }}">
+                                            <a class="btn btn-warning btn-xs" href="{{ route('laporan.penjualan.nota', $penjualan) }}">
                                                 <i class="fa fa-print"></i> Print Nota
                                             </a>
                                             @if (($penjualan->payment_status ?? 'unpaid') !== 'paid')

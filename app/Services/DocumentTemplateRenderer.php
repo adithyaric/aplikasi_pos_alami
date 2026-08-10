@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -29,7 +30,7 @@ class DocumentTemplateRenderer
 
     public function renderPurchaseDocx(Pembelian $pembelian): string
     {
-        $pembelian->loadMissing(['supplier', 'pembelianProducts.product']);
+        $pembelian->loadMissing(['supplier', 'pembelianProducts.product', 'pembelianTransaction']);
         $source = $pembelian->supplier
             ? $this->templates->resolvePurchase(DocumentTemplateManager::PURCHASE_DOCX, $pembelian->supplier)['path']
             : $this->templates->resolve(DocumentTemplateManager::PURCHASE_DOCX)['path'];
@@ -47,6 +48,7 @@ class DocumentTemplateRenderer
 
         $context = $this->purchaseContext($pembelian);
         $this->expandDocxItemRows($xpath, count($context['items']));
+        $this->ensureDocxItemRowBorders($xpath);
         $this->replaceDocxTokens($xpath, $context['variables'], $context['items']);
 
         $zip->addFromString('word/document.xml', $document->saveXML());
@@ -63,7 +65,7 @@ class DocumentTemplateRenderer
 
     public function renderPurchaseXlsx(Pembelian $pembelian): string
     {
-        $pembelian->loadMissing(['supplier', 'pembelianProducts.product']);
+        $pembelian->loadMissing(['supplier', 'pembelianProducts.product', 'pembelianTransaction']);
         $context = $this->purchaseContext($pembelian);
 
         return $this->renderXlsx(DocumentTemplateManager::PURCHASE_XLSX, $context, $pembelian->supplier);
@@ -86,6 +88,58 @@ class DocumentTemplateRenderer
             'extension' => $this->templates->definition($type)['extension'],
             'number' => $this->purchaseNumber($pembelian),
         ];
+    }
+
+    /**
+     * Render the currently filtered purchase orders as one supplier-specific
+     * document. Each PO remains a separate vertical section (XLSX) or page
+     * section (DOCX); item rows are never merged into one table.
+     */
+    public function renderPurchaseBatch(Collection $pembelians): array
+    {
+        abort_unless($pembelians->isNotEmpty(), 404, 'Tidak ada PO untuk dicetak.');
+
+        $pembelians->each(
+            fn (Pembelian $pembelian) => $pembelian->loadMissing(['supplier', 'pembelianProducts.product', 'pembelianTransaction'])
+        );
+        $supplier = $pembelians->first()->supplier;
+        $type = $supplier
+            ? $this->templates->purchaseTemplateType($supplier)
+            : DocumentTemplateManager::PURCHASE_XLSX;
+        $paths = [];
+
+        try {
+            foreach ($pembelians as $pembelian) {
+                $paths[] = $type === DocumentTemplateManager::PURCHASE_DOCX
+                    ? $this->renderPurchaseDocx($pembelian)
+                    : $this->renderPurchaseXlsx($pembelian);
+            }
+
+            $path = $type === DocumentTemplateManager::PURCHASE_DOCX
+                ? $this->combineDocxDocuments($paths)
+                : $this->combineXlsxDocuments($paths);
+
+            foreach ($paths as $temporaryPath) {
+                if ($temporaryPath !== $path && is_file($temporaryPath)) {
+                    @unlink($temporaryPath);
+                }
+            }
+
+            return [
+                'path' => $path,
+                'type' => $type,
+                'extension' => $this->templates->definition($type)['extension'],
+                'count' => $pembelians->count(),
+            ];
+        } catch (\Throwable $exception) {
+            foreach ($paths as $temporaryPath) {
+                if (is_file($temporaryPath)) {
+                    @unlink($temporaryPath);
+                }
+            }
+
+            throw $exception;
+        }
     }
 
     public function purchaseNumber(Pembelian $pembelian): string
@@ -136,6 +190,7 @@ class DocumentTemplateRenderer
             : $this->templates->resolve($type)['path'];
         $spreadsheet = IOFactory::load($source);
         $itemRowIndexes = $this->expandXlsxItemRows($spreadsheet, $type, count($context['items']));
+        $this->ensureXlsxItemRowBorders($spreadsheet, $itemRowIndexes);
 
         $this->replaceXlsxTokens(
             $spreadsheet,
@@ -193,6 +248,40 @@ class DocumentTemplateRenderer
                     // This temporary marker keeps cloned rows tied to their item
                     // index while the XML is being rendered. It is removed below.
                     $row->setAttribute('data-alami-item-index', (string) $index);
+                }
+            }
+        }
+    }
+
+    private function ensureDocxItemRowBorders(DOMXPath $xpath): void
+    {
+        $namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+        foreach ($xpath->query('//w:tr[@data-alami-item-index]') as $row) {
+            foreach ($xpath->query('./w:tc', $row) as $cell) {
+                $cellProperties = $xpath->query('./w:tcPr', $cell)->item(0);
+                if (! $cellProperties instanceof DOMElement) {
+                    $cellProperties = $cell->ownerDocument->createElementNS($namespace, 'w:tcPr');
+                    $cell->insertBefore($cellProperties, $cell->firstChild);
+                }
+
+                $borders = $xpath->query('./w:tcBorders', $cellProperties)->item(0);
+                if (! $borders instanceof DOMElement) {
+                    $borders = $cell->ownerDocument->createElementNS($namespace, 'w:tcBorders');
+                    $cellProperties->appendChild($borders);
+                }
+
+                foreach (['top', 'left', 'bottom', 'right'] as $side) {
+                    $border = $xpath->query('./w:'.$side, $borders)->item(0);
+                    if (! $border instanceof DOMElement) {
+                        $border = $cell->ownerDocument->createElementNS($namespace, 'w:'.$side);
+                        $borders->appendChild($border);
+                    }
+
+                    $border->setAttributeNS($namespace, 'w:val', 'single');
+                    $border->setAttributeNS($namespace, 'w:sz', '4');
+                    $border->setAttributeNS($namespace, 'w:space', '0');
+                    $border->setAttributeNS($namespace, 'w:color', '000000');
                 }
             }
         }
@@ -427,6 +516,70 @@ class DocumentTemplateRenderer
         }
     }
 
+    private function ensureXlsxItemRowBorders(Spreadsheet $spreadsheet, array $itemRowIndexes): void
+    {
+        foreach ($spreadsheet->getWorksheetIterator() as $sheet) {
+            foreach (array_keys($itemRowIndexes[$sheet->getTitle()] ?? []) as $rowIndex) {
+                $columns = [];
+                foreach ($sheet->getRowIterator($rowIndex, $rowIndex) as $row) {
+                    $cellIterator = $row->getCellIterator();
+                    $cellIterator->setIterateOnlyExistingCells(true);
+                    foreach ($cellIterator as $cell) {
+                        $value = $this->spreadsheetText($cell->getValue());
+                        if ($value === null
+                            || ! preg_match('/\{\{(?:purchase\.items|sale\.items|item|items)\.(?!\d+\.)[a-z_]+\}\}/', $value)) {
+                            continue;
+                        }
+
+                        $columnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($cell->getColumn());
+                        $columns[] = $columnIndex;
+                        foreach ($sheet->getMergeCells() as $merge) {
+                            [$start, $end] = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::rangeBoundaries($merge);
+                            if ($start[1] <= $rowIndex && $end[1] >= $rowIndex
+                                && $columnIndex >= $start[0]
+                                && $columnIndex <= $end[0]) {
+                                for ($column = $start[0]; $column <= $end[0]; $column++) {
+                                    $columns[] = $column;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if ($columns === []) {
+                    continue;
+                }
+
+                sort($columns);
+                $columns = array_values(array_unique($columns));
+                $rangeStart = $columns[0];
+                $previous = $columns[0];
+                $ranges = [];
+                foreach (array_slice($columns, 1) as $column) {
+                    if ($column !== $previous + 1) {
+                        $ranges[] = [$rangeStart, $previous];
+                        $rangeStart = $column;
+                    }
+                    $previous = $column;
+                }
+                $ranges[] = [$rangeStart, $previous];
+
+                foreach ($ranges as [$start, $end]) {
+                    $startColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($start);
+                    $endColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($end);
+                    $sheet->getStyle($startColumn.$rowIndex.':'.$endColumn.$rowIndex)->applyFromArray([
+                        'borders' => [
+                            'allBorders' => [
+                                'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                                'color' => ['argb' => 'FF000000'],
+                            ],
+                        ],
+                    ]);
+                }
+            }
+        }
+    }
+
     private function replaceXlsxTokens(
         Spreadsheet $spreadsheet,
         array $variables,
@@ -571,7 +724,34 @@ class DocumentTemplateRenderer
             'date' => $this->date($date),
             'date_serial' => $this->excelDate($date),
             'total' => (int) $pembelian->total,
+            'subtotal' => (int) $pembelian->total,
+            'old_debt' => 0,
+            'shipping_cost' => 0,
+            'payment' => (float) ($pembelian->pembelianTransaction?->amount ?? 0),
+            'new_debt' => max(0, (float) $pembelian->total - (float) ($pembelian->pembelianTransaction?->amount ?? 0)),
             'location' => $this->locationFromAddress($company['address']),
+            'items' => $items,
+        ];
+        $buyer = [
+            'type' => 'Perusahaan',
+            'name' => $company['name'],
+            'address' => $company['address'],
+            'phone' => $company['phone'],
+        ];
+        $sale = [
+            'number' => $purchase['number'],
+            'date' => $purchase['date'],
+            'date_serial' => $purchase['date_serial'],
+            'subtotal' => $purchase['subtotal'],
+            'discount' => 0,
+            'total' => $purchase['total'],
+            'old_debt' => $purchase['old_debt'],
+            'shipping_cost' => $purchase['shipping_cost'],
+            'payment' => $purchase['payment'],
+            'paid' => $purchase['payment'],
+            'new_debt' => $purchase['new_debt'],
+            'payment_type' => (string) ($pembelian->pembelianTransaction?->payment_method ?? '-'),
+            'payment_status' => (string) ($pembelian->pembelianTransaction?->status ?? 'unpaid'),
             'items' => $items,
         ];
 
@@ -579,10 +759,12 @@ class DocumentTemplateRenderer
             'company' => $company,
             'purchase' => $purchase,
             'supplier' => $supplier,
+            'buyer' => $buyer,
+            'sale' => $sale,
             'items' => $items,
         ]);
 
-        return compact('company', 'supplier', 'purchase', 'items', 'variables');
+        return compact('company', 'supplier', 'buyer', 'purchase', 'sale', 'items', 'variables');
     }
 
     private function salesContext(Penjualan $penjualan): array
@@ -746,6 +928,164 @@ class DocumentTemplateRenderer
         $parts = preg_split('/[,\n]/', $address);
 
         return trim((string) end($parts)) ?: '-';
+    }
+
+    private function combineXlsxDocuments(array $paths): string
+    {
+        $combined = IOFactory::load($paths[0]);
+        $targetSheet = $combined->getActiveSheet();
+        $this->trimXlsxSheetToData($targetSheet);
+        $nextRow = $targetSheet->getHighestDataRow() + 2;
+
+        foreach ($combined->getAllSheets() as $sheet) {
+            if ($sheet === $targetSheet) {
+                continue;
+            }
+
+            $nextRow = $this->appendXlsxSection($targetSheet, $sheet, $nextRow) + 2;
+            $combined->removeSheetByIndex($combined->getIndex($sheet));
+        }
+
+        foreach (array_slice($paths, 1) as $path) {
+            $part = IOFactory::load($path);
+            foreach ($part->getWorksheetIterator() as $sheet) {
+                $nextRow = $this->appendXlsxSection($targetSheet, $sheet, $nextRow) + 2;
+            }
+            $part->disconnectWorksheets();
+            unset($part);
+        }
+
+        $targetSheet->setTitle('Bulk PO');
+        $targetSheet->getPageSetup()->setPrintArea(
+            'A1:'.$targetSheet->getHighestDataColumn().$targetSheet->getHighestDataRow()
+        );
+        $combined->setActiveSheetIndex(0);
+        $target = $this->temporaryPath('xlsx');
+        (new Xlsx($combined))->save($target);
+        $combined->disconnectWorksheets();
+
+        return $target;
+    }
+
+    private function trimXlsxSheetToData(Worksheet $sheet): void
+    {
+        $highestDataRow = $sheet->getHighestDataRow();
+        foreach ($sheet->getMergeCells() as $merge) {
+            [, $end] = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::rangeBoundaries($merge);
+            if ($end[1] > $highestDataRow) {
+                $sheet->unmergeCells($merge);
+            }
+        }
+
+        $highestRow = $sheet->getHighestRow();
+        if ($highestRow > $highestDataRow) {
+            $sheet->removeRow($highestDataRow + 1, $highestRow - $highestDataRow);
+        }
+    }
+
+    private function appendXlsxSection(Worksheet $target, Worksheet $source, int $startRow): int
+    {
+        $sourceEndRow = $source->getHighestDataRow();
+        $rowOffset = $startRow - 1;
+
+        foreach ($source->getRowIterator(1, $sourceEndRow) as $sourceRow) {
+            $sourceRowIndex = $sourceRow->getRowIndex();
+            $targetRowIndex = $sourceRowIndex + $rowOffset;
+            $height = $source->getRowDimension($sourceRowIndex)->getRowHeight();
+            if ($height > 0) {
+                $target->getRowDimension($targetRowIndex)->setRowHeight($height);
+            }
+
+            $cellIterator = $sourceRow->getCellIterator();
+            $cellIterator->setIterateOnlyExistingCells(true);
+            foreach ($cellIterator as $sourceCell) {
+                $targetCoordinate = $sourceCell->getColumn().$targetRowIndex;
+                $target->duplicateStyle($sourceCell->getStyle(), $targetCoordinate);
+                if ($sourceCell->getValue() !== null) {
+                    $target->setCellValue($targetCoordinate, $sourceCell->getValue());
+                }
+            }
+        }
+
+        foreach ($source->getMergeCells() as $merge) {
+            [$start, $end] = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::rangeBoundaries($merge);
+            if ($end[1] > $sourceEndRow) {
+                continue;
+            }
+
+            $startColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($start[0]);
+            $endColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($end[0]);
+            $targetMerge = $startColumn.($start[1] + $rowOffset).':'
+                .$endColumn.($end[1] + $rowOffset);
+            if (! in_array($targetMerge, $target->getMergeCells(), true)) {
+                $target->mergeCells($targetMerge);
+            }
+        }
+
+        foreach ($source->getDrawingCollection() as $drawing) {
+            $copy = clone $drawing;
+            [$column, $row] = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::coordinateFromString(
+                $drawing->getCoordinates()
+            );
+            $copy->setCoordinates($column.((int) $row + $rowOffset));
+            $copy->setWorksheet($target, true);
+        }
+
+        $target->setBreak('A'.$startRow, Worksheet::BREAK_ROW);
+
+        return $startRow + $sourceEndRow - 1;
+    }
+
+    private function combineDocxDocuments(array $paths): string
+    {
+        if (count($paths) < 2) {
+            return $paths[0];
+        }
+
+        $namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+        $zip = new ZipArchive();
+        abort_unless($zip->open($paths[0]) === true, 500, 'Dokumen DOCX tidak dapat digabungkan.');
+
+        $document = new DOMDocument('1.0', 'UTF-8');
+        $document->preserveWhiteSpace = false;
+        $document->formatOutput = false;
+        $document->loadXML($zip->getFromName('word/document.xml'));
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('w', $namespace);
+        $body = $xpath->query('/w:document/w:body')->item(0);
+        $sectionProperties = $xpath->query('./w:sectPr', $body)->item(0);
+
+        foreach (array_slice($paths, 1) as $path) {
+            $pageBreak = $document->createElementNS($namespace, 'w:p');
+            $run = $document->createElementNS($namespace, 'w:r');
+            $break = $document->createElementNS($namespace, 'w:br');
+            $break->setAttributeNS($namespace, 'w:type', 'page');
+            $run->appendChild($break);
+            $pageBreak->appendChild($run);
+            $body->insertBefore($pageBreak, $sectionProperties);
+
+            $partZip = new ZipArchive();
+            abort_unless($partZip->open($path) === true, 500, 'Dokumen DOCX tidak dapat dibuka.');
+            $partDocument = new DOMDocument('1.0', 'UTF-8');
+            $partDocument->preserveWhiteSpace = false;
+            $partDocument->loadXML($partZip->getFromName('word/document.xml'));
+            $partXpath = new DOMXPath($partDocument);
+            $partXpath->registerNamespace('w', $namespace);
+            $partBody = $partXpath->query('/w:document/w:body')->item(0);
+            foreach ($partBody->childNodes as $child) {
+                if ($child instanceof DOMElement && $child->nodeName === 'w:sectPr') {
+                    continue;
+                }
+
+                $body->insertBefore($document->importNode($child, true), $sectionProperties);
+            }
+            $partZip->close();
+        }
+
+        $zip->addFromString('word/document.xml', $document->saveXML());
+        $zip->close();
+
+        return $paths[0];
     }
 
     private function temporaryPath(string $extension): string

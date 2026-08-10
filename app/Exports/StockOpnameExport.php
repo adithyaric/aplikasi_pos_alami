@@ -23,12 +23,20 @@ class StockOpnameExport implements FromCollection, WithHeadings, WithMapping, Wi
 
     protected $adjustments;
     protected $date;
+    protected $endDate;
     protected $settings;
+    protected int $rowNumber = 0;
 
-    public function __construct($adjustments, $date, array $settings = [])
+    public function __construct($adjustments, $date, $endDate = null, array $settings = [])
     {
+        if (is_array($endDate) && $settings === []) {
+            $settings = $endDate;
+            $endDate = $date;
+        }
+
         $this->adjustments = $adjustments;
         $this->date        = $date;
+        $this->endDate     = $endDate ?: $date;
         $this->settings    = $settings;
     }
 
@@ -58,19 +66,16 @@ class StockOpnameExport implements FromCollection, WithHeadings, WithMapping, Wi
 
     public function map($item): array
     {
-        static $no = 0;
-        $no++;
-
-        $systemQty   = $item->system_qty ?? 0;
-        $physicalQty = $item->physical_qty ?? 0;
-        $selisih     = $physicalQty - $systemQty;
+        $systemQty   = (float) ($item->system_qty ?? 0);
+        $physicalQty = (float) ($item->physical_qty ?? 0);
+        $selisih     = (float) ($item->quantity ?? ($physicalQty - $systemQty));
         $konvDisplay = $item->product->konversiDisplay($systemQty);
 
         return [
-            $no,
+            ++$this->rowNumber,
             $item->product->code ?? '-',
             $item->product->name ?? '-',
-            $item->sku ?? '-',
+            $item->stock?->sku ?? $item->sku ?? '-',
             $item->stock?->expired_at
                 ? Carbon::parse($item->stock->expired_at)->format('d/m/Y')
                 : '-',
@@ -78,7 +83,7 @@ class StockOpnameExport implements FromCollection, WithHeadings, WithMapping, Wi
             $systemQty.($konvDisplay && $konvDisplay !== '-' ? " ({$konvDisplay})" : ''),
             $physicalQty,
             ($selisih >= 0 ? '+' : '').$selisih,
-            ($item->quantity >= 0 ? '+' : '').$item->quantity,
+            ($selisih >= 0 ? '+' : '').$selisih,
             $item->reason ?? '-',
             $item->status ?? 'Selesai',
             $item->keterangan ?? '-',
@@ -131,7 +136,10 @@ class StockOpnameExport implements FromCollection, WithHeadings, WithMapping, Wi
         $sheet->getStyle('B10')->getFont()->setBold(true);
 
         $sheet->setCellValue('B11', 'Tanggal :');
-        $sheet->setCellValue('D11', Carbon::parse($this->date)->isoFormat('DD MMMM YYYY'));
+        $period = Carbon::parse($this->date)->isSameDay(Carbon::parse($this->endDate))
+            ? Carbon::parse($this->date)->isoFormat('DD MMMM YYYY')
+            : Carbon::parse($this->date)->isoFormat('DD MMMM YYYY').' s/d '.Carbon::parse($this->endDate)->isoFormat('DD MMMM YYYY');
+        $sheet->setCellValue('D11', $period);
         $sheet->getStyle('B11')->getFont()->setBold(true);
 
         $sheet->setCellValue('B12', 'Nama :');
