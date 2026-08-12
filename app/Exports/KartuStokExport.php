@@ -156,18 +156,19 @@ class KartuStokExport implements FromCollection, WithHeadings, WithMapping, With
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
 
-        $sheet->setCellValue('B10', 'Kode Barang :');
-        $sheet->setCellValue('D10', $this->stock->product?->code ?? '-');
-        $sheet->setCellValue('B11', 'Nama Barang :');
-        $sheet->setCellValue('D11', $this->stock->product?->name ?? '-');
-        $sheet->setCellValue('B12', 'Satuan :');
-        $sheet->setCellValue('D12', $this->stock->product?->satuan ?? 'PCS');
-        $sheet->setCellValue('B13', 'Supplier :');
-        $sheet->setCellValue('D13', $this->supplierName);
-        $sheet->setCellValue('F12', 'Lokasi Penyimpanan :');
-        $sheet->setCellValue('H12', $this->stock->product?->lokasi ?? '-');
-        $sheet->getStyle('B10:B13')->getFont()->setBold(true);
-        $sheet->getStyle('F12')->getFont()->setBold(true);
+        foreach ([
+            10 => ['Kode Barang', $this->stock->product?->code ?? '-'],
+            11 => ['Nama Barang', $this->stock->product?->name ?? '-'],
+            12 => ['Supplier', $this->supplierName],
+        ] as $row => [$label, $value]) {
+            $sheet->setCellValue('B'.$row, $label);
+            $sheet->setCellValue('C'.$row, ':');
+            $sheet->setCellValue('D'.$row, $value);
+            $sheet->mergeCells('D'.$row.':J'.$row);
+        }
+        $sheet->getStyle('B10:B12')->getFont()->setBold(true);
+        $sheet->getStyle('C10:C12')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('D10:J12')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
         $sheet->setCellValue('B14', 'Detail Mutasi Stok');
         $sheet->getStyle('B14')->getFont()->setBold(true);
 
@@ -182,6 +183,25 @@ class KartuStokExport implements FromCollection, WithHeadings, WithMapping, With
         if ($lastDataRow > 15) {
             $sheet->getStyle('B16:J'.$lastDataRow)
                 ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+            $sheet->getStyle('B'.$lastDataRow.':J'.$lastDataRow)
+                ->getBorders()->getBottom()->setBorderStyle(Border::BORDER_NONE);
+            $sheet->getStyle('D16:G'.$lastDataRow)->getAlignment()->setWrapText(true);
+            $sheet->getStyle('J16:J'.$lastDataRow)->getAlignment()->setWrapText(true);
+            $sheet->getStyle('H16:I'.$lastDataRow)
+                ->getNumberFormat()
+                ->setFormatCode('"Rp" #,##0');
+
+            foreach ($this->transactions as $index => $transaction) {
+                $row = 16 + $index;
+                $lineCount = max(
+                    $this->wrappedLineCount($this->formatQty($transaction['stok_awal']), 14),
+                    $this->wrappedLineCount($this->formatQty($transaction['masuk']), 14),
+                    $this->wrappedLineCount($this->formatQty($transaction['keluar']), 14),
+                    $this->wrappedLineCount($this->formatQty($transaction['stok_akhir']), 14),
+                    $this->wrappedLineCount((string) $transaction['keterangan'], 34),
+                );
+                $sheet->getRowDimension($row)->setRowHeight(max(20, 15 * $lineCount));
+            }
         }
 
         foreach (['B' => 6, 'C' => 14, 'D' => 13, 'E' => 13, 'F' => 13, 'G' => 13, 'H' => 16, 'I' => 18, 'J' => 34] as $column => $width) {
@@ -215,7 +235,17 @@ class KartuStokExport implements FromCollection, WithHeadings, WithMapping, With
             return (string) $qty;
         }
 
-        return $product->stockSummaryDisplay($qty);
+        return str_replace(' | ', "\n", $product->stockSummaryDisplay($qty));
+    }
+
+    protected function wrappedLineCount(string $value, int $width): int
+    {
+        $lines = 0;
+        foreach (preg_split('/\R/', $value) ?: [''] as $line) {
+            $lines += max(1, (int) ceil(mb_strlen($line) / $width));
+        }
+
+        return max(1, $lines);
     }
 
     public function drawings()

@@ -44,22 +44,22 @@ class Penjualan extends Model
 
     public function customer()
     {
-        return $this->belongsTo(User::class, 'customer_id');
+        return $this->belongsTo(User::class, 'customer_id')->withTrashed();
     }
 
     public function outlet()
     {
-        return $this->belongsTo(Outlet::class, 'outlet_id');
+        return $this->belongsTo(Outlet::class, 'outlet_id')->withTrashed();
     }
 
     public function kasir()
     {
-        return $this->belongsTo(User::class, 'kasir_id');
+        return $this->belongsTo(User::class, 'kasir_id')->withTrashed();
     }
 
     public function operator()
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id')->withTrashed();
     }
 
     public function kas()
@@ -74,7 +74,7 @@ class Penjualan extends Model
 
     public function salesman()
     {
-        return $this->belongsTo(Salesman::class);
+        return $this->belongsTo(Salesman::class)->withTrashed();
     }
 
     public function agent()
@@ -89,12 +89,12 @@ class Penjualan extends Model
 
     public function outletBuyer()
     {
-        return $this->belongsTo(Outlet::class, 'buyer_id');
+        return $this->belongsTo(Outlet::class, 'buyer_id')->withTrashed();
     }
 
     public function tokoBuyer()
     {
-        return $this->belongsTo(Outlet::class, 'buyer_id');
+        return $this->belongsTo(Outlet::class, 'buyer_id')->withTrashed();
     }
 
     public function transaction()

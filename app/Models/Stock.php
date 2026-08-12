@@ -71,12 +71,12 @@ class Stock extends Model
 
     public function pembelian()
     {
-        return $this->belongsTo(Pembelian::class);
+        return $this->belongsTo(Pembelian::class)->withTrashed();
     }
 
     public function product()
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Product::class)->withTrashed();
     }
 
     public function ownerStock()

@@ -25,7 +25,7 @@ class PenjualanTotalAdjustment extends Model
 
     public function penjualan()
     {
-        return $this->belongsTo(Penjualan::class);
+        return $this->belongsTo(Penjualan::class)->withTrashed();
     }
 
     public function refund()
@@ -35,6 +35,6 @@ class PenjualanTotalAdjustment extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)->withTrashed();
     }
 }

@@ -215,6 +215,17 @@ class StockExport
         $unitsRow = $summaryHeaderRow + 3;
         $firstDataRow = $unitsRow + 1;
 
+        if ($products === []) {
+            $sheet->setCellValue('B'.$summaryHeaderRow, 'Tidak ada data stok pada periode yang dipilih.');
+            $sheet->mergeCells('B'.$summaryHeaderRow.':E'.$summaryHeaderRow);
+            $sheet->getStyle('B'.$summaryHeaderRow.':E'.$summaryHeaderRow)->applyFromArray([
+                'font' => ['bold' => true],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            ]);
+
+            return;
+        }
+
         $from = Carbon::parse($this->dateFrom)->locale('id');
         $to = Carbon::parse($this->dateTo)->locale('id');
         $dateLabel = $from->translatedFormat('d F Y').' '.mb_strtoupper($from->translatedFormat('l'), 'UTF-8');

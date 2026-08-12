@@ -21,6 +21,7 @@
         }
 
         .stock-category-filter {
+            order: 2;
             flex: 1 1 220px;
             gap: 8px;
             min-width: 220px;
@@ -41,8 +42,9 @@
         }
 
         .stock-export-form {
+            order: 1;
             gap: 8px;
-            margin: 0 0 0 auto;
+            margin: 0;
             padding: 7px 9px;
             border: 1px solid #e5e7eb;
             border-radius: 4px;
@@ -116,13 +118,6 @@
                 <div class="box">
                     <div class="box-header stock-box-header">
                         <div class="stock-controls">
-                            <div class="stock-category-filter">
-                                <label for="filterKategori"><i class="fa fa-filter"></i> Kategori</label>
-                                <select id="filterKategori" class="form-control input-sm select2">
-                                    <option value="">Semua Kategori</option>
-                                </select>
-                            </div>
-
                             <form method="GET" action="{{ route('laporan.stock') }}" class="stock-export-form">
                                 <span class="stock-export-title"><i class="fa fa-calendar"></i> Periode Export</span>
                                 <div class="stock-date-range">
@@ -136,6 +131,13 @@
                                     <i class="fa fa-file-excel-o"></i> Export Rekap Stok
                                 </button>
                             </form>
+
+                            <div class="stock-category-filter">
+                                <label for="filterKategori"><i class="fa fa-filter"></i> Kategori</label>
+                                <select id="filterKategori" class="form-control input-sm select2">
+                                    <option value="">Semua Kategori</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <div class="box-body table-responsive">

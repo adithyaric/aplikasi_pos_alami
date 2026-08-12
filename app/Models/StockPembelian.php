@@ -34,7 +34,7 @@ class StockPembelian extends Model
 
     public function pembelian()
     {
-        return $this->belongsTo(Pembelian::class);
+        return $this->belongsTo(Pembelian::class)->withTrashed();
     }
 
     public function product()

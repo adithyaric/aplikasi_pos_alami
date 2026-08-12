@@ -42,12 +42,12 @@ class Pembelian extends Model
 
     public function outlet()
     {
-        return $this->belongsTo(Outlet::class);
+        return $this->belongsTo(Outlet::class)->withTrashed();
     }
 
     public function supplier()
     {
-        return $this->belongsTo(Supplier::class);
+        return $this->belongsTo(Supplier::class)->withTrashed();
     }
 
     public function kas()
@@ -79,7 +79,7 @@ class Pembelian extends Model
 
     public function ownerApprovedBy()
     {
-        return $this->belongsTo(User::class, 'owner_approved_by');
+        return $this->belongsTo(User::class, 'owner_approved_by')->withTrashed();
     }
 
     public function getOwnerApprovalLabelAttribute(): string

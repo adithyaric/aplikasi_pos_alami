@@ -125,15 +125,16 @@ class PembelianBulkPrintTest extends TestCase
         file_put_contents($temporaryPath, $raw);
         $sheet = IOFactory::load($temporaryPath)->getActiveSheet();
 
-        $this->assertSame('INVOICE 1', $sheet->getCell('B1')->getValue());
-        $this->assertSame('PO-FIXED-001', $sheet->getCell('I3')->getValue());
-        $this->assertSame('Fixed Bulk Product', $sheet->getCell('E11')->getValue());
-        $this->assertSame('INVOICE 2', $sheet->getCell('B27')->getValue());
-        $this->assertSame('2 PCS', $sheet->getCell('F37')->getValue());
+        $this->assertSame('PURCHASE ORDER', $sheet->getCell('J2')->getValue());
+        $this->assertSame('PO-FIXED-001', $sheet->getCell('J6')->getValue());
+        $this->assertSame('Fixed Bulk Product', $sheet->getCell('C17')->getValue());
+        $this->assertSame('Fixed Bulk Product', $sheet->getCell('K17')->getValue());
+        $this->assertSame('PURCHASE ORDER', $sheet->getCell('J25')->getValue());
+        $this->assertSame(2, $sheet->getCell('N40')->getValue());
         $this->assertNotEmpty($sheet->getRowBreaks());
         $this->assertSame(
             \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-            $sheet->getStyle('B11:J11')->getBorders()->getTop()->getBorderStyle(),
+            $sheet->getStyle('B17:H17')->getBorders()->getTop()->getBorderStyle(),
         );
 
         @unlink($temporaryPath);

@@ -11,6 +11,8 @@ use App\Models\Pembelian;
 use App\Models\PembelianProduct;
 use App\Models\PembelianTransaction;
 use App\Models\Product;
+use App\Models\RefundPembelian;
+use App\Models\RefundPembelianItem;
 use App\Models\Salesman;
 use App\Models\Stock;
 use App\Models\StockMovement;
@@ -235,7 +237,7 @@ class CurrentDistributionFlowSeeder extends Seeder
             ->get()
             ->keyBy('code');
         $converter = app(ProductUnitConverter::class);
-        $warehouseOrderCode = $supplier->generateNextPoCode();
+        $warehouseOrderCode = $supplier->previewPoCode(now(), null, 1);
 
         $warehouseOrder = Pembelian::updateOrCreate(
             ['code' => $warehouseOrderCode],
@@ -335,6 +337,193 @@ class CurrentDistributionFlowSeeder extends Seeder
             ]
         );
 
+        $seedUserId = (int) (User::where('email', 'superadmin@mailinator.com')->value('id')
+            ?: User::where('email', 'admin-gudang@alami.test')->value('id'));
+        $this->seedAdditionalSupplierTransactions($products, $converter, $seedUserId);
+
         $this->call(WarehousePenjualanSeeder::class);
+    }
+
+    private function seedAdditionalSupplierTransactions($products, ProductUnitConverter $converter, int $operatorId): void
+    {
+        $purchaseDefinitions = [
+            [
+                'supplier_code' => 'S00001',
+                'sequence' => 2,
+                'days_ago' => 18,
+                'products' => [
+                    'ALM-REG-12' => ['qty' => 2, 'unit' => 'Ball'],
+                    'ALM-MTH-12' => ['qty' => 1, 'unit' => 'Ball'],
+                ],
+            ],
+            [
+                'supplier_code' => 'S00002',
+                'sequence' => 1,
+                'days_ago' => 10,
+                'products' => [
+                    'ALM-SLM-16' => ['qty' => 2, 'unit' => 'Ball'],
+                    'ALM-BLD-20' => ['qty' => 1, 'unit' => 'Ball'],
+                ],
+            ],
+        ];
+
+        foreach ($purchaseDefinitions as $definition) {
+            $supplier = Supplier::where('kode_supplier', $definition['supplier_code'])->firstOrFail();
+            $purchaseDate = now()->subDays($definition['days_ago']);
+            $purchaseCode = $supplier->previewPoCode($purchaseDate, null, $definition['sequence']);
+            $goodsReceiptCode = 'GR-SEED-'.$definition['supplier_code'].'-'.$definition['sequence'];
+
+            $purchase = Pembelian::withTrashed()->firstOrNew(['code' => $purchaseCode]);
+            if ($purchase->trashed()) {
+                $purchase->restore();
+            }
+            $purchase->fill([
+                'supplier_id' => $supplier->id,
+                'customer_po' => 'PT Sumber Makmur',
+                'code_gr' => $goodsReceiptCode,
+                'total' => 0,
+                'is_published' => true,
+                'owner_approval_status' => 'approved',
+                'owner_approved_by' => $operatorId,
+                'owner_approved_at' => $purchaseDate,
+                'owner_approval_note' => 'Seeder transaksi supplier tambahan',
+                'receipt_date' => $purchaseDate,
+                'receipt_pic' => 'Gudang Utama',
+                'receipt_status' => 'completed',
+                'receipt_photo' => null,
+            ]);
+            $purchase->save();
+
+            $total = 0;
+            foreach ($definition['products'] as $productCode => $seedQty) {
+                $product = $products->get($productCode);
+                if (! $product) {
+                    continue;
+                }
+
+                $qtyPack = $converter->normalize($product, $seedQty['qty'], $seedQty['unit']);
+                $subtotal = $qtyPack * (int) $product->harga_beli;
+                $total += $subtotal;
+
+                PembelianProduct::updateOrCreate(
+                    ['pembelian_id' => $purchase->id, 'product_id' => $product->id],
+                    [
+                        'harga_beli' => $product->harga_beli,
+                        'qty' => $qtyPack,
+                        'qty_diterima' => $qtyPack,
+                        'subtotal' => $subtotal,
+                        'expired_at' => null,
+                        'serial_numbers' => null,
+                    ]
+                );
+
+                $stock = Stock::withTrashed()->firstOrNew([
+                    'pembelian_id' => $purchase->id,
+                    'product_id' => $product->id,
+                ]);
+                if (! $stock->exists) {
+                    $stock->fill([
+                        'sku' => $product->code.'-BATCH-SEED-'.$definition['supplier_code'],
+                        'harga_beli' => $product->harga_beli,
+                        'qty' => $qtyPack,
+                        'subtotal' => $subtotal,
+                        'expired_at' => null,
+                        'location' => $product->lokasi,
+                        'condition' => 'new',
+                        'status' => 'available',
+                    ]);
+                }
+                if ($stock->trashed()) {
+                    $stock->restore();
+                }
+                $stock->save();
+
+                StockMovement::firstOrCreate(
+                    [
+                        'product_id' => $product->id,
+                        'reference_type' => Pembelian::class,
+                        'reference_id' => $purchase->id,
+                        'type' => 'in',
+                    ],
+                    [
+                        'user_id' => $operatorId,
+                        'qty_in' => $qtyPack,
+                        'qty_out' => 0,
+                        'balance' => $stock->qty,
+                        'notes' => "Seeder penerimaan tambahan supplier {$supplier->name}",
+                    ]
+                );
+            }
+
+            $purchase->update(['total' => $total]);
+            PembelianTransaction::updateOrCreate(
+                ['pembelian_id' => $purchase->id],
+                [
+                    'payment_date' => null,
+                    'payment_method' => 'bank_transfer',
+                    'payment_reference' => 'SEED-'.$purchaseCode,
+                    'amount' => 0,
+                    'payment_history' => [],
+                    'status' => 'unpaid',
+                    'bukti_transfer' => null,
+                    'notes' => 'Piutang pembelian supplier tambahan',
+                ]
+            );
+        }
+
+        $returnDefinitions = [
+            ['supplier_code' => 'S00001', 'sequence' => 2, 'product_code' => 'ALM-REG-12', 'code' => 'RTR-SEED-S00001-001'],
+            ['supplier_code' => 'S00002', 'sequence' => 1, 'product_code' => 'ALM-SLM-16', 'code' => 'RTR-SEED-S00002-001'],
+        ];
+
+        foreach ($returnDefinitions as $definition) {
+            if (RefundPembelian::withTrashed()->where('code', $definition['code'])->exists()) {
+                continue;
+            }
+
+            $supplier = Supplier::where('kode_supplier', $definition['supplier_code'])->firstOrFail();
+            $purchaseDate = now()->subDays($definition['supplier_code'] === 'S00001' ? 18 : 10);
+            $purchaseCode = $supplier->previewPoCode($purchaseDate, null, $definition['sequence']);
+            $purchase = Pembelian::where('code', $purchaseCode)->firstOrFail();
+            $product = $products->get($definition['product_code']);
+            $stock = Stock::where('pembelian_id', $purchase->id)
+                ->where('product_id', $product?->id)
+                ->firstOrFail();
+            $qty = 1;
+
+            $refund = RefundPembelian::create([
+                'code' => $definition['code'],
+                'tanggal' => now()->subDays(3),
+                'type' => 'gudang_ke_supplier',
+                'return_mode' => 'cash_refund',
+                'status' => 'retur',
+                'supplier_id' => $supplier->id,
+                'user_id' => $operatorId,
+                'total' => (int) $product->harga_beli * $qty,
+            ]);
+
+            $stock->decrement('qty', $qty);
+            RefundPembelianItem::create([
+                'refund_pembelian_id' => $refund->id,
+                'product_id' => $product->id,
+                'stock_id' => $stock->id,
+                'sku' => $stock->sku,
+                'qty' => $qty,
+                'harga' => $product->harga_beli,
+                'alasan' => 'Kemasan rusak saat pemeriksaan gudang',
+                'resolution' => null,
+            ]);
+            StockMovement::create([
+                'product_id' => $product->id,
+                'user_id' => $operatorId,
+                'type' => 'out',
+                'reference_type' => RefundPembelian::class,
+                'reference_id' => $refund->id,
+                'qty_in' => 0,
+                'qty_out' => $qty,
+                'balance' => $stock->qty,
+                'notes' => "Seeder retur supplier {$supplier->name}",
+            ]);
+        }
     }
 }

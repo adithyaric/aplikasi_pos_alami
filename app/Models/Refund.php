@@ -41,7 +41,7 @@ class Refund extends Model
 
     public function customer()
     {
-        return $this->belongsTo(User::class, 'customer_id');
+        return $this->belongsTo(User::class, 'customer_id')->withTrashed();
     }
 
     public function kas()
@@ -51,27 +51,27 @@ class Refund extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)->withTrashed();
     }
 
     public function approver()
     {
-        return $this->belongsTo(User::class, 'approved_by');
+        return $this->belongsTo(User::class, 'approved_by')->withTrashed();
     }
 
     public function outlet()
     {
-        return $this->belongsTo(Outlet::class);
+        return $this->belongsTo(Outlet::class)->withTrashed();
     }
 
     public function penjualan()
     {
-        return $this->belongsTo(Penjualan::class);
+        return $this->belongsTo(Penjualan::class)->withTrashed();
     }
 
     public function appliedPenjualan()
     {
-        return $this->belongsTo(Penjualan::class, 'applied_penjualan_id');
+        return $this->belongsTo(Penjualan::class, 'applied_penjualan_id')->withTrashed();
     }
 
     public function refundItems()

@@ -8,7 +8,8 @@
         .info-table .label { font-weight: bold; width: 110px; }
         .info-table .colon { width: 8px; }
         .main-table th { background-color: #8EAADB; color: #000; border: 0.5px solid #555; }
-        .main-table td { border: 0.5px solid #aaa; }
+        .main-table td { border: 0.5px solid #aaa; vertical-align: middle; word-wrap: break-word; }
+        .main-table tbody tr:last-child td { border-bottom: 0; }
         .summary-box { margin-top: 10px; width: 55%; border-collapse: collapse; border: 0.5px solid #aaa; }
         .summary-box td { padding: 2px 5px; font-size: 8.5px; border: none; }
         .summary-box .label { font-weight: bold; width: 110px; }
@@ -26,7 +27,7 @@
 
 <table class="info-table">
     <tr>
-        <td class="label">Barcode</td>
+        <td class="label">Kode Barang</td>
         <td class="colon">:</td>
         <td>{{ $stock->product->code ?? '-' }}</td>
         <td class="label">No Batch / SKU</td>
@@ -37,14 +38,6 @@
         <td class="label">Nama Barang</td>
         <td class="colon">:</td>
         <td>{{ $stock->product->name ?? '-' }}</td>
-        <td class="label">Lokasi Penyimpanan</td>
-        <td class="colon">:</td>
-        <td>{{ $stock->product->lokasi ?? '-' }}</td>
-    </tr>
-    <tr>
-        <td class="label">Satuan</td>
-        <td class="colon">:</td>
-        <td>{{ $stock->product->satuan ?? 'PCS' }}</td>
         <td class="label">Expired Date</td>
         <td class="colon">:</td>
         <td>{{ $stock->expired_at ? \Carbon\Carbon::parse($stock->expired_at)->isoFormat('DD MMMM YYYY') : '-' }}</td>
@@ -95,8 +88,8 @@
                     @php $k = $stock->product->konversiDisplay($t['stok_akhir']); @endphp
                     @if($k !== '-') <br><small>({{ $k }})</small>@endif
                 </td>
-                <td class="tr">{{ number_format($t['harga'], 0, ',', '.') }}</td>
-                <td class="tr"><strong>{{ number_format($t['nilai'], 0, ',', '.') }}</strong></td>
+                <td class="tr">Rp {{ number_format($t['harga'], 0, ',', '.') }}</td>
+                <td class="tr"><strong>Rp {{ number_format($t['nilai'], 0, ',', '.') }}</strong></td>
                 <td><small>{{ $t['keterangan'] }}</small></td>
             </tr>
         @empty

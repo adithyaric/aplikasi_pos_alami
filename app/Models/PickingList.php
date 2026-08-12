@@ -37,7 +37,7 @@ class PickingList extends Model
 
     public function picker()
     {
-        return $this->belongsTo(User::class, 'picker_id');
+        return $this->belongsTo(User::class, 'picker_id')->withTrashed();
     }
 
     public function items()

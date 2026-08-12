@@ -44,6 +44,9 @@ class DocumentTemplateRendererTest extends TestCase
         $sheet->setCellValue('E4', '{{sale.items.unit}}');
         $sheet->setCellValue('F4', '{{sale.items.price}}');
         $sheet->setCellValue('G4', '{{sale.items.subtotal}}');
+        $sheet->setCellValue('H2', '{{sale.subtotal}}');
+        $sheet->setCellValue('I2', '{{sale.discount}}');
+        $sheet->setCellValue('J2', '{{sale.total}}');
         $sheet->setCellValue('J3', 'KEEP THIS TEMPLATE TEXT');
         $this->storeSpreadsheet($spreadsheet, 'templates/documents/test-sales.xlsx');
 
@@ -59,7 +62,50 @@ class DocumentTemplateRendererTest extends TestCase
         $this->assertSame(1, $result->getCell('A4')->getValue());
         $this->assertSame('TM-001', $result->getCell('B4')->getValue());
         $this->assertSame('TM-002', $result->getCell('B5')->getValue());
+        $this->assertSame('Rp 150', $result->getCell('F4')->getValue());
+        $this->assertSame('Rp 150', $result->getCell('G4')->getValue());
+        $this->assertSame('Rp 300', $result->getCell('H2')->getValue());
+        $this->assertSame('Rp 0', $result->getCell('I2')->getValue());
+        $this->assertSame('Rp 300', $result->getCell('J2')->getValue());
         $this->assertSame('KEEP THIS TEMPLATE TEXT', $result->getCell('J3')->getValue());
+
+        @unlink($output);
+    }
+
+    public function test_sales_xlsx_keeps_uploaded_template_values_and_renders_company_logo_variable(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('logos/company.png', file_get_contents(public_path('img/logo.jpeg')));
+        Storage::disk('public')->put('signatures/company.png', file_get_contents(public_path('img/logo.jpeg')));
+        Storage::disk('public')->put('settings.json', json_encode([
+            'logo' => 'logos/company.png',
+            'head_office_signature' => 'signatures/company.png',
+            'nib' => 'Template controlled NIB',
+        ]));
+
+        $sale = $this->createSaleWithItems();
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setCellValue('A1', '{{company.logo}}');
+        $sheet->setCellValue('A2', '{{company.ttd}}');
+        $sheet->setCellValue('C3', 'TEMPLATE CONTROLLED VALUE');
+        $this->storeSpreadsheet($spreadsheet, 'templates/documents/test-sales-template-values.xlsx');
+        Storage::disk('public')->put('settings.json', json_encode([
+            'logo' => 'logos/company.png',
+            'head_office_signature' => 'signatures/company.png',
+            'sales_invoice_template_xlsx' => 'templates/documents/test-sales-template-values.xlsx',
+            'nib' => 'Template controlled NIB',
+        ]));
+
+        $output = app(DocumentTemplateRenderer::class)->renderSalesInvoiceXlsx($sale);
+        $result = IOFactory::load($output)->getActiveSheet();
+
+        $this->assertNull($result->getCell('A1')->getValue());
+        $this->assertNull($result->getCell('A2')->getValue());
+        $this->assertSame('TEMPLATE CONTROLLED VALUE', $result->getCell('C3')->getValue());
+        $this->assertCount(2, $result->getDrawingCollection());
+        $this->assertSame('A1', $result->getDrawingCollection()[0]->getCoordinates());
+        $this->assertSame('A2', $result->getDrawingCollection()[1]->getCoordinates());
 
         @unlink($output);
     }
@@ -67,8 +113,10 @@ class DocumentTemplateRendererTest extends TestCase
     public function test_tokenized_purchase_xlsx_is_not_overwritten_by_legacy_positions(): void
     {
         Storage::fake('public');
+        Storage::disk('public')->put('signatures/head-office.png', file_get_contents(public_path('img/logo.jpeg')));
         Storage::disk('public')->put('settings.json', json_encode([
             'name' => 'Configured Company',
+            'head_office_signature' => 'signatures/head-office.png',
             'purchase_template_xlsx' => 'templates/documents/test-purchase.xlsx',
         ]));
 
@@ -96,6 +144,7 @@ class DocumentTemplateRendererTest extends TestCase
         $sheet->setCellValue('G17', '{{purchase.items.subtotal}}');
         $sheet->setCellValue('H17', '{{purchase.items.qty_besar}}');
         $sheet->setCellValue('I17', '{{purchase.items.qty_terbesar}}');
+        $sheet->setCellValue('K2', '{{company.ttd}}');
         $sheet->setCellValue('J6', 'KEEP THIS TEMPLATE TEXT');
         $this->storeSpreadsheet($spreadsheet, 'templates/documents/test-purchase.xlsx');
 
@@ -112,6 +161,11 @@ class DocumentTemplateRendererTest extends TestCase
         $this->assertSame(265, $result->getCell('D17')->getValue());
         $this->assertSame(26, $result->getCell('H17')->getValue());
         $this->assertSame(1, $result->getCell('I17')->getValue());
+        $this->assertNull($result->getCell('K2')->getValue());
+        $this->assertCount(1, $result->getDrawingCollection());
+        $this->assertSame('K2', $result->getDrawingCollection()[0]->getCoordinates());
+        $this->assertSame('Rp 100', $result->getCell('F17')->getValue());
+        $this->assertSame('Rp 100', $result->getCell('G17')->getValue());
         $this->assertSame('KEEP THIS TEMPLATE TEXT', $result->getCell('J6')->getValue());
 
         @unlink($output);
@@ -231,6 +285,78 @@ class DocumentTemplateRendererTest extends TestCase
         $this->assertStringContainsString('Purchase Product One', $resultXml);
         $this->assertStringContainsString('Purchase Product Two', $resultXml);
         $this->assertStringNotContainsString('Sehubungan dengan kebutuhan pembelian kepada', $resultXml);
+
+        @unlink($output);
+    }
+
+    public function test_purchase_docx_does_not_append_signature_without_template_variable(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('settings.json', json_encode([
+            'head_office_signature' => 'signatures/head-office.png',
+        ]));
+        Storage::disk('public')->put('signatures/head-office.png', file_get_contents(public_path('img/logo.jpeg')));
+
+        $pembelian = $this->createPurchaseWithItems();
+        $templatePath = 'templates/documents/suppliers/'.$pembelian->supplier_id.'/supplier-po.docx';
+        $pembelian->supplier->update(['po_template' => $templatePath]);
+        Storage::disk('public')->put($templatePath, file_get_contents(base_path('template_alami_pembelian.docx')));
+
+        $output = app(DocumentTemplateRenderer::class)->renderPurchaseDocx($pembelian);
+        $zip = new ZipArchive();
+        $this->assertTrue($zip->open($output) === true);
+        $documentXml = $zip->getFromName('word/document.xml');
+        $relationshipsXml = $zip->getFromName('word/_rels/document.xml.rels');
+
+        $this->assertStringNotContainsString('Head Office Signature', $documentXml);
+        $this->assertStringNotContainsString('head-office-signature.png', $relationshipsXml);
+        $zip->close();
+
+        @unlink($output);
+    }
+
+    public function test_purchase_docx_signature_variable_is_rendered_at_the_template_marker(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('signatures/company-ttd.png', file_get_contents(public_path('img/logo.jpeg')));
+        Storage::disk('public')->put('settings.json', json_encode([
+            'head_office_signature' => 'signatures/company-ttd.png',
+        ]));
+
+        $pembelian = $this->createPurchaseWithItems();
+        $templatePath = 'templates/documents/suppliers/'.$pembelian->supplier_id.'/supplier-po-signature.docx';
+        $pembelian->supplier->update(['po_template' => $templatePath]);
+
+        $temporaryTemplate = tempnam(sys_get_temp_dir(), 'alami-signature-docx-');
+        file_put_contents($temporaryTemplate, file_get_contents(base_path('template_alami_pembelian.docx')));
+        $zip = new ZipArchive();
+        $this->assertTrue($zip->open($temporaryTemplate) === true);
+        $documentXml = $zip->getFromName('word/document.xml');
+        $this->assertStringContainsString('<w:t>Hormat</w:t>', $documentXml);
+        $documentXml = str_replace(
+            '<w:t>Hormat</w:t>',
+            '<w:t>{{company.ttd}}</w:t>',
+            $documentXml,
+            $replacementCount,
+        );
+        $this->assertSame(1, $replacementCount);
+        $zip->addFromString('word/document.xml', $documentXml);
+        $zip->close();
+        Storage::disk('public')->put($templatePath, file_get_contents($temporaryTemplate));
+        @unlink($temporaryTemplate);
+
+        $output = app(DocumentTemplateRenderer::class)->renderPurchaseDocx($pembelian);
+        $resultZip = new ZipArchive();
+        $this->assertTrue($resultZip->open($output) === true);
+        $resultXml = $resultZip->getFromName('word/document.xml');
+        $relationshipsXml = $resultZip->getFromName('word/_rels/document.xml.rels');
+
+        $this->assertStringNotContainsString('{{company.ttd}}', $resultXml);
+        $this->assertStringContainsString('<wp:docPr id="900000001" name="Company TTD"', $resultXml);
+        $this->assertStringNotContainsString('Head Office Signature', $resultXml);
+        $this->assertStringContainsString('company-ttd.png', $relationshipsXml);
+        $this->assertNotFalse($resultZip->getFromName('word/media/company-ttd.png'));
+        $resultZip->close();
 
         @unlink($output);
     }

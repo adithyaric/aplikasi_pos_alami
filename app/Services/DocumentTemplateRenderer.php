@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use ZipArchive;
 
@@ -35,9 +36,10 @@ class DocumentTemplateRenderer
             ? $this->templates->resolvePurchase(DocumentTemplateManager::PURCHASE_DOCX, $pembelian->supplier)['path']
             : $this->templates->resolve(DocumentTemplateManager::PURCHASE_DOCX)['path'];
         $target = $this->temporaryPath('docx');
+        abort_unless(copy($source, $target), 500, 'Template DOCX tidak dapat disalin.');
 
         $zip = new ZipArchive();
-        abort_unless($zip->open($source) === true, 500, 'Template DOCX tidak dapat dibuka.');
+        abort_unless($zip->open($target) === true, 500, 'Template DOCX tidak dapat dibuka.');
 
         $document = new DOMDocument('1.0', 'UTF-8');
         $document->preserveWhiteSpace = false;
@@ -49,16 +51,13 @@ class DocumentTemplateRenderer
         $context = $this->purchaseContext($pembelian);
         $this->expandDocxItemRows($xpath, count($context['items']));
         $this->ensureDocxItemRowBorders($xpath);
+        $this->replaceDocxLogoToken($zip, $document);
+        $this->replaceDocxSignatureToken($zip, $document);
         $this->replaceDocxTokens($xpath, $context['variables'], $context['items']);
 
         $zip->addFromString('word/document.xml', $document->saveXML());
         $this->replaceDocxLogo($zip);
-        $workDir = $this->temporaryDirectory();
-        $zip->extractTo($workDir);
         $zip->close();
-
-        $this->repackZip($workDir, $target);
-        $this->removeDirectory($workDir);
 
         return $target;
     }
@@ -597,6 +596,38 @@ class DocumentTemplateRenderer
                         continue;
                     }
 
+                    if (trim($value) === '{{company.logo}}') {
+                        $cell->setValue(null);
+                        $logoPath = $this->companyLogoPath();
+                        if ($logoPath) {
+                            $drawing = new Drawing();
+                            $drawing->setName('Company Logo');
+                            $drawing->setDescription('Logo perusahaan');
+                            $drawing->setPath($logoPath);
+                            $drawing->setHeight(45);
+                            $drawing->setCoordinates($cell->getCoordinate());
+                            $drawing->setWorksheet($sheet);
+                        }
+
+                        continue;
+                    }
+
+                    if (trim($value) === '{{company.ttd}}') {
+                        $cell->setValue(null);
+                        $signaturePath = $this->companySignaturePath();
+                        if ($signaturePath) {
+                            $drawing = new Drawing();
+                            $drawing->setName('Company TTD');
+                            $drawing->setDescription('TTD perusahaan');
+                            $drawing->setPath($signaturePath);
+                            $drawing->setHeight(45);
+                            $drawing->setCoordinates($cell->getCoordinate());
+                            $drawing->setWorksheet($sheet);
+                        }
+
+                        continue;
+                    }
+
                     $cell->setValue($this->replaceTemplateTokens(
                         $value,
                         $variables,
@@ -634,7 +665,10 @@ class DocumentTemplateRenderer
                     $index = $itemIndex ?? 0;
                 }
 
-                return (string) (($items[$index] ?? [])[$field] ?? '');
+                return $this->formatTemplateValue(
+                    $namespace.'.'.$field,
+                    ($items[$index] ?? [])[$field] ?? '',
+                );
             },
             $value,
         );
@@ -677,6 +711,159 @@ class DocumentTemplateRenderer
             $zip->addFromString('word/media/image1.png', Storage::disk('public')->get($logoPath));
         } elseif (is_file(public_path('img/logo.jpeg'))) {
             $zip->addFromString('word/media/image1.png', file_get_contents(public_path('img/logo.jpeg')));
+        }
+    }
+
+    private function replaceDocxLogoToken(ZipArchive $zip, DOMDocument $document): void
+    {
+        $logoPath = $this->companyLogoPath();
+        if (! $logoPath) {
+            return;
+        }
+
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        foreach ($xpath->query('//w:p') as $paragraph) {
+            $textNodes = $xpath->query('.//w:t', $paragraph);
+            $text = '';
+            foreach ($textNodes as $textNode) {
+                $text .= (string) $textNode->nodeValue;
+            }
+
+            if (trim($text) !== '{{company.logo}}') {
+                continue;
+            }
+
+            foreach ($textNodes as $textNode) {
+                $textNode->nodeValue = '';
+            }
+            $this->appendDocxImage($zip, $document, $paragraph, $logoPath, 'Company Logo', 'company-logo');
+        }
+    }
+
+    private function replaceDocxSignatureToken(ZipArchive $zip, DOMDocument $document): void
+    {
+        $signaturePath = $this->companySignaturePath();
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        foreach ($xpath->query('//w:p') as $paragraph) {
+            $textNodes = $xpath->query('.//w:t', $paragraph);
+            $text = '';
+            foreach ($textNodes as $textNode) {
+                $text .= (string) $textNode->nodeValue;
+            }
+
+            $token = '{{company.ttd}}';
+            if (! str_contains($text, $token)) {
+                continue;
+            }
+
+            $remainingText = str_replace($token, '', $text);
+            foreach ($textNodes as $index => $textNode) {
+                $textNode->nodeValue = $index === 0 ? $remainingText : '';
+            }
+
+            if ($signaturePath) {
+                $this->appendDocxImage(
+                    $zip,
+                    $document,
+                    $paragraph,
+                    $signaturePath,
+                    'Company TTD',
+                    'company-ttd',
+                );
+            }
+        }
+    }
+
+    private function appendDocxImage(
+        ZipArchive $zip,
+        DOMDocument $document,
+        ?DOMElement $paragraph,
+        string $path,
+        string $name,
+        string $fileBaseName,
+    ): void {
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (! in_array($extension, ['jpg', 'jpeg', 'png'], true) || ! is_file($path) || ! $paragraph) {
+            return;
+        }
+
+        $mimeType = match ($extension) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            default => 'image/png',
+        };
+        $mediaName = $fileBaseName.'.'.$extension;
+        $zip->addFromString('word/media/'.$mediaName, file_get_contents($path));
+
+        $relationships = new DOMDocument('1.0', 'UTF-8');
+        $relationships->preserveWhiteSpace = false;
+        $relationships->loadXML($zip->getFromName('word/_rels/document.xml.rels'));
+        $relationshipNamespace = 'http://schemas.openxmlformats.org/package/2006/relationships';
+        $relationshipId = 0;
+
+        foreach ($relationships->documentElement->childNodes as $relationship) {
+            if ($relationship instanceof DOMElement
+                && preg_match('/^rId(\d+)$/', (string) $relationship->getAttribute('Id'), $matches)) {
+                $relationshipId = max($relationshipId, (int) $matches[1]);
+            }
+        }
+
+        $relationshipId = 'rId'.($relationshipId + 1);
+        $relationship = $relationships->createElementNS($relationshipNamespace, 'Relationship');
+        $relationship->setAttribute('Id', $relationshipId);
+        $relationship->setAttribute('Type', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image');
+        $relationship->setAttribute('Target', 'media/'.$mediaName);
+        $relationships->documentElement->appendChild($relationship);
+        $zip->addFromString('word/_rels/document.xml.rels', $relationships->saveXML());
+
+        $this->ensureDocxImageContentType($zip, $extension, $mimeType);
+
+        $drawing = sprintf(
+            '<w:r xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                <w:rPr><w:noProof/></w:rPr>
+                <w:drawing>
+                    <wp:inline distT="0" distB="0" distL="0" distR="0">
+                        <wp:extent cx="1800000" cy="900000"/>
+                        <wp:docPr id="900000001" name="%s"/>
+                        <wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>
+                        <a:graphic>
+                            <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                                <pic:pic>
+                                    <pic:nvPicPr><pic:cNvPr id="900000001" name="%s"/><pic:cNvPicPr/></pic:nvPicPr>
+                                    <pic:blipFill><a:blip r:embed="%s"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+                                    <pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1800000" cy="900000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+                                </pic:pic>
+                            </a:graphicData>
+                        </a:graphic>
+                    </wp:inline>
+                </w:drawing>
+            </w:r>',
+            htmlspecialchars($name, ENT_XML1),
+            htmlspecialchars($name, ENT_XML1),
+            $relationshipId,
+        );
+        $fragment = $document->createDocumentFragment();
+        $fragment->appendXML($drawing);
+        $paragraph->appendChild($fragment);
+    }
+
+    private function ensureDocxImageContentType(ZipArchive $zip, string $extension, string $mimeType): void
+    {
+        $contentTypes = new DOMDocument('1.0', 'UTF-8');
+        $contentTypes->preserveWhiteSpace = false;
+        $contentTypes->loadXML($zip->getFromName('[Content_Types].xml'));
+        $xpath = new DOMXPath($contentTypes);
+        $namespace = 'http://schemas.openxmlformats.org/package/2006/content-types';
+        $xpath->registerNamespace('ct', $namespace);
+
+        if ($xpath->query("/ct:Types/ct:Default[@Extension='{$extension}']")->length === 0) {
+            $default = $contentTypes->createElementNS($namespace, 'Default');
+            $default->setAttribute('Extension', $extension);
+            $default->setAttribute('ContentType', $mimeType);
+            $contentTypes->documentElement->appendChild($default);
+            $zip->addFromString('[Content_Types].xml', $contentTypes->saveXML());
         }
     }
 
@@ -854,10 +1041,16 @@ class DocumentTemplateRenderer
 
                 if (is_array($value)) {
                     foreach ($value as $nestedKey => $nestedValue) {
-                        $variables['{{'.$group.'.'.$key.'.'.$nestedKey.'}}'] = (string) $nestedValue;
+                        $variables['{{'.$group.'.'.$key.'.'.$nestedKey.'}}'] = $this->formatTemplateValue(
+                            $group.'.'.$key.'.'.$nestedKey,
+                            $nestedValue,
+                        );
                     }
                 } else {
-                    $variables['{{'.$group.'.'.$key.'}}'] = (string) $value;
+                    $variables['{{'.$group.'.'.$key.'}}'] = $this->formatTemplateValue(
+                        $group.'.'.$key,
+                        $value,
+                    );
                 }
             }
         }
@@ -871,20 +1064,49 @@ class DocumentTemplateRenderer
     {
         foreach ($items as $index => $item) {
             foreach ($item as $key => $value) {
-                $variables['{{'.$prefix.'.'.($index + 1).'.'.$key.'}}'] = (string) $value;
+                $formattedValue = $this->formatTemplateValue($prefix.'.'.$key, $value);
+                $variables['{{'.$prefix.'.'.($index + 1).'.'.$key.'}}'] = $formattedValue;
 
                 if (! $addRowAliases) {
                     continue;
                 }
 
                 // Backward-compatible aliases for table rows and old custom templates.
-                $variables['{{item.'.($index + 1).'.'.$key.'}}'] = (string) $value;
-                $variables['{{items.'.$index.'.'.$key.'}}'] = (string) $value;
+                $aliasValue = $this->formatTemplateValue('item.'.$key, $value);
+                $variables['{{item.'.($index + 1).'.'.$key.'}}'] = $aliasValue;
+                $variables['{{items.'.$index.'.'.$key.'}}'] = $this->formatTemplateValue('items.'.$key, $value);
                 if ($index === 0) {
-                    $variables['{{item.'.$key.'}}'] = (string) $value;
+                    $variables['{{item.'.$key.'}}'] = $aliasValue;
                 }
             }
         }
+    }
+
+    private function formatTemplateValue(string $path, mixed $value): string
+    {
+        $rupiahPaths = [
+            'purchase.items.price',
+            'purchase.items.discount',
+            'purchase.items.subtotal',
+            'sale.items.price',
+            'sale.items.discount',
+            'sale.items.subtotal',
+            'sale.subtotal',
+            'sale.discount',
+            'sale.total',
+            'item.price',
+            'item.discount',
+            'item.subtotal',
+            'items.price',
+            'items.discount',
+            'items.subtotal',
+        ];
+
+        if (in_array($path, $rupiahPaths, true)) {
+            return 'Rp '.number_format((float) ($value ?? 0), 0, ',', '.');
+        }
+
+        return (string) ($value ?? '');
     }
 
     private function companyContext(array $settings): array
@@ -896,7 +1118,35 @@ class DocumentTemplateRenderer
             'email' => (string) ($settings['email'] ?? '-'),
             'website' => (string) ($settings['website'] ?? ''),
             'contact' => (string) ($settings['telp'] ?? '-'),
+            'logo' => (string) ($settings['logo'] ?? ''),
+            // Rendered as an image only when the admin places {{company.ttd}}.
+            'ttd' => '',
+            'nib' => (string) ($settings['nib'] ?? '-'),
+            'nppbkc' => (string) ($settings['nppbkc'] ?? '086894235-071000-8120013020427'),
+            'gol_pab' => (string) ($settings['gol_pab'] ?? 'III B'),
         ];
+    }
+
+    private function companyLogoPath(): ?string
+    {
+        $logoPath = $this->templates->settings()['logo'] ?? null;
+
+        if ($logoPath && Storage::disk('public')->exists($logoPath)) {
+            return Storage::disk('public')->path($logoPath);
+        }
+
+        return null;
+    }
+
+    private function companySignaturePath(): ?string
+    {
+        $signaturePath = $this->templates->settings()['head_office_signature'] ?? null;
+
+        if ($signaturePath && Storage::disk('public')->exists($signaturePath)) {
+            return Storage::disk('public')->path($signaturePath);
+        }
+
+        return null;
     }
 
     private function itemContext($code, $name, $qty, $unit, $price, $subtotal, int $no, $discount = 0): array

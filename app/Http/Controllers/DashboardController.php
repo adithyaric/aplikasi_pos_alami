@@ -211,6 +211,24 @@ class DashboardController extends Controller
             'address' => $settings['address'] ?? '',
             'website' => $settings['website'] ?? '',
             'logo'    => $settings['logo'] ?? '',
+            'headOfficeSignature' => $settings['head_office_signature'] ?? '',
+        ]);
+    }
+
+    public function settingMedia(string $type)
+    {
+        abort_unless(in_array($type, ['logo', 'signature'], true), 404);
+
+        $settings = $this->getSettingsData();
+        $path = $type === 'logo'
+            ? ($settings['logo'] ?? null)
+            : ($settings['head_office_signature'] ?? null);
+        $storage = Storage::disk('public');
+
+        abort_unless($path && $storage->exists($path), 404);
+
+        return response()->file($storage->path($path), [
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
         ]);
     }
 
@@ -225,6 +243,7 @@ class DashboardController extends Controller
             'address' => 'required',
             'website' => 'nullable|url',
             'logo'    => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'head_office_signature' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ], [
             'logo.image' => 'File yang diunggah harus berupa gambar.',
             'logo.mimes' => 'Logo harus bertipe: jpeg, png, jpg, atau gif.',
@@ -244,6 +263,12 @@ class DashboardController extends Controller
             $this->deletePublicFile($settings['logo'] ?? null);
             $path = $request->file('logo')->store('logos', 'public');
             $data['logo'] = $path;
+        }
+
+        if ($request->hasFile('head_office_signature')) {
+            $this->deletePublicFile($settings['head_office_signature'] ?? null);
+            $path = $request->file('head_office_signature')->store('signatures', 'public');
+            $data['head_office_signature'] = $path;
         }
 
         Storage::disk('public')->put('settings.json', json_encode($data));

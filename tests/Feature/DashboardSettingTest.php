@@ -73,4 +73,49 @@ class DashboardSettingTest extends TestCase
         $downloadXlsx->assertOk();
         $downloadXlsx->assertHeader('content-disposition', 'attachment; filename=pembelian-xlsx.xlsx');
     }
+
+    public function test_head_office_signature_can_be_uploaded_from_settings(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create([
+            'role' => 'superadmin',
+            'username' => 'signature-setting-admin',
+            'email' => 'signature-setting-admin@alami.test',
+        ]);
+
+        $response = $this->actingAs($user)->post(route('setting.store'), [
+            'name' => 'Configured Company',
+            'address' => 'Configured Address',
+            'telp' => '08123456789',
+            'email' => 'company@example.test',
+            'website' => 'https://example.test',
+            'logo' => UploadedFile::fake()->image('company-logo.png'),
+            'head_office_signature' => UploadedFile::fake()->image('head-office-signature.png'),
+        ]);
+
+        $response->assertRedirect(route('setting'));
+        Storage::disk('public')->assertExists('settings.json');
+        $this->assertNotEmpty(Storage::disk('public')->allFiles('signatures'));
+        $this->actingAs($user)
+            ->get(route('setting'))
+            ->assertOk()
+            ->assertSee(route('setting.media', 'logo'), false)
+            ->assertSee('&#123;&#123;company.logo&#125;&#125;', false)
+            ->assertSee('TTD saat ini')
+            ->assertSee(route('setting.media', 'signature'), false)
+            ->assertSee('&#123;&#123;company.ttd&#125;&#125;', false);
+        $this->actingAs($user)
+            ->get(route('setting.media', 'signature'))
+            ->assertOk()
+            ->assertHeader('content-type', 'image/png');
+        $this->actingAs($user)
+            ->get(route('setting.media', 'logo'))
+            ->assertOk()
+            ->assertHeader('content-type', 'image/png');
+        $this->assertSame(
+            'Configured Company',
+            json_decode(Storage::disk('public')->get('settings.json'), true)['name'],
+        );
+    }
 }

@@ -21,7 +21,6 @@
                 <th style="width:16%">Nama Barang</th>
                 <th style="width:5%">Qty</th>
                 <th style="width:5%">Satuan</th>
-                <th style="width:8%">Lokasi</th>
                 <th style="width:6%">PIC</th>
                 <th style="width:7%">Status</th>
                 <th style="width:12%">Keterangan</th>
@@ -39,14 +38,13 @@
                     @php $k = $m->product?->konversiDisplay($m->qty); @endphp
                     <td class="tc">{{ $m->qty . ($k && $k !== '-' ? " ({$k})" : '') }}</td>
                     <td class="tc">{{ $m->product?->satuan ?? 'PCS' }}</td>
-                    <td class="tc">{{ $m->lokasi }}</td>
                     <td class="tc">{{ $m->pic }}</td>
                     <td class="tc">{{ $m->status }}</td>
                     <td>{{ $m->notes }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="12" class="tc">Tidak ada data</td>
+                    <td colspan="11" class="tc">Tidak ada data</td>
                 </tr>
             @endforelse
         </tbody>

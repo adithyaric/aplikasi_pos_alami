@@ -228,7 +228,7 @@ class PenjualanController extends Controller
                 $this->ensureBranchSaleCreateAccess();
 
                 $penjualan = $this->branchPenjualanManager->create([
-                    'code' => $this->generateBranchSaleCode(),
+                    'code' => $this->generateBranchSaleCode(Carbon::parse($request->sale_date)),
                     'offline_client_id' => $offlineClientId,
                     'buyer_id' => (int) $request->outlet_target_id,
                     'sale_date' => $request->sale_date,
@@ -256,7 +256,7 @@ class PenjualanController extends Controller
             }
 
             $penjualan = $this->warehousePenjualanManager->create([
-                'code' => $this->generateWarehouseSaleCode(),
+                'code' => $this->generateWarehouseSaleCode(Carbon::parse($request->sale_date)),
                 'offline_client_id' => $offlineClientId,
                 'buyer_type' => $request->buyer_type,
                 'buyer_id' => $this->resolveBuyerTargetId($request),
@@ -775,27 +775,51 @@ class PenjualanController extends Controller
         };
     }
 
-    private function generateWarehouseSaleCode(): string
+    private function generateWarehouseSaleCode(?Carbon $date = null): string
     {
-        $lastSale = Penjualan::warehouseSales()->latest('id')->first();
-        $nextNumber = $lastSale ? ((int) substr((string) $lastSale->code, 3) + 1) : 1;
-
-        return 'PNJ'.str_pad((string) $nextNumber, 5, '0', STR_PAD_LEFT);
-    }
-
-    private function generateBranchSaleCode(): string
-    {
-        $lastSale = Penjualan::branchSales()
-            ->where('code', 'like', 'INV-CBG-%')
-            ->latest('id')
-            ->first();
-
+        $date ??= now();
+        $suffix = $date->format('m.y');
         $nextNumber = 1;
-        if ($lastSale && preg_match('/(\d+)$/', (string) $lastSale->code, $matches)) {
-            $nextNumber = ((int) $matches[1]) + 1;
+
+        Penjualan::withTrashed()
+            ->where('sale_channel', 'warehouse')
+            ->pluck('code')
+            ->each(function (string $code) use (&$nextNumber): void {
+                if (preg_match('/^(\d{4})\.\d{2}\.\d{2}$/', $code, $matches)
+                    || preg_match('/^PNJ(\d+)$/', $code, $matches)) {
+                    $nextNumber = max($nextNumber, (int) $matches[1] + 1);
+                }
+            });
+
+        while (Penjualan::withTrashed()->where('code', sprintf('%04d.%s', $nextNumber, $suffix))->exists()) {
+            $nextNumber++;
         }
 
-        return 'INV-CBG-'.str_pad((string) $nextNumber, 5, '0', STR_PAD_LEFT);
+        return sprintf('%04d.%s', $nextNumber, $suffix);
+    }
+
+    private function generateBranchSaleCode(?Carbon $date = null): string
+    {
+        $date ??= now();
+        $suffix = $date->format('m.y');
+        $nextNumber = 1;
+
+        Penjualan::withTrashed()
+            ->where('sale_channel', 'branch')
+            ->pluck('code')
+            ->each(function (string $code) use (&$nextNumber): void {
+                if (preg_match('/^CBG\.(\d{4})\.\d{2}\.\d{2}$/', $code, $matches)
+                    || preg_match('/^(\d{4})\.\d{2}\.\d{2}$/', $code, $matches)
+                    || preg_match('/^INV-CBG-(\d+)$/', $code, $matches)) {
+                    $nextNumber = max($nextNumber, (int) $matches[1] + 1);
+                }
+            });
+
+        while (Penjualan::withTrashed()->where('code', sprintf('CBG.%04d.%s', $nextNumber, $suffix))->exists()) {
+            $nextNumber++;
+        }
+
+        return sprintf('CBG.%04d.%s', $nextNumber, $suffix);
     }
 
     private function salesFilterState(Request $request): array

@@ -42,7 +42,7 @@ class ProductImport extends Model
 
     public function requestedBy(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'requested_by');
+        return $this->belongsTo(User::class, 'requested_by')->withTrashed();
     }
 
     public function failures(): HasMany

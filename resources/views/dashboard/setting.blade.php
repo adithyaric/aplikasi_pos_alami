@@ -46,12 +46,29 @@
                             <div class="form-group">
                                 <label for="logo">Logo Perusahaan</label>
                                 <input class="form-control" type="file" name="logo" id="logo" accept="image/*">
+                                <p class="help-block">Gunakan variabel <code>&#123;&#123;company.logo&#125;&#125;</code> pada template untuk menampilkan logo.</p>
                                 @error('logo') <div class="text-danger">{{ $message }}</div> @enderror
                                 @if ($logo)
                                     <div style="margin-top:10px">
-                                        <img src="{{ Storage::url($logo) }}" alt="Logo" style="max-height:80px;">
+                                        <img src="{{ route('setting.media', 'logo') }}" alt="Logo" style="max-height:80px;">
                                     </div>
                                 @endif
+                            </div>
+                            <div class="form-group">
+                                <label for="head_office_signature">TTD Head Office</label>
+                                <input class="form-control" type="file" name="head_office_signature" id="head_office_signature" accept="image/*">
+                                <p class="help-block">Gunakan variabel <code>&#123;&#123;company.ttd&#125;&#125;</code> pada template dokumen untuk menempatkan gambar ini.</p>
+                                @error('head_office_signature') <div class="text-danger">{{ $message }}</div> @enderror
+                                @if ($headOfficeSignature)
+                                    <div id="head_office_signature_current" style="margin-top:10px">
+                                        <div><strong>TTD saat ini:</strong></div>
+                                        <img src="{{ route('setting.media', 'signature') }}" alt="TTD Head Office" style="max-height:100px; max-width:260px;">
+                                    </div>
+                                @endif
+                                <div id="head_office_signature_preview_wrapper" style="display:none; margin-top:10px">
+                                    <div><strong>Preview TTD baru:</strong></div>
+                                    <img id="head_office_signature_preview" src="" alt="Preview TTD Head Office" style="max-height:100px; max-width:260px;">
+                                </div>
                             </div>
                         </div>
                         <div class="box-footer">
@@ -62,4 +79,37 @@
             </div>
         </form>
     </section>
+@endsection
+
+@section('page-script')
+<script>
+    (function () {
+        var input = document.getElementById('head_office_signature');
+        var preview = document.getElementById('head_office_signature_preview');
+        var wrapper = document.getElementById('head_office_signature_preview_wrapper');
+        var current = document.getElementById('head_office_signature_current');
+
+        if (!input || !preview || !wrapper) {
+            return;
+        }
+
+        input.addEventListener('change', function () {
+            var file = input.files && input.files[0];
+            if (!file) {
+                wrapper.style.display = 'none';
+                return;
+            }
+
+            var reader = new FileReader();
+            reader.onload = function (event) {
+                preview.src = event.target.result;
+                wrapper.style.display = 'block';
+                if (current) {
+                    current.style.opacity = '0.45';
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }());
+</script>
 @endsection

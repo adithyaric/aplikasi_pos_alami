@@ -46,6 +46,7 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/setting', [DashboardController::class, 'setting'])->name('setting');
+    Route::get('/setting/media/{type}', [DashboardController::class, 'settingMedia'])->name('setting.media');
     Route::post('/setting-store', [DashboardController::class, 'store'])->name('setting.store');
     Route::get('/get-customer/{penjualan_id}', [CustomerController::class, 'getCustomer']);
     Route::get('/get-penjualan/{outlet_id}', [PenjualanController::class, 'getPenjualan']);

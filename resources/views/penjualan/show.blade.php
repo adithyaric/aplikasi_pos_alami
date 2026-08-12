@@ -143,20 +143,18 @@
                         {{-- <a href="{{ route('refund.create', ['penjualan_id' => $penjualan->id]) }}" class="btn btn-danger"> --}}
                             {{-- <i class="fa fa-undo"></i> Retur --}}
                         {{-- </a> --}}
-                        @if ($penjualan->isBranchSale() || $penjualan->isWarehouseSale())
-                        <a href="{{ route('laporan.penjualan.nota', $penjualan) }}" class="btn btn-warning">
+                        @if (in_array($penjualan->buyer_type, ['agent', 'canvas'], true))
+                        <a href="{{ route('laporan.penjualan.invoice', $penjualan) }}" class="btn btn-warning">
+                            <i class="fa fa-file-excel-o"></i> Print Invoice
+                        </a>
+                        @elseif ($penjualan->buyer_type === 'outlet')
+                        <a href="{{ route('laporan.penjualan.surat-jalan', $penjualan) }}" class="btn btn-info">
+                            <i class="fa fa-file-excel-o"></i> Print Surat Jalan
+                        </a>
+                        @elseif ($penjualan->isBranchSale() && $penjualan->buyer_type === 'toko')
+                        <a href="{{ route('laporan.penjualan.nota', $penjualan) }}" class="btn btn-default">
                             <i class="fa fa-print"></i> Print Nota
                         </a>
-                        @elseif ($penjualan->buyer_type_label != 'Cabang')
-                        <a href="{{ route('laporan.penjualan.invoice', $penjualan) }}" class="btn btn-warning">
-                            <i class="fa fa-file-excel-o"></i> Invoice
-                        </a>
-                        @else
-                        @if (! in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true))
-                        <a href="{{ route('laporan.penjualan.surat-jalan', $penjualan) }}" class="btn btn-info">
-                            <i class="fa fa-file-excel-o"></i> Surat Jalan
-                        </a>
-                        @endif
                         @endif
                     </div>
                 </div>

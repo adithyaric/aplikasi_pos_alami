@@ -141,11 +141,17 @@
                             </a>
                         @endif
                         @if ($supplierId && $pembelians->isNotEmpty())
-                            <a href="{{ route('laporan.pembelian.bulk', request()->query()) }}"
-                                class="btn btn-md btn-success" target="_blank"
-                                title="Cetak semua PO pada supplier dan filter periode aktif">
-                                <i class="fa fa-print"></i> Cetak Semua PO Supplier
-                            </a>
+                            <form id="bulkExportForm" action="{{ route('laporan.pembelian.bulk') }}" method="GET"
+                                target="_blank" style="display:inline">
+                                <input type="hidden" name="supplier_id" value="{{ $supplierId }}">
+                                <input type="hidden" name="period" value="{{ $filterPeriod }}">
+                                <input type="hidden" name="date_from" value="{{ $dateFrom }}">
+                                <input type="hidden" name="date_to" value="{{ $dateTo }}">
+                                <button type="submit" id="bulkExportButton" class="btn btn-md btn-success" disabled
+                                    title="Cetak Semua PO Supplier sesuai template; pilih satu atau beberapa PO untuk dicetak">
+                                    <i class="fa fa-print"></i> Cetak PO Terpilih
+                                </button>
+                            </form>
                         @endif
                         {{-- <a href="{{ route('refundPembelian.index') }}" class="btn btn-md bg-green"> --}}
                             {{-- <i class="fa fa-refresh"></i> Refund PO --}}
@@ -156,6 +162,9 @@
                             <thead>
                                 <tr>
                                     <th width="40">No</th>
+                                    @if ($supplierId)
+                                        <th width="35" class="text-center"><input type="checkbox" id="selectAllPurchases" title="Pilih semua"></th>
+                                    @endif
                                     <th>Kode PO</th>
                                     <th>Customer PO</th>
                                     <th>Supplier</th>
@@ -178,6 +187,12 @@
                                     @endphp
                                     <tr>
                                         <td>{{ $loop->iteration }}</td>
+                                        @if ($supplierId)
+                                            <td class="text-center">
+                                                <input type="checkbox" class="purchase-checkbox" name="pembelian_ids[]"
+                                                    value="{{ $value->id }}" form="bulkExportForm">
+                                            </td>
+                                        @endif
                                         <td><strong>{{ $value->code }}</strong></td>
                                         <td>{{ $value->customer_po ?: '-' }}</td>
                                         <td>{{ $value->supplier?->name }}</td>
@@ -358,6 +373,23 @@
                 $extra.hide();
                 $badge.text('Selengkapnya (' + $extra.length + ')');
                 $(this).data('state', 'closed');
+            }
+        });
+
+        function updateBulkExportState() {
+            var selected = $('.purchase-checkbox:checked').length;
+            $('#bulkExportButton').prop('disabled', selected === 0);
+        }
+
+        $(document).on('change', '.purchase-checkbox', updateBulkExportState);
+        $('#selectAllPurchases').on('change', function () {
+            $('.purchase-checkbox').prop('checked', this.checked);
+            updateBulkExportState();
+        });
+
+        $('#bulkExportForm').on('submit', function (event) {
+            if ($('.purchase-checkbox:checked').length === 0) {
+                event.preventDefault();
             }
         });
     });

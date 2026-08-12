@@ -45,12 +45,12 @@ class DeliveryOrder extends Model
 
     public function preparedBy()
     {
-        return $this->belongsTo(User::class, 'prepared_by');
+        return $this->belongsTo(User::class, 'prepared_by')->withTrashed();
     }
 
     public function receivedBy()
     {
-        return $this->belongsTo(User::class, 'received_by');
+        return $this->belongsTo(User::class, 'received_by')->withTrashed();
     }
 
     public function items()

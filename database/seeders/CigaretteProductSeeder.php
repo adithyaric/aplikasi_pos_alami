@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Storage;
 
 class CigaretteProductSeeder extends Seeder
 {
@@ -16,55 +17,60 @@ class CigaretteProductSeeder extends Seeder
             'type' => 'product',
         ]);
 
-        $supplier = Supplier::updateOrCreate(
-            ['kode_supplier' => 'S00001'],
+        $supplierAttributes = [
             [
-                'name' => 'Pabrik ALAMI',
+                'kode_supplier' => 'S00001',
+                'name' => 'PR Tunas Mandiri',
                 'alamat' => 'Jl. Industri Tembakau No. 88, Yogyakarta',
                 'no_telp' => '+622741110001',
                 'po_number_prefix' => Supplier::DEFAULT_PO_NUMBER_FORMAT,
                 'po_number_padding' => 5,
+                'template' => 'xlsx',
+            ],
+            [
+                'kode_supplier' => 'S00002',
+                'name' => 'Margantara Jaya Corp',
+                'alamat' => 'Jl. Margantara Jaya No. 12, Yogyakarta',
+                'no_telp' => '+622716660002',
+                'po_number_prefix' => Supplier::DEFAULT_PO_NUMBER_FORMAT,
+                'po_number_padding' => 5,
+                'template' => 'docx',
+            ],
+        ];
+
+        // The operational setup has exactly these two seeded suppliers. Retire
+        // the two suppliers from the previous four-supplier demo setup without
+        // touching suppliers created by an administrator.
+        Supplier::whereIn('kode_supplier', ['S00003', 'S00004'])->get()->each->delete();
+
+        $suppliers = collect($supplierAttributes)->map(function (array $attributes) {
+            $templateType = $attributes['template'];
+            unset($attributes['template']);
+
+            $supplier = Supplier::withTrashed()->firstOrNew([
+                'kode_supplier' => $attributes['kode_supplier'],
+            ]);
+            $supplier->fill(array_merge($attributes, [
                 'deadline_days' => [1, 4],
                 'deadline_interval_weeks' => 1,
                 'deadline_reference_date' => now()->startOfWeek(),
-            ]
-        );
+            ]));
+            if ($supplier->trashed()) {
+                $supplier->restore();
+            }
+            $supplier->save();
 
-        $additionalSuppliers = collect([
-            [
-                'kode_supplier' => 'S00002',
-                'name' => 'PT Nusantara Tobacco',
-                'alamat' => 'Jl. Raya Industri No. 12, Surakarta',
-                'no_telp' => '+622716660002',
-                'po_number_prefix' => 'PO-{YYYY}{MM}-{SUPPLIER_CODE}-{SEQ}',
-                'po_number_padding' => 5,
-            ],
-            [
-                'kode_supplier' => 'S00003',
-                'name' => 'CV Mitra Kretek',
-                'alamat' => 'Jl. Tembakau Sejahtera No. 7, Kudus',
-                'no_telp' => '+622916660003',
-                'po_number_prefix' => 'PO-{SEQ}-{SUPPLIER_CODE}-{YYYY}{MM}',
-                'po_number_padding' => 4,
-            ],
-            [
-                'kode_supplier' => 'S00004',
-                'name' => 'PT Sumber Rasa Indonesia',
-                'alamat' => 'Jl. Pabrik Makmur No. 45, Malang',
-                'no_telp' => '+623416660004',
-                'po_number_prefix' => 'PO-{SUPPLIER_CODE}-{YYYY}-{MM}-{SEQ}',
-                'po_number_padding' => 6,
-            ],
-        ])->map(function (array $attributes) {
-            return Supplier::updateOrCreate(
-                ['kode_supplier' => $attributes['kode_supplier']],
-                array_merge($attributes, [
-                    'deadline_days' => [2, 5],
-                    'deadline_interval_weeks' => 2,
-                    'deadline_reference_date' => now()->startOfWeek(),
-                ])
-            );
+            $source = base_path('template_alami_pembelian.'.$templateType);
+            $path = 'templates/documents/suppliers/'.$supplier->id.'/template-po-'.$supplier->id.'.'.$templateType;
+            if (is_file($source)) {
+                Storage::disk('public')->put($path, file_get_contents($source));
+                $supplier->update(['po_template' => $path]);
+            }
+
+            return $supplier->fresh();
         });
+
+        $supplier = $suppliers->firstWhere('kode_supplier', 'S00001');
 
         $products = [
             [
@@ -124,8 +130,8 @@ class CigaretteProductSeeder extends Seeder
                 ])
             );
 
-            $product->suppliers()->syncWithoutDetaching(
-                collect([$supplier])->merge($additionalSuppliers)->pluck('id')->all()
+            $product->suppliers()->sync(
+                $suppliers->pluck('id')->all()
             );
         }
     }

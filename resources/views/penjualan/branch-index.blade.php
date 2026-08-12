@@ -158,12 +158,22 @@
                                                     <i class="fa fa-pencil"></i> Edit
                                                 </a>
                                             @endif
-                                            <a class="btn btn-warning btn-xs" href="{{ route('laporan.penjualan.nota', $penjualan) }}">
-                                                <i class="fa fa-print"></i> Print Nota
-                                            </a>
                                             @if (($penjualan->payment_status ?? 'unpaid') !== 'paid')
                                                 <a class="btn btn-success btn-xs" href="{{ route('penjualan.pembayaran.edit', $penjualan) }}">
                                                     <i class="fa fa-credit-card"></i> Pembayaran
+                                                </a>
+                                            @endif
+                                            @if (in_array($penjualan->buyer_type, ['agent', 'canvas'], true))
+                                                <a class="btn btn-warning btn-xs" href="{{ route('laporan.penjualan.invoice', $penjualan) }}">
+                                                    <i class="fa fa-file-excel-o"></i> Print Invoice
+                                                </a>
+                                            @elseif ($penjualan->buyer_type === 'outlet')
+                                                <a class="btn btn-info btn-xs" href="{{ route('laporan.penjualan.surat-jalan', $penjualan) }}">
+                                                    <i class="fa fa-file-excel-o"></i> Print Surat Jalan
+                                                </a>
+                                            @elseif ($penjualan->buyer_type === 'toko')
+                                                <a class="btn btn-default btn-xs" href="{{ route('laporan.penjualan.nota', $penjualan) }}">
+                                                    <i class="fa fa-print"></i> Print Nota
                                                 </a>
                                             @endif
                                         </td>

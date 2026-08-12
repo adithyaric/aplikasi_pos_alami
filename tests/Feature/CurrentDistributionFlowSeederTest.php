@@ -35,17 +35,19 @@ class CurrentDistributionFlowSeederTest extends TestCase
         $this->assertSame(6, User::where('role', 'sales')->count());
         $this->assertTrue(User::where('email', 'admin-gudang@alami.test')->where('role', 'admin-gudang')->exists());
         $this->assertTrue(User::where('email', 'owner@alami.test')->where('role', 'owner')->exists());
-        $this->assertTrue(Supplier::where('name', 'Pabrik ALAMI')->exists());
+        $this->assertTrue(Supplier::where('name', 'PR Tunas Mandiri')->exists());
+        $this->assertTrue(Supplier::where('name', 'Margantara Jaya Corp')->exists());
         $supplier = Supplier::where('kode_supplier', 'S00001')->firstOrFail();
         $this->assertSame(
             Supplier::DEFAULT_PO_NUMBER_FORMAT,
             $supplier->po_number_prefix,
         );
-        $this->assertSame(4, Supplier::count());
+        $this->assertSame(2, Supplier::count());
         $this->assertSame(
-            'PO-'.now()->format('Ym').'-S00002-00001',
+            'PO-S00002-'.now()->format('Ym').'-00002',
             Supplier::where('kode_supplier', 'S00002')->firstOrFail()->generateNextPoCode(),
         );
+        $this->assertSame(3, Pembelian::count());
         $this->assertSame(3, CustomerPo::count());
         $this->assertTrue(CustomerPo::where('name', 'PT Sumber Makmur')->exists());
         $this->assertTrue(Pembelian::where('supplier_id', $supplier->id)
@@ -55,12 +57,32 @@ class CurrentDistributionFlowSeederTest extends TestCase
             ->where('satuan_besar', 'Slop')
             ->where('satuan_terbesar', 'Ball')
             ->count());
-        $this->assertSame(3, Penjualan::warehouseSales()->count());
+        $this->assertSame(6, Penjualan::warehouseSales()->count());
         $this->assertTrue(Penjualan::warehouseSales()->where('buyer_type', 'agent')->exists());
         $this->assertTrue(Penjualan::warehouseSales()->where('buyer_type', 'canvas')->exists());
         $this->assertTrue(Penjualan::warehouseSales()->where('buyer_type', 'outlet')->exists());
         $this->assertSame(1, Penjualan::branchSales()->count());
-        $this->assertTrue(Penjualan::branchSales()->where('code', 'like', 'INV-CBG-%')->exists());
+        $this->assertTrue(Penjualan::branchSales()
+            ->get()
+            ->contains(fn (Penjualan $sale): bool => (bool) preg_match('/^CBG\.\d{4}\.\d{2}\.\d{2}$/', $sale->code)));
         $this->assertGreaterThan(0, OwnerStock::count());
+    }
+
+    public function test_current_distribution_flow_seeder_is_idempotent(): void
+    {
+        $this->seed(CurrentDistributionFlowSeeder::class);
+        $counts = [
+            'pembelian' => Pembelian::count(),
+            'penjualan' => Penjualan::count(),
+            'refund_pembelian' => \App\Models\RefundPembelian::count(),
+            'refund' => \App\Models\Refund::count(),
+        ];
+
+        $this->seed(CurrentDistributionFlowSeeder::class);
+
+        $this->assertSame($counts['pembelian'], Pembelian::count());
+        $this->assertSame($counts['penjualan'], Penjualan::count());
+        $this->assertSame($counts['refund_pembelian'], \App\Models\RefundPembelian::count());
+        $this->assertSame($counts['refund'], \App\Models\Refund::count());
     }
 }

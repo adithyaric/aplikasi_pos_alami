@@ -31,7 +31,7 @@ class PenjualanNotaTest extends TestCase
         $shop = Outlet::create(['name' => 'Sumber Rejeki', 'jenis_outlet' => 'toko']);
 
         $penjualan = Penjualan::create([
-            'code' => 'INV-CBG-00001',
+            'code' => 'CBG.0001.08.26',
             'sale_channel' => 'branch',
             'buyer_type' => 'toko',
             'buyer_id' => $shop->id,
@@ -89,7 +89,7 @@ class PenjualanNotaTest extends TestCase
         $agent = Agent::create(['name' => 'Agen Makmur']);
         $product = Product::create(['name' => 'TM Alami', 'satuan' => 'Pack']);
         $penjualan = Penjualan::create([
-            'code' => 'PNJ00001',
+            'code' => '0001.08.26',
             'sale_channel' => 'warehouse',
             'buyer_type' => 'agent',
             'buyer_id' => $agent->id,
@@ -116,5 +116,49 @@ class PenjualanNotaTest extends TestCase
             ->assertSee('GUDANG')
             ->assertSee('Agen Makmur')
             ->assertSee('Rp 15.000');
+    }
+
+    public function test_print_nota_is_only_listed_for_branch_sales(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create(['role' => 'superadmin']);
+        $branch = Outlet::create(['name' => 'Cabang Nota', 'jenis_outlet' => 'branch']);
+        $shop = Outlet::create(['name' => 'Toko Nota', 'jenis_outlet' => 'toko']);
+
+        Penjualan::create([
+            'code' => '0001.08.26',
+            'sale_channel' => 'warehouse',
+            'buyer_type' => 'toko',
+            'buyer_id' => $shop->id,
+            'buyer_name' => $shop->name,
+            'user_id' => $user->id,
+            'sale_date' => '2026-08-10',
+            'payment_type' => 'cash',
+            'payment_status' => 'paid',
+            'total' => 1000,
+        ]);
+        Penjualan::create([
+            'code' => 'CBG.0001.08.26',
+            'sale_channel' => 'branch',
+            'buyer_type' => 'toko',
+            'buyer_id' => $shop->id,
+            'buyer_name' => $shop->name,
+            'outlet_id' => $branch->id,
+            'user_id' => $user->id,
+            'sale_date' => '2026-08-10',
+            'payment_type' => 'cash',
+            'payment_status' => 'paid',
+            'total' => 1000,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('penjualan.index'))
+            ->assertOk()
+            ->assertDontSee('Print Nota');
+
+        $this->actingAs($user)
+            ->get(route('penjualan.branch-index'))
+            ->assertOk()
+            ->assertSee('Print Nota');
     }
 }

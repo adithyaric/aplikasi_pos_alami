@@ -31,6 +31,6 @@ class Voucher extends Model
 
     public function kasir()
     {
-        return $this->belongsTo(User::class, 'kasir_id'); //user role kasir
+        return $this->belongsTo(User::class, 'kasir_id')->withTrashed(); //user role kasir
     }
 }

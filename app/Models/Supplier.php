@@ -75,7 +75,8 @@ class Supplier extends Model
         if (! str_contains($format, '{SEQ}')) {
             $prefix = strtr($format, $tokenValues);
 
-            $lastCode = Pembelian::where('supplier_id', $this->id)
+            $lastCode = Pembelian::withTrashed()
+                ->where('supplier_id', $this->id)
                 ->where('code', 'like', $prefix.'%')
                 ->latest('id')
                 ->value('code');
@@ -97,7 +98,8 @@ class Supplier extends Model
             '(\d+)',
             preg_quote(strtr($format, $tokenValues), '/')
         ).'$/';
-        $codes = Pembelian::where('supplier_id', $this->id)
+        $codes = Pembelian::withTrashed()
+            ->where('supplier_id', $this->id)
             ->where('code', 'like', $likePattern)
             ->pluck('code');
 

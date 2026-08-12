@@ -15,8 +15,8 @@ use App\Exports\LaporanPergerakanExport;
 use App\Exports\LaporanPickingPackingExport;
 use App\Exports\LaporanPOExport;
 use App\Exports\LaporanPRExport;
-use App\Exports\PembelianBulkExport;
 use App\Exports\PembelianExport;
+use App\Exports\PembelianBulkExport;
 use App\Exports\PembelianSupplierExport;
 use App\Exports\PenerimaanExport;
 use App\Exports\PengeluaranExport;
@@ -142,15 +142,26 @@ class LaporanController extends Controller
     {
         $request->validate([
             'supplier_id' => 'required|integer|exists:suppliers,id',
+            'pembelian_ids' => 'nullable|array',
+            'pembelian_ids.*' => 'integer|exists:pembelians,id',
             'period' => 'nullable|in:all,hari,minggu,bulan,daterange',
             'date_from' => 'nullable|date',
             'date_to' => 'nullable|date|after_or_equal:date_from',
         ]);
 
-        $supplier = Supplier::findOrFail($request->integer('supplier_id'));
+        $supplier = Supplier::withTrashed()->findOrFail($request->integer('supplier_id'));
+        $selectedIds = collect($request->input('pembelian_ids', []))
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
         $query = Pembelian::with(['supplier', 'pembelianProducts.product', 'pembelianTransaction'])
             ->where('supplier_id', $supplier->id)
             ->latest();
+
+        if ($selectedIds->isNotEmpty()) {
+            $query->whereIn('id', $selectedIds);
+        }
         $period = $request->input('period', 'all');
 
         if ($period === 'hari') {
@@ -356,6 +367,11 @@ class LaporanController extends Controller
 
     public function exportStock(Request $request)
     {
+        $request->validate([
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from',
+        ]);
+
         $today = now()->toDateString();
         $mulai = $request->input('date_from', now()->startOfMonth()->toDateString()) ?: $today;
         $selesai = $request->input('date_to', $today) ?: $mulai;
@@ -365,7 +381,8 @@ class LaporanController extends Controller
         }
 
         $settings = json_decode(Storage::disk('public')->get('settings.json'), true) ?? [];
-        $outputPath = tempnam(storage_path('app'), 'rekap-stok-');
+        $outputPath = tempnam(sys_get_temp_dir(), 'rekap-stok-');
+        abort_unless($outputPath !== false, 500, 'File sementara export stok tidak dapat dibuat.');
 
         (new StockExport($mulai, $selesai, $settings))->store($outputPath);
 
@@ -817,7 +834,6 @@ class LaporanController extends Controller
                 $m->jenis    = $m->qty_in > 0 ? 'Penerimaan' : 'Pengiriman';
                 $m->doc_code = $docCode;
                 $m->pic = optional($m->product?->suppliers)->pluck('pic_supplier')?->filter()->implode(', ');
-                $m->lokasi   = $m->product?->lokasi;
                 $m->status   = $m->type;
                 $m->qty      = max($m->qty_in ?? 0, $m->qty_out ?? 0);
 

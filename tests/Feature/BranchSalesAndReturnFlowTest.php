@@ -97,7 +97,7 @@ class BranchSalesAndReturnFlowTest extends TestCase
         $this->assertSame('toko', $sale->buyer_type);
         $this->assertSame($branch->id, (int) $sale->outlet_id);
         $this->assertSame($salesman->id, (int) $sale->salesman_id);
-        $this->assertStringStartsWith('INV-CBG-', $sale->code);
+        $this->assertSame('CBG.0001.'.now()->format('m.y'), $sale->code);
         $this->assertSame(8, (int) OwnerStock::where('owner_id', $branch->id)->where('product_id', $product->id)->sum('qty'));
         $this->assertDatabaseHas('owner_stock_movements', [
             'owner_id' => $branch->id,

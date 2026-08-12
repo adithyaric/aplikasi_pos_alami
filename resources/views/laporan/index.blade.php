@@ -266,17 +266,10 @@
 @php
 $modals = [
     ['id'=>'po',          'title'=>'Laporan PO',                           'pdf'=>'laporan.pdf.po',        'xls'=>'laporan.export.po',        'date'=>true],
-    ['id'=>'pr',          'title'=>'Laporan PR (Permintaan Cabang)',        'pdf'=>'laporan.pdf.pr',        'xls'=>'laporan.export.pr',        'date'=>true],
     ['id'=>'masuk',       'title'=>'Laporan Barang Masuk',                 'pdf'=>'laporan.pdf.barang-masuk',  'xls'=>'laporan.export.barang-masuk',  'date'=>true],
     ['id'=>'keluar',      'title'=>'Laporan Barang Keluar',                'pdf'=>'laporan.pdf.barang-keluar', 'xls'=>'laporan.export.barang-keluar', 'date'=>true],
-    ['id'=>'stok',        'title'=>'Laporan Stok Barang',                  'pdf'=>'laporan.pdf.stok',      'xls'=>'laporan.stock',            'date'=>false],
     ['id'=>'penerimaan',  'title'=>'Laporan Penerimaan Barang',            'pdf'=>'laporan.pdf.penerimaan','xls'=>'laporan.export.penerimaan','date'=>true],
-    ['id'=>'pengiriman',  'title'=>'Laporan Pengiriman Barang',            'pdf'=>'laporan.pdf.pengiriman','xls'=>'laporan.export.pengiriman','date'=>true],
-    ['id'=>'picking',     'title'=>'Laporan Picking &amp; Packing',        'pdf'=>'laporan.pdf.picking',   'xls'=>'laporan.export.picking',   'date'=>true],
     ['id'=>'aktifitas',   'title'=>'Laporan Aktivitas Gudang',             'pdf'=>'laporan.pdf.aktifitas', 'xls'=>'laporan.export.aktifitas', 'date'=>true],
-    ['id'=>'pembelian',   'title'=>'Laporan Pembelian Barang',             'pdf'=>'laporan.pdf.pembelian', 'xls'=>'laporan.export.pembelian', 'date'=>true],
-    ['id'=>'opname',      'title'=>'Laporan Stok Opname &amp; Adjusment',  'pdf'=>'laporan.pdf.opname',    'xls'=>'laporan.stock-opname',     'date'=>true],
-    ['id'=>'pergerakan',  'title'=>'Laporan Pergerakan &amp; Kebutuhan Stok','pdf'=>'laporan.pdf.pergerakan','xls'=>'laporan.export.pergerakan','date'=>false],
     ['id'=>'retur_supplier','title'=>'Laporan Retur Ke Supplier',          'pdf'=>'laporan.pdf.retur-supplier','xls'=>'laporan.retur-supplier','date'=>true],
     ['id'=>'retur_outlet',  'title'=>'Laporan Retur Cabang',               'pdf'=>'laporan.pdf.retur-outlet',  'xls'=>'laporan.retur-outlet',  'date'=>true],
 ];

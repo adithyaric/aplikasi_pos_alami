@@ -230,7 +230,8 @@ class DocumentTemplateManager
             'Bisa dipakai di semua template' => [
                 'Perusahaan — dari Dashboard Setting' => [
                     '{{company.name}}', '{{company.address}}', '{{company.phone}}',
-                    '{{company.email}}', '{{company.website}}',
+                    '{{company.email}}', '{{company.website}}', '{{company.logo}}', '{{company.nib}}',
+                    '{{company.ttd}}', '{{company.nppbkc}}', '{{company.gol_pab}}',
                 ],
                 'Baris item umum — alias kompatibilitas' => [
                     '{{item.no}}', '{{item.code}}', '{{item.name}}', '{{item.qty}}',
