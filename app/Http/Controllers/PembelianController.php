@@ -192,8 +192,20 @@ class PembelianController extends Controller
             abort(403);
         }
 
+        $offlineClientId = trim((string) $request->input('offline_client_id', '')) ?: null;
+
+        if ($offlineClientId) {
+            $existing = Pembelian::withTrashed()
+                ->where('offline_client_id', $offlineClientId)
+                ->first();
+
+            if ($existing) {
+                return $this->offlineStoreResponse($existing, false);
+            }
+        }
+
         $request->validated();
-        $pembelian = DB::transaction(function () use ($request) {
+        $pembelian = DB::transaction(function () use ($request, $offlineClientId) {
             $supplier = Supplier::whereKey($request->supplier_id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -201,7 +213,8 @@ class PembelianController extends Controller
             $customerPo = $this->syncCustomerPoMaster($request->customer_po);
 
             $pembelian = Pembelian::create([
-                'code' => $code !== '' ? $code : $supplier->generateNextPoCode(),
+                'code' => $offlineClientId ? $supplier->generateNextPoCode() : ($code !== '' ? $code : $supplier->generateNextPoCode()),
+                'offline_client_id' => $offlineClientId,
                 'customer_po' => $customerPo,
                 // 'outlet_id' => $request->outlet_id,
                 'supplier_id' => $request->supplier_id,
@@ -232,7 +245,23 @@ class PembelianController extends Controller
             return $pembelian;
         });
 
+        if ($offlineClientId) {
+            return $this->offlineStoreResponse($pembelian);
+        }
+
         return redirect(route('pembelian.index'))->with('toast_success', 'Berhasil Menyimpan Data!');
+    }
+
+    private function offlineStoreResponse(Pembelian $pembelian, bool $created = true)
+    {
+        return response()->json([
+            'success' => true,
+            'created' => $created,
+            'resource' => 'pembelian',
+            'id' => $pembelian->id,
+            'code' => $pembelian->code,
+            'redirect' => route('pembelian.index'),
+        ], $created ? 201 : 200);
     }
 
     public function show(Pembelian $pembelian)

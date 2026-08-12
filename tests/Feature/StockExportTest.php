@@ -5,7 +5,10 @@ namespace Tests\Feature;
 use App\Exports\StockExport;
 use App\Models\Pembelian;
 use App\Models\PembelianProduct;
+use App\Models\Penjualan;
 use App\Models\Product;
+use App\Models\Refund;
+use App\Models\StockMovement;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
@@ -106,6 +109,55 @@ class StockExportTest extends TestCase
             'subtotal' => 99900,
         ]);
 
+        $refund = Refund::create([
+            'code' => 'RTR-001',
+            'tanggal' => '2026-08-10 10:00:00',
+            'total' => 5000,
+        ]);
+        $sale = Penjualan::create([
+            'code' => 'INV-001',
+            'sale_channel' => 'warehouse',
+            'sale_date' => '2026-08-11',
+            'total' => 7000,
+        ]);
+        $openingMovement = StockMovement::create([
+            'product_id' => $productA->id,
+            'type' => 'in',
+            'qty_in' => 100,
+            'qty_out' => 0,
+            'balance' => 100,
+        ]);
+        $openingMovement->forceFill([
+            'created_at' => '2026-07-31 10:00:00',
+            'updated_at' => '2026-07-31 10:00:00',
+        ])->save();
+        $returnMovement = StockMovement::create([
+            'product_id' => $productA->id,
+            'type' => 'in',
+            'reference_type' => Refund::class,
+            'reference_id' => $refund->id,
+            'qty_in' => 50,
+            'qty_out' => 0,
+            'balance' => 150,
+        ]);
+        $returnMovement->forceFill([
+            'created_at' => '2026-08-10 10:00:00',
+            'updated_at' => '2026-08-10 10:00:00',
+        ])->save();
+        $saleMovement = StockMovement::create([
+            'product_id' => $productA->id,
+            'type' => 'out',
+            'reference_type' => Penjualan::class,
+            'reference_id' => $sale->id,
+            'qty_in' => 0,
+            'qty_out' => 700,
+            'balance' => -550,
+        ]);
+        $saleMovement->forceFill([
+            'created_at' => '2026-08-11 10:00:00',
+            'updated_at' => '2026-08-11 10:00:00',
+        ])->save();
+
         $path = tempnam(sys_get_temp_dir(), 'rekap-stok-test-');
         (new StockExport('2026-08-01', '2026-08-31'))->store($path);
 
@@ -135,7 +187,9 @@ class StockExportTest extends TestCase
         $this->assertSame('01 Agustus 2026 SABTU s/d 31 Agustus 2026 SENIN', $sheet->getCell('B13')->getValue());
         $this->assertSame('Stok Awal', $sheet->getCell('A17')->getValue());
         $this->assertSame('Product A', $sheet->getCell('B17')->getValue());
-        $this->assertNull($sheet->getCell('C17')->getValue());
+        $this->assertSame(100, $sheet->getCell('C17')->getValue());
+        $this->assertSame(10, $sheet->getCell('D17')->getValue());
+        $this->assertSame(0.5, $sheet->getCell('E17')->getValue());
         $this->assertSame('Produksi', $sheet->getCell('A19')->getValue());
         $this->assertSame('=C9', $sheet->getCell('C19')->getValue());
         $this->assertSame('=D9', $sheet->getCell('D19')->getValue());
@@ -143,6 +197,12 @@ class StockExportTest extends TestCase
         $this->assertSame(3300, $sheet->getCell('C19')->getCalculatedValue());
         $this->assertSame(330, $sheet->getCell('D19')->getCalculatedValue());
         $this->assertSame(16.5, $sheet->getCell('E19')->getCalculatedValue());
+        $this->assertSame(50, $sheet->getCell('C21')->getValue());
+        $this->assertSame('=C17+C19+C21', $sheet->getCell('C23')->getValue());
+        $this->assertSame(3450, $sheet->getCell('C23')->getCalculatedValue());
+        $this->assertSame(700, $sheet->getCell('C25')->getValue());
+        $this->assertSame('=C23-C25', $sheet->getCell('C27')->getValue());
+        $this->assertSame(2750, $sheet->getCell('C27')->getCalculatedValue());
         $this->assertSame('Product B', $sheet->getCell('B20')->getValue());
         $this->assertSame(28, $sheet->getHighestRow());
 

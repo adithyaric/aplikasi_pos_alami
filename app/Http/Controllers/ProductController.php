@@ -40,6 +40,10 @@ class ProductController extends Controller
             });
         }
 
+        if ($request->filled('category_id')) {
+            $products->where('category_id', $request->input('category_id'));
+        }
+
         if (request()->wantsJson()) {
             $products = $products
                 ->with(['category', 'stocks' => function ($query) {

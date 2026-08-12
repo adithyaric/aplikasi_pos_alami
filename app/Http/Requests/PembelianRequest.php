@@ -55,6 +55,7 @@ class PembelianRequest extends FormRequest
     {
         return [
             'code'                         => 'nullable|string|max:255',
+            'offline_client_id'            => 'nullable|string|max:100',
             'customer_po'                  => 'nullable|string|max:255',
             'supplier_id'                  => 'required|exists:suppliers,id',
             'subtotal'                     => 'nullable',

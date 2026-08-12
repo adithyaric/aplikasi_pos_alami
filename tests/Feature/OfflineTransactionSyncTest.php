@@ -1,0 +1,179 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Agent;
+use App\Models\Category;
+use App\Models\CustomerPo;
+use App\Models\Product;
+use App\Models\Stock;
+use App\Models\Supplier;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class OfflineTransactionSyncTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_replaying_a_generic_admin_form_is_returned_without_running_it_twice(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'superadmin',
+            'username' => 'offline-generic-admin',
+            'email' => 'offline-generic-admin@alami.test',
+        ]);
+        $payload = [
+            'offline_client_id' => 'offline-generic-request-001',
+            'name' => 'Offline Generic Customer',
+        ];
+
+        $first = $this->actingAs($user)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post(route('customer-po.store'), $payload);
+
+        $first->assertCreated()->assertJsonPath('success', true);
+        $this->assertDatabaseCount('customer_pos', 1);
+
+        $second = $this->actingAs($user)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post(route('customer-po.store'), $payload);
+
+        $second->assertOk()->assertJson([
+            'success' => true,
+            'created' => false,
+            'data' => ['id' => $first->json('data.id')],
+        ]);
+        $this->assertDatabaseCount('customer_pos', 1);
+        $this->assertInstanceOf(CustomerPo::class, CustomerPo::first());
+    }
+
+    public function test_replaying_an_offline_purchase_does_not_create_a_duplicate(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'superadmin',
+            'username' => 'offline-purchase-admin',
+            'email' => 'offline-purchase-admin@alami.test',
+        ]);
+        $category = Category::create(['name' => 'Offline Purchase Category', 'type' => 'product']);
+        $supplier = Supplier::create(['name' => 'Offline Purchase Supplier', 'kode_supplier' => 'OFF-PO']);
+        $product = Product::create([
+            'code' => 'OFF-PO-001',
+            'name' => 'Offline Purchase Product',
+            'category_id' => $category->id,
+            'is_serialized' => false,
+            'harga_beli' => 1000,
+            'harga_jual' => 1500,
+            'status_produk' => 'sudah',
+            'satuan' => 'PCS',
+            'satuan_besar' => 'BOX',
+            'konversi_qty' => 1,
+        ]);
+        $supplier->products()->attach($product->id);
+
+        $payload = [
+            'code' => 'STALE-OFFLINE-CODE',
+            'offline_client_id' => 'offline-purchase-request-001',
+            'supplier_id' => $supplier->id,
+            'total' => '1000',
+            'product' => [[
+                'product_id' => $product->id,
+                'qty' => 1,
+                'unit' => 'BOX',
+                'harga_beli' => '1000',
+                'subtotal' => '1000',
+            ]],
+        ];
+
+        $first = $this->actingAs($user)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post(route('pembelian.store'), $payload);
+
+        $first->assertCreated()->assertJsonPath('success', true);
+        $firstCode = $first->json('code');
+        $this->assertNotSame('STALE-OFFLINE-CODE', $firstCode);
+        $this->assertDatabaseCount('pembelians', 1);
+
+        $second = $this->actingAs($user)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post(route('pembelian.store'), $payload);
+
+        $second->assertOk()->assertJson([
+            'success' => true,
+            'created' => false,
+            'id' => $first->json('id'),
+        ]);
+        $this->assertDatabaseCount('pembelians', 1);
+    }
+
+    public function test_replaying_an_offline_sale_does_not_reduce_stock_twice(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'superadmin',
+            'username' => 'offline-sale-admin',
+            'email' => 'offline-sale-admin@alami.test',
+        ]);
+        $category = Category::create(['name' => 'Offline Sale Category', 'type' => 'product']);
+        $agent = Agent::create([
+            'name' => 'Offline Sale Agent',
+            'code' => 'OFF-AGN',
+            'is_active' => true,
+        ]);
+        $product = Product::create([
+            'code' => 'OFF-PNJ-001',
+            'name' => 'Offline Sale Product',
+            'category_id' => $category->id,
+            'is_serialized' => false,
+            'harga_beli' => 1000,
+            'harga_jual' => 1500,
+            'status_produk' => 'sudah',
+            'satuan' => 'PCS',
+            'satuan_besar' => 'BOX',
+            'konversi_qty' => 1,
+        ]);
+        $stock = Stock::create([
+            'product_id' => $product->id,
+            'sku' => 'OFF-PNJ-STOCK',
+            'subtotal' => 10000,
+            'harga_beli' => 1000,
+            'qty' => 10,
+            'condition' => 'new',
+            'status' => 'available',
+        ]);
+
+        $payload = [
+            'offline_client_id' => 'offline-sale-request-001',
+            'sale_date' => now()->toDateString(),
+            'buyer_type' => 'agent',
+            'agent_id' => $agent->id,
+            'payment_type' => 'termin',
+            'items' => [[
+                'product_id' => $product->id,
+                'qty' => 1,
+                'unit' => 'PCS',
+                'price' => '1500',
+                'discount' => '0',
+            ]],
+        ];
+
+        $first = $this->actingAs($user)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post(route('penjualan.store'), $payload);
+
+        $first->assertCreated()->assertJsonPath('success', true);
+        $this->assertDatabaseCount('penjualans', 1);
+        $this->assertSame(9, (int) $stock->fresh()->qty);
+
+        $second = $this->actingAs($user)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post(route('penjualan.store'), $payload);
+
+        $second->assertOk()->assertJson([
+            'success' => true,
+            'created' => false,
+            'id' => $first->json('id'),
+        ]);
+        $this->assertDatabaseCount('penjualans', 1);
+        $this->assertSame(9, (int) $stock->fresh()->qty);
+    }
+}

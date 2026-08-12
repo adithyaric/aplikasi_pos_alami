@@ -11,6 +11,7 @@ class Penjualan extends Model
 
     protected $fillable = [
         'code',
+        'offline_client_id',
         'sale_channel',
         'buyer_type',
         'buyer_id',

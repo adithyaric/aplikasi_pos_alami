@@ -1,6 +1,112 @@
 @extends('layouts.master')
 @section('title', 'Stocks')
 @section('container')
+    <style>
+        .stock-box-header {
+            padding: 14px 15px;
+        }
+
+        .stock-controls,
+        .stock-category-filter,
+        .stock-export-form,
+        .stock-date-range {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .stock-controls {
+            justify-content: space-between;
+            gap: 14px 18px;
+        }
+
+        .stock-category-filter {
+            flex: 1 1 220px;
+            gap: 8px;
+            min-width: 220px;
+            margin: 0;
+        }
+
+        .stock-category-filter label,
+        .stock-export-title {
+            margin: 0;
+            color: #555;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .stock-category-filter .select2-container {
+            width: 230px !important;
+            max-width: 100%;
+        }
+
+        .stock-export-form {
+            gap: 8px;
+            margin: 0 0 0 auto;
+            padding: 7px 9px;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+
+        .stock-export-title .fa {
+            margin-right: 4px;
+            color: #00a65a;
+        }
+
+        .stock-date-range {
+            gap: 6px;
+        }
+
+        .stock-date-input {
+            width: 140px;
+        }
+
+        .stock-date-separator {
+            color: #777;
+        }
+
+        .stock-export-form .btn {
+            white-space: nowrap;
+        }
+
+        @media (max-width: 767px) {
+            .stock-category-filter,
+            .stock-export-form {
+                width: 100%;
+            }
+
+            .stock-category-filter .select2-container {
+                flex: 1;
+                width: auto !important;
+            }
+
+            .stock-export-form {
+                justify-content: flex-start;
+                margin-left: 0;
+            }
+
+            .stock-date-range {
+                flex: 1;
+            }
+
+            .stock-date-input {
+                flex: 1;
+                width: auto;
+                min-width: 120px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stock-export-title {
+                width: 100%;
+            }
+
+            .stock-export-form .btn {
+                width: 100%;
+            }
+        }
+    </style>
     <section class="content-header">
         <h1>Data Stok</h1>
     </section>
@@ -8,17 +114,24 @@
         <div class="row">
             <div class="col-xs-12">
                 <div class="box">
-                    <div class="box-header">
-                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                            <select id="filterKategori" class="form-control input-sm select2" style="width:auto; min-width:160px;">
-                                <option value="">Semua Kategori</option>
-                            </select>
+                    <div class="box-header stock-box-header">
+                        <div class="stock-controls">
+                            <div class="stock-category-filter">
+                                <label for="filterKategori"><i class="fa fa-filter"></i> Kategori</label>
+                                <select id="filterKategori" class="form-control input-sm select2">
+                                    <option value="">Semua Kategori</option>
+                                </select>
+                            </div>
 
-                            <form method="GET" action="{{ route('laporan.stock') }}" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:0 0 0 auto;">
-                                <span class="text-muted">Periode export:</span>
-                                <input type="date" name="date_from" class="form-control input-sm" value="{{ now()->startOfMonth()->toDateString() }}" required>
-                                <span>s/d</span>
-                                <input type="date" name="date_to" class="form-control input-sm" value="{{ now()->toDateString() }}" required>
+                            <form method="GET" action="{{ route('laporan.stock') }}" class="stock-export-form">
+                                <span class="stock-export-title"><i class="fa fa-calendar"></i> Periode Export</span>
+                                <div class="stock-date-range">
+                                    <label class="sr-only" for="stockDateFrom">Tanggal mulai</label>
+                                    <input type="date" id="stockDateFrom" name="date_from" class="form-control input-sm stock-date-input" value="{{ now()->startOfMonth()->toDateString() }}" required>
+                                    <span class="stock-date-separator">s/d</span>
+                                    <label class="sr-only" for="stockDateTo">Tanggal akhir</label>
+                                    <input type="date" id="stockDateTo" name="date_to" class="form-control input-sm stock-date-input" value="{{ now()->toDateString() }}" required>
+                                </div>
                                 <button type="submit" class="btn btn-sm btn-success">
                                     <i class="fa fa-file-excel-o"></i> Export Rekap Stok
                                 </button>

@@ -53,6 +53,7 @@ class WarehousePenjualanRequest extends FormRequest
         $isBranchSale = in_array($this->user()?->role, ['admin-cabang', 'sales'], true);
 
         return [
+            'offline_client_id' => 'nullable|string|max:100',
             'sale_date' => 'required|date',
             'buyer_type' => $isBranchSale ? 'required|in:toko' : 'required|in:agent,canvas,outlet,toko',
             'agent_id' => $isBranchSale ? 'nullable' : 'nullable|required_if:buyer_type,agent|exists:agents,id',

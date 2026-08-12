@@ -50,6 +50,13 @@
 </head>
 
 <body class="hold-transition skin-purple sidebar-mini @yield('body_class')">
+    <div id="offline-sync-indicator" class="alert alert-info" role="status" aria-live="polite"
+        style="display:none; position:fixed; right:16px; bottom:16px; z-index:9999; margin:0; max-width:360px; box-shadow:0 2px 8px rgba(0,0,0,.2);">
+        <span id="offline-sync-label">Online</span>
+        <button type="button" id="offline-sync-button" class="btn btn-xs btn-default" style="display:none; margin-left:8px;">
+            Sinkronkan sekarang
+        </button>
+    </div>
     <div class="wrapper">
         @include('sweetalert::alert')
 
@@ -119,7 +126,8 @@
                                         </a>
                                     </div>
                                     <div class="pull-right">
-                                        <form action="{{ route('logout') }}" method="POST">
+                                        <form action="{{ route('logout') }}" method="POST" data-offline-skip="true"
+                                            data-clear-offline-cache="true">
                                             @csrf
                                             <button class="btn btn-default btn-flat">Logout</button>
                                         </form>
@@ -222,6 +230,7 @@
             });
         });
     </script>
+    <script src="{{ asset('js/offline-queue.js') }}"></script>
     @yield('page-script')
 </body>
 

@@ -21,7 +21,10 @@ class CategoryController extends Controller
 
     public function indexProduct()
     {
-        $categories = Category::get();
+        $categories = Category::query()
+            ->withCount('products')
+            ->orderBy('name')
+            ->get();
 
         return view('categories.index', ['categories' => $categories, 'type' => 'product']);
     }
@@ -100,6 +103,10 @@ class CategoryController extends Controller
 
     public function destroy(Category $category)
     {
+        if ($category->products()->exists()) {
+            return redirect()->back()->with('toast_error', 'Kategori tidak dapat dihapus karena masih digunakan oleh produk.');
+        }
+
         $category->delete();
 
         return redirect()->back()->with('toast_success', 'Berhasil Menghapus Data!');

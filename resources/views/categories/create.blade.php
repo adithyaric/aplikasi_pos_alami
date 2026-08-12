@@ -1,6 +1,6 @@
 @extends('layouts.master')
 
-@section('title', 'Tambah Category')
+@section('title', 'Tambah Kategori Produk')
 
 @section('container')
     <section class="content">
@@ -10,7 +10,7 @@
                 <!-- general form elements -->
                 <div class="box box-primary">
                     <div class="box-header with-border">
-                        <h3 class="box-title">Tambah Category</h3>
+                        <h3 class="box-title">Tambah Kategori Produk</h3>
                     </div><!-- /.box-header -->
                     <!-- form start -->
                     <form action="{{ route('category.store') }}" method="POST" enctype="multipart/form-data">
@@ -35,9 +35,9 @@
                             {{-- @enderror --}}
                             {{-- </div> --}}
                             <div class="form-group">
-                                <label for="">Nama Category</label>
+                                <label for="">Nama Kategori Produk</label>
                                 <input type="text" class="form-control" name="name" value="{{ old('name') }}"
-                                    placeholder="Masukkan Nama Category">
+                                    placeholder="Masukkan nama kategori produk">
                                 @error('name')
                                     <div class="invalid-feedback text-danger">
                                         {{ $message }}

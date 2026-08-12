@@ -15,6 +15,11 @@ class Category extends Model
         // 'outlet_id', //unsued, currently just for experiment
     ];
 
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
+
     // public function outlet()
     // {
     //     return $this->belongsTo(Outlet::class);

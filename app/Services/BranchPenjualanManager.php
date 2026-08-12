@@ -29,6 +29,7 @@ class BranchPenjualanManager
 
             $penjualan = Penjualan::create([
                 'code' => $payload['code'],
+                'offline_client_id' => $payload['offline_client_id'] ?? null,
                 'sale_channel' => 'branch',
                 'buyer_type' => 'toko',
                 'buyer_id' => $buyer->id,

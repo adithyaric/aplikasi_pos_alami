@@ -56,6 +56,7 @@ class WarehousePenjualanManager
 
             $penjualan = Penjualan::create([
                 'code' => $payload['code'],
+                'offline_client_id' => $payload['offline_client_id'] ?? null,
                 'sale_channel' => 'warehouse',
                 'buyer_type' => $payload['buyer_type'],
                 'buyer_id' => $buyer['id'],

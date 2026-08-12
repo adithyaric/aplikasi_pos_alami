@@ -3,7 +3,15 @@
 namespace App\Exports;
 
 use App\Models\PembelianProduct;
+use App\Models\Penjualan;
+use App\Models\PenjualanItem;
 use App\Models\Product;
+use App\Models\Refund;
+use App\Models\RefundItem;
+use App\Models\RefundPembelian;
+use App\Models\RefundPembelianItem;
+use App\Models\Stock;
+use App\Models\StockMovement;
 use Carbon\Carbon;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -42,7 +50,7 @@ class StockExport
         $this->writeRows($sheet, $data['products'], $data['rows'], $totalRow);
         $this->writePeriodAndCompany($sheet, $data['products']);
         $this->styleTable($sheet, $data['products'], $totalRow);
-        $this->writeStockSummary($sheet, $data['products'], $totalRow);
+        $this->writeStockSummary($sheet, $data['products'], $totalRow, $data['summary']);
 
         $writer = new Xlsx($workbook);
         $writer->setPreCalculateFormulas(true);
@@ -63,6 +71,7 @@ class StockExport
 
         $products = [];
         $matrix = [];
+        $productionByProduct = [];
 
         foreach ($lines as $line) {
             $product = $line->product;
@@ -72,7 +81,10 @@ class StockExport
 
             $products[$product->id] = $product;
             $customerPo = trim((string) ($line->pembelian?->customer_po ?? '')) ?: 'Tanpa Customer PO';
-            $matrix[$customerPo][$product->id] = ($matrix[$customerPo][$product->id] ?? 0) + (float) ($line->qty ?? 0);
+            $receivedQty = (float) ($line->qty_diterima ?? 0);
+            $qty = $receivedQty > 0 ? $receivedQty : (float) ($line->qty ?? 0);
+            $matrix[$customerPo][$product->id] = ($matrix[$customerPo][$product->id] ?? 0) + $qty;
+            $productionByProduct[$product->id] = ($productionByProduct[$product->id] ?? 0) + $qty;
         }
 
         if ($products === []) {
@@ -95,7 +107,11 @@ class StockExport
             $rows[] = ['name' => 'Tidak ada data', 'quantities' => []];
         }
 
-        return compact('products', 'rows');
+        return [
+            'products' => $products,
+            'rows' => $rows,
+            'summary' => $this->buildStockSummary($products, $productionByProduct),
+        ];
     }
 
     protected function prepareProductColumns($sheet, array $products): void
@@ -193,7 +209,7 @@ class StockExport
         $sheet->freezePane('C7');
     }
 
-    protected function writeStockSummary($sheet, array $products, int $totalRow): void
+    protected function writeStockSummary($sheet, array $products, int $totalRow, array $summary): void
     {
         $summaryHeaderRow = $totalRow + 4;
         $unitsRow = $summaryHeaderRow + 3;
@@ -215,11 +231,13 @@ class StockExport
         $sheet->setCellValue('E'.$unitsRow, $firstProduct->satuan_terbesar ?: 'Ball');
 
         $sections = ['Stok Awal', 'Produksi', 'Retur', 'Total', 'Penjualan', 'Sisa Stok'];
+        $sectionRows = [];
         $row = $firstDataRow;
         foreach ($sections as $section) {
             foreach ($products as $productIndex => $product) {
                 $sheet->setCellValue('A'.$row, $productIndex === 0 ? $section : '');
                 $sheet->setCellValue('B'.$row, $product->name);
+                $sectionRows[$section][$productIndex] = $row;
 
                 if ($section === 'Produksi') {
                     $startColumn = 3 + ($productIndex * 3);
@@ -230,7 +248,36 @@ class StockExport
                     }
                 }
 
+                if (in_array($section, ['Stok Awal', 'Retur', 'Penjualan'], true)) {
+                    $values = $this->equivalentQuantities(
+                        $product,
+                        (float) ($summary[$product->id][strtolower(str_replace(' ', '_', $section))] ?? 0)
+                    );
+                    $this->writeSummaryValues($sheet, $row, $values);
+                }
+
                 $row++;
+            }
+        }
+
+        foreach ($products as $productIndex => $product) {
+            $openingRow = $sectionRows['Stok Awal'][$productIndex];
+            $productionRow = $sectionRows['Produksi'][$productIndex];
+            $returnRow = $sectionRows['Retur'][$productIndex];
+            $totalProductRow = $sectionRows['Total'][$productIndex];
+            $salesRow = $sectionRows['Penjualan'][$productIndex];
+            $closingRow = $sectionRows['Sisa Stok'][$productIndex];
+
+            for ($offset = 0; $offset < 3; $offset++) {
+                $column = Coordinate::stringFromColumnIndex(3 + $offset);
+                $sheet->setCellValue(
+                    $column.$totalProductRow,
+                    '='.$column.$openingRow.'+'.$column.$productionRow.'+'.$column.$returnRow
+                );
+                $sheet->setCellValue(
+                    $column.$closingRow,
+                    '='.$column.$totalProductRow.'-'.$column.$salesRow
+                );
             }
         }
 
@@ -261,6 +308,188 @@ class StockExport
         $sheet->getColumnDimension('B')->setWidth(24);
         foreach (['C', 'D', 'E'] as $column) {
             $sheet->getColumnDimension($column)->setWidth(12);
+        }
+    }
+
+    protected function buildStockSummary(array $products, array $productionByProduct): array
+    {
+        $from = Carbon::parse($this->dateFrom)->startOfDay();
+        $to = Carbon::parse($this->dateTo)->endOfDay();
+        $productIds = collect($products)->pluck('id')->values();
+
+        $movements = StockMovement::query()
+            ->whereIn('product_id', $productIds)
+            ->where('created_at', '<=', $to)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+        $movementGroups = $movements->groupBy('product_id');
+        $periodMovements = $movements->filter(fn (StockMovement $movement) =>
+            $movement->created_at && $movement->created_at->betweenIncluded($from, $to)
+        );
+
+        $summary = [];
+        foreach ($products as $product) {
+            $productMovements = $movementGroups->get($product->id, collect());
+            $beforeMovements = $productMovements->filter(fn (StockMovement $movement) =>
+                $movement->created_at && $movement->created_at->lt($from)
+            );
+            $openingMovement = $beforeMovements->last();
+
+            if ($openingMovement && $openingMovement->balance !== null) {
+                $opening = (float) $openingMovement->balance;
+            } elseif ($openingMovement) {
+                $opening = (float) $beforeMovements->sum(
+                    fn (StockMovement $movement) => (float) ($movement->qty_in ?? 0) - (float) ($movement->qty_out ?? 0)
+                );
+            } else {
+                $firstPeriodMovement = $productMovements->first(fn (StockMovement $movement) =>
+                    $movement->created_at && $movement->created_at->gte($from)
+                );
+                $opening = $firstPeriodMovement && $firstPeriodMovement->balance !== null
+                    ? (float) $firstPeriodMovement->balance
+                        - (float) ($firstPeriodMovement->qty_in ?? 0)
+                        + (float) ($firstPeriodMovement->qty_out ?? 0)
+                    : (float) Stock::query()
+                        ->where('product_id', $product->id)
+                        ->where('created_at', '<', $from)
+                        ->sum('qty');
+            }
+
+            $summary[$product->id] = [
+                'stok_awal' => $opening,
+                'produksi' => (float) ($productionByProduct[$product->id] ?? 0),
+                'retur' => 0,
+                'penjualan' => 0,
+            ];
+        }
+
+        $returnMovementKeys = [];
+        $saleMovementKeys = [];
+        foreach ($periodMovements as $movement) {
+            $productId = (int) $movement->product_id;
+            if (! isset($summary[$productId])) {
+                continue;
+            }
+
+            $movementQtyIn = (float) ($movement->qty_in ?? 0);
+            $movementQtyOut = (float) ($movement->qty_out ?? 0);
+            $referenceKey = $this->movementReferenceKey($movement);
+
+            if (in_array($movement->reference_type, [Refund::class, RefundPembelian::class], true)) {
+                $summary[$productId]['retur'] += $movementQtyIn - $movementQtyOut;
+                $returnMovementKeys[$referenceKey] = true;
+            }
+
+            if ($movement->reference_type === Penjualan::class) {
+                $summary[$productId]['penjualan'] += $movementQtyOut;
+                $saleMovementKeys[$referenceKey] = true;
+            }
+        }
+
+        $this->addFallbackSales($summary, $saleMovementKeys, $productIds, $from, $to);
+        $this->addFallbackReturns($summary, $returnMovementKeys, $productIds, $from, $to);
+
+        return $summary;
+    }
+
+    protected function addFallbackSales(array &$summary, array $movementKeys, $productIds, Carbon $from, Carbon $to): void
+    {
+        PenjualanItem::query()
+            ->with('penjualan')
+            ->whereIn('product_id', $productIds)
+            ->get()
+            ->each(function (PenjualanItem $item) use (&$summary, $movementKeys, $from, $to): void {
+                $sale = $item->penjualan;
+                if (! $sale || ! in_array($sale->sale_channel, ['warehouse', null], true)) {
+                    return;
+                }
+
+                $date = $sale->sale_date ?: $sale->created_at;
+                if (! $date || ! Carbon::parse($date)->betweenIncluded($from, $to)) {
+                    return;
+                }
+
+                $movementKey = Penjualan::class.'|'.(int) $sale->id.'|'.(int) $item->product_id;
+                if (isset($movementKeys[$movementKey])) {
+                    return;
+                }
+
+                $summary[$item->product_id]['penjualan'] += (float) ($item->qty ?? 0);
+            });
+    }
+
+    protected function addFallbackReturns(array &$summary, array $movementKeys, $productIds, Carbon $from, Carbon $to): void
+    {
+        RefundPembelianItem::query()
+            ->with('refundPembelian')
+            ->whereIn('product_id', $productIds)
+            ->get()
+            ->each(function (RefundPembelianItem $item) use (&$summary, $movementKeys, $from, $to): void {
+                $refund = $item->refundPembelian;
+                if (! $refund || ! $refund->tanggal || ! Carbon::parse($refund->tanggal)->betweenIncluded($from, $to)) {
+                    return;
+                }
+
+                $movementKey = RefundPembelian::class.'|'.(int) $refund->id.'|'.(int) $item->product_id;
+                if (isset($movementKeys[$movementKey])) {
+                    return;
+                }
+
+                $qty = (float) ($item->qty ?? 0);
+                if ($refund->type === 'outlet_ke_gudang') {
+                    $summary[$item->product_id]['retur'] += $qty;
+
+                    return;
+                }
+
+                if ($refund->isReplacement()) {
+                    if ($refund->status === 'complete' && $item->resolution === 'barang') {
+                        $summary[$item->product_id]['retur'] += $qty;
+                    }
+
+                    return;
+                }
+
+                $summary[$item->product_id]['retur'] -= $qty;
+            });
+
+        RefundItem::query()
+            ->with('refund.penjualan')
+            ->whereIn('product_id', $productIds)
+            ->get()
+            ->each(function (RefundItem $item) use (&$summary, $movementKeys, $from, $to): void {
+                $refund = $item->refund;
+                if (! $refund || ! $refund->tanggal || ! Carbon::parse($refund->tanggal)->betweenIncluded($from, $to)) {
+                    return;
+                }
+
+                $movementKey = Refund::class.'|'.(int) $refund->id.'|'.(int) $item->product_id;
+                if (isset($movementKeys[$movementKey])) {
+                    return;
+                }
+
+                if ($refund->status && ! in_array($refund->status, ['approved', 'complete'], true)) {
+                    return;
+                }
+
+                if ($item->stock_visibility === 'hidden' || $refund->sale_channel === 'branch') {
+                    return;
+                }
+
+                $summary[$item->product_id]['retur'] += (float) ($item->qty ?? 0);
+            });
+    }
+
+    protected function movementReferenceKey(StockMovement $movement): string
+    {
+        return (string) $movement->reference_type.'|'.(int) $movement->reference_id.'|'.(int) $movement->product_id;
+    }
+
+    protected function writeSummaryValues($sheet, int $row, array $values): void
+    {
+        foreach ($values as $offset => $value) {
+            $sheet->setCellValueByColumnAndRow(3 + $offset, $row, $value);
         }
     }
 

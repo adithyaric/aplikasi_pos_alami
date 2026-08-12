@@ -55,6 +55,9 @@
         </li>
 
         @if ($isWarehouse)
+        <li class="{{ request()->is('category-product*') ? 'active' : '' }}">
+            <a href="{{ route('category.product.index') }}"><i class="fa fa-list-alt"></i><span>Kategori</span></a>
+        </li>
         <li class="{{ request()->is('product*') ? 'active' : '' }}">
             <a href="/product"><i class="fa fa-archive"></i><span>Produk</span></a>
         </li>

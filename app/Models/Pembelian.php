@@ -11,6 +11,7 @@ class Pembelian extends Model
 
     protected $fillable = [
         'code',
+        'offline_client_id',
         'customer_po',
         'code_gr',
         'outlet_id',

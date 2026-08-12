@@ -374,6 +374,24 @@
         if (pickerName) {
             $('<input>').attr({ type: 'hidden', name: 'picker_name', value: pickerName }).appendTo(this);
         }
+
+        if (!navigator.onLine && window.AlamiOfflineQueue) {
+            window.AlamiOfflineQueue.enqueueForm(this, 'Picking selesai')
+                .then(function () {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Disimpan offline',
+                        text: 'Picking akan diselesaikan saat koneksi kembali.',
+                        timer: 1800,
+                        showConfirmButton: false,
+                    });
+                })
+                .catch(function (error) {
+                    Swal.fire({ icon: 'error', title: 'Gagal', text: error.message });
+                });
+            return;
+        }
+
         this.submit();
     });
 </script>

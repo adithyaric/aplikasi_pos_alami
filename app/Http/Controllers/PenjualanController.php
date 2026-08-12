@@ -211,12 +211,25 @@ class PenjualanController extends Controller
     {
         $this->ensurePenjualanAccess();
 
+        $offlineClientId = trim((string) $request->input('offline_client_id', '')) ?: null;
+
+        if ($offlineClientId) {
+            $existing = Penjualan::withTrashed()
+                ->where('offline_client_id', $offlineClientId)
+                ->first();
+
+            if ($existing) {
+                return $this->offlineStoreResponse($existing, false);
+            }
+        }
+
         try {
             if ($this->isBranchMode()) {
                 $this->ensureBranchSaleCreateAccess();
 
                 $penjualan = $this->branchPenjualanManager->create([
                     'code' => $this->generateBranchSaleCode(),
+                    'offline_client_id' => $offlineClientId,
                     'buyer_id' => (int) $request->outlet_target_id,
                     'sale_date' => $request->sale_date,
                     'payment_type' => $request->payment_type,
@@ -234,12 +247,17 @@ class PenjualanController extends Controller
                     ])->all(),
                 ], (int) auth()->id(), (int) auth()->user()->branchId(), $this->currentSalesmanId());
 
+                if ($offlineClientId) {
+                    return $this->offlineStoreResponse($penjualan);
+                }
+
                 return redirect()->route('penjualan.show', $penjualan)
                     ->with('toast_success', 'Penjualan cabang berhasil disimpan.');
             }
 
             $penjualan = $this->warehousePenjualanManager->create([
                 'code' => $this->generateWarehouseSaleCode(),
+                'offline_client_id' => $offlineClientId,
                 'buyer_type' => $request->buyer_type,
                 'buyer_id' => $this->resolveBuyerTargetId($request),
                 'sale_date' => $request->sale_date,
@@ -257,15 +275,37 @@ class PenjualanController extends Controller
                 ])->all(),
             ], (int) auth()->id());
 
+            if ($offlineClientId) {
+                return $this->offlineStoreResponse($penjualan);
+            }
+
             return redirect()->route('penjualan.show', $penjualan)
                 ->with('toast_success', 'Penjualan berhasil disimpan.');
         } catch (\Exception $exception) {
+            if ($offlineClientId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal menyimpan penjualan: '.$exception->getMessage(),
+                ], 500);
+            }
+
             return redirect()->back()
                 ->withInput()
                 ->with('toast_error', 'Gagal: '.$exception->getMessage());
         }
     }
 
+    private function offlineStoreResponse(Penjualan $penjualan, bool $created = true)
+    {
+        return response()->json([
+            'success' => true,
+            'created' => $created,
+            'resource' => 'penjualan',
+            'id' => $penjualan->id,
+            'code' => $penjualan->code,
+            'redirect' => route('penjualan.show', $penjualan),
+        ], $created ? 201 : 200);
+    }
     public function updateWarehouseSale(WarehousePenjualanRequest $request, Penjualan $penjualan)
     {
         $this->ensurePenjualanAccess();

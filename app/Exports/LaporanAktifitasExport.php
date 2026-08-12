@@ -36,7 +36,7 @@ class LaporanAktifitasExport implements FromCollection, WithHeadings, WithTitle
             'Nama Barang',
             'Qty',
             'Satuan',
-            'Lokasi',
+            // 'Lokasi',
             'PIC',
             'Status',
             'Keterangan'
@@ -87,7 +87,7 @@ class LaporanAktifitasExport implements FromCollection, WithHeadings, WithTitle
                 $m->product?->name ?? '-',
                 ($m->qty ?? 0).($k && $k !== '-' ? " ({$k})" : ''),
                 $m->product?->satuan ?? 'PCS',
-                $m->product?->lokasi,
+                // $m->product?->lokasi,
                 optional($m->product?->suppliers)->pluck('pic_supplier')?->filter()->implode(', '),
                 $m->type,
                 $m->notes ?? '',

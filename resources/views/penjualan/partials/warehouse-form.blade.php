@@ -30,7 +30,8 @@
                 </div>
 
                 <form action="{{ $formAction }}" method="POST" id="warehouse-sale-form"
-                    data-penjualan-id="{{ $penjualan?->id ?? '' }}">
+                    data-penjualan-id="{{ $penjualan?->id ?? '' }}"
+                    @if (! $penjualan) data-offline-queue="penjualan-create" data-offline-title="Penjualan" @endif>
                     @csrf
                     @if ($formMethod !== 'POST')
                         @method($formMethod)

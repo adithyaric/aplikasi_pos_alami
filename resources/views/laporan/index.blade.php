@@ -105,16 +105,16 @@
     @endif
 
     {{-- Laporan PR (Permintaan Cabang) --}}
-    @if (in_array($role, ['superadmin', 'staff-outlet']))
-    <div class="col-md-4 col-sm-6">
-        <div class="box box-primary">
-            <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-file-text-o"></i> Laporan PR (Permintaan Cabang)</h3></div>
-            <div class="box-footer">
-                <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_pr"><i class="fa fa-bar-chart"></i> Lihat Laporan</button>
-            </div>
-        </div>
-    </div>
-    @endif
+    {{-- @if (in_array($role, ['superadmin', 'staff-outlet'])) --}}
+    {{-- <div class="col-md-4 col-sm-6"> --}}
+        {{-- <div class="box box-primary"> --}}
+            {{-- <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-file-text-o"></i> Laporan PR (Permintaan Cabang)</h3></div> --}}
+            {{-- <div class="box-footer"> --}}
+                {{-- <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_pr"><i class="fa fa-bar-chart"></i> Lihat Laporan</button> --}}
+            {{-- </div> --}}
+        {{-- </div> --}}
+    {{-- </div> --}}
+    {{-- @endif --}}
 
     {{-- Laporan Barang Masuk --}}
     @if (in_array($role, ['superadmin', 'owner']))
@@ -141,16 +141,16 @@
     @endif
 
     {{-- Laporan Stok Barang --}}
-    @if (in_array($role, ['superadmin', 'admin-gudang', 'owner']))
-    <div class="col-md-4 col-sm-6">
-        <div class="box box-info">
-            <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-cubes"></i> Laporan Stok Barang</h3></div>
-            <div class="box-footer">
-                <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_stok"><i class="fa fa-bar-chart"></i> Lihat Laporan</button>
-            </div>
-        </div>
-    </div>
-    @endif
+    {{-- @if (in_array($role, ['superadmin', 'admin-gudang', 'owner'])) --}}
+    {{-- <div class="col-md-4 col-sm-6"> --}}
+        {{-- <div class="box box-info"> --}}
+            {{-- <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-cubes"></i> Laporan Stok Barang</h3></div> --}}
+            {{-- <div class="box-footer"> --}}
+                {{-- <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_stok"><i class="fa fa-bar-chart"></i> Lihat Laporan</button> --}}
+            {{-- </div> --}}
+        {{-- </div> --}}
+    {{-- </div> --}}
+    {{-- @endif --}}
 
     {{-- Laporan Penerimaan Barang --}}
     @if (in_array($role, ['superadmin', 'admin-gudang', 'owner']))
@@ -165,28 +165,28 @@
     @endif
 
     {{-- Laporan Pengiriman Barang --}}
-    @if (in_array($role, ['superadmin', 'admin-gudang', 'owner']))
-    <div class="col-md-4 col-sm-6">
-        <div class="box box-warning">
-            <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-truck"></i> Laporan Pengiriman Barang</h3></div>
-            <div class="box-footer">
-                <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_pengiriman"><i class="fa fa-bar-chart"></i> Lihat Laporan</button>
-            </div>
-        </div>
-    </div>
-    @endif
+    {{-- @if (in_array($role, ['superadmin', 'admin-gudang', 'owner'])) --}}
+    {{-- <div class="col-md-4 col-sm-6"> --}}
+        {{-- <div class="box box-warning"> --}}
+            {{-- <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-truck"></i> Laporan Pengiriman Barang</h3></div> --}}
+            {{-- <div class="box-footer"> --}}
+                {{-- <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_pengiriman"><i class="fa fa-bar-chart"></i> Lihat Laporan</button> --}}
+            {{-- </div> --}}
+        {{-- </div> --}}
+    {{-- </div> --}}
+    {{-- @endif --}}
 
     {{-- Laporan Picking & Packing --}}
-    @if (in_array($role, ['superadmin', 'admin-gudang', 'owner']))
-    <div class="col-md-4 col-sm-6">
-        <div class="box box-primary">
-            <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-list-ol"></i> Laporan Picking &amp; Packing</h3></div>
-            <div class="box-footer">
-                <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_picking"><i class="fa fa-bar-chart"></i> Lihat Laporan</button>
-            </div>
-        </div>
-    </div>
-    @endif
+    {{-- @if (in_array($role, ['superadmin', 'admin-gudang', 'owner'])) --}}
+    {{-- <div class="col-md-4 col-sm-6"> --}}
+        {{-- <div class="box box-primary"> --}}
+            {{-- <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-list-ol"></i> Laporan Picking &amp; Packing</h3></div> --}}
+            {{-- <div class="box-footer"> --}}
+                {{-- <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_picking"><i class="fa fa-bar-chart"></i> Lihat Laporan</button> --}}
+            {{-- </div> --}}
+        {{-- </div> --}}
+    {{-- </div> --}}
+    {{-- @endif --}}
 
     {{-- Laporan Aktivitas Gudang --}}
     @if (in_array($role, ['superadmin', 'owner']))
@@ -201,40 +201,40 @@
     @endif
 
     {{-- Laporan Pembelian Barang --}}
-    @if (in_array($role, ['superadmin', 'owner']))
-    <div class="col-md-4 col-sm-6">
-        <div class="box box-primary">
-            <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-shopping-cart"></i> Laporan Pembelian Barang</h3></div>
-            <div class="box-footer">
-                <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_pembelian"><i class="fa fa-bar-chart"></i> Lihat Laporan</button>
-            </div>
-        </div>
-    </div>
-    @endif
+    {{-- @if (in_array($role, ['superadmin', 'owner'])) --}}
+    {{-- <div class="col-md-4 col-sm-6"> --}}
+        {{-- <div class="box box-primary"> --}}
+            {{-- <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-shopping-cart"></i> Laporan Pembelian Barang</h3></div> --}}
+            {{-- <div class="box-footer"> --}}
+                {{-- <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_pembelian"><i class="fa fa-bar-chart"></i> Lihat Laporan</button> --}}
+            {{-- </div> --}}
+        {{-- </div> --}}
+    {{-- </div> --}}
+    {{-- @endif --}}
 
     {{-- Laporan Stok Opname & Adjusment --}}
-    @if (in_array($role, ['superadmin', 'admin-gudang', 'owner']))
-    <div class="col-md-4 col-sm-6">
-        <div class="box box-danger">
-            <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-balance-scale"></i> Laporan Stok Opname &amp; Adjusment</h3></div>
-            <div class="box-footer">
-                <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_opname"><i class="fa fa-bar-chart"></i> Lihat Laporan</button>
-            </div>
-        </div>
-    </div>
-    @endif
+    {{-- @if (in_array($role, ['superadmin', 'admin-gudang', 'owner'])) --}}
+    {{-- <div class="col-md-4 col-sm-6"> --}}
+        {{-- <div class="box box-danger"> --}}
+            {{-- <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-balance-scale"></i> Laporan Stok Opname &amp; Adjusment</h3></div> --}}
+            {{-- <div class="box-footer"> --}}
+                {{-- <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_opname"><i class="fa fa-bar-chart"></i> Lihat Laporan</button> --}}
+            {{-- </div> --}}
+        {{-- </div> --}}
+    {{-- </div> --}}
+    {{-- @endif --}}
 
     {{-- Laporan Pergerakan & Kebutuhan Stok --}}
-    @if (in_array($role, ['superadmin', 'owner']))
-    <div class="col-md-4 col-sm-6">
-        <div class="box box-info">
-            <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-line-chart"></i> Laporan Pergerakan &amp; Kebutuhan Stok</h3></div>
-            <div class="box-footer">
-                <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_pergerakan"><i class="fa fa-bar-chart"></i> Lihat Laporan</button>
-            </div>
-        </div>
-    </div>
-    @endif
+    {{-- @if (in_array($role, ['superadmin', 'owner'])) --}}
+    {{-- <div class="col-md-4 col-sm-6"> --}}
+        {{-- <div class="box box-info"> --}}
+            {{-- <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-line-chart"></i> Laporan Pergerakan &amp; Kebutuhan Stok</h3></div> --}}
+            {{-- <div class="box-footer"> --}}
+                {{-- <button class="btn btn-sm btn-default btn-block" data-toggle="modal" data-target="#modal_pergerakan"><i class="fa fa-bar-chart"></i> Lihat Laporan</button> --}}
+            {{-- </div> --}}
+        {{-- </div> --}}
+    {{-- </div> --}}
+    {{-- @endif --}}
 
     {{-- Laporan Retur Ke Supplier --}}
     @if (in_array($role, ['superadmin', 'admin-gudang', 'owner']))

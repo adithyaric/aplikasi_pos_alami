@@ -26,7 +26,6 @@
                         <div class="col-xs-12" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                             <input type="text" name="search" value="{{ $search }}" class="form-control input-sm"
                                 style="width:220px;" placeholder="Cari Produk">
-{{--
                             <select name="category_id" id="filterKategori" class="form-control input-sm select2"
                                 style="width:auto; min-width:180px;">
                                 <option value="">Semua Kategori</option>
@@ -35,7 +34,7 @@
                                     {{ $category->name }}
                                 </option>
                                 @endforeach
-                            </select>  --}}
+                            </select>
                             <button type="submit" class="btn btn-sm btn-primary">
                                 <i class="fa fa-search"></i> Filter
                             </button>
