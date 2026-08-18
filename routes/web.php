@@ -36,6 +36,13 @@ use App\Http\Controllers\WishlistController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
+// The PWA package registers an offline page route. Offline navigation is
+// handled by the authenticated service worker cache instead, so never expose
+// the package's offline Blade page as an application route.
+Route::get('/offline', function () {
+    abort(404);
+})->name('pwa.offline.disabled');
+
 Route::get('/', function () {
     return redirect('/dashboard');
 });

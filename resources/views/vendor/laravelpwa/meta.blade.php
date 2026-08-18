@@ -131,7 +131,9 @@
 <script type="text/javascript">
     // Initialize the service worker
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/serviceworker.js', {
+        // The query string forces browsers that still have the old package
+        // worker registered to fetch this worker again after deployment.
+        navigator.serviceWorker.register('/serviceworker.js?v=offline-pages-v2', {
             scope: '/'
         }).then(function (registration) {
             // Registration was successful

@@ -16,6 +16,11 @@ class OfflineTransactionSyncTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_package_offline_page_is_disabled(): void
+    {
+        $this->get('/offline')->assertNotFound();
+    }
+
     public function test_authenticated_offline_clients_can_refresh_the_current_csrf_token(): void
     {
         $user = User::factory()->create([
