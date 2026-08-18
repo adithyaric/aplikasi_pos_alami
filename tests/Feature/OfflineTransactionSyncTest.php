@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\Stock;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\Outlet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -35,6 +36,45 @@ class OfflineTransactionSyncTest extends TestCase
         $response->assertOk()
             ->assertJsonStructure(['token']);
         $this->assertNotSame('', (string) $response->json('token'));
+    }
+
+    public function test_sales_create_requires_customer_toko_before_an_offline_sale_can_be_stored(): void
+    {
+        $branch = Outlet::create([
+            'name' => 'Offline Sales Branch',
+            'jenis_outlet' => 'branch',
+        ]);
+        $shop = Outlet::create([
+            'name' => 'Offline Sales Shop',
+            'jenis_outlet' => 'toko',
+        ]);
+        $user = User::factory()->create([
+            'role' => 'sales',
+            'outlet_id' => $branch->id,
+            'username' => 'offline-sales-validation',
+            'email' => 'offline-sales-validation@alami.test',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('penjualan.create'))
+            ->assertOk()
+            ->assertSee('data-branch-sale="true"', false)
+            ->assertSee('Customer/Toko')
+            ->assertSee('name="outlet_target_id"', false)
+            ->assertSee('required', false);
+
+        $this->actingAs($user)
+            ->post(route('penjualan.store'), [
+                'sale_date' => now()->toDateString(),
+                'buyer_type' => 'toko',
+                'payment_type' => 'termin',
+                'payment_status' => 'unpaid',
+                'items' => [],
+            ])
+            ->assertSessionHasErrors('outlet_target_id');
+
+        $this->assertDatabaseCount('penjualans', 0);
+        $this->assertDatabaseHas('outlets', ['id' => $shop->id, 'jenis_outlet' => 'toko']);
     }
 
     public function test_replaying_a_generic_admin_form_is_returned_without_running_it_twice(): void

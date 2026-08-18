@@ -138,6 +138,7 @@
         var indicator = document.getElementById('offline-sync-indicator');
         var label = document.getElementById('offline-sync-label');
         var button = document.getElementById('offline-sync-button');
+        var discardButton = document.getElementById('offline-discard-button');
 
         return allRequests().then(function (items) {
             items = currentUserRequests(items);
@@ -162,6 +163,11 @@
             if (button) {
                 button.style.display = pending || failed ? '' : 'none';
                 button.disabled = offline;
+            }
+
+            if (discardButton) {
+                discardButton.style.display = failed ? '' : 'none';
+                discardButton.disabled = false;
             }
 
             if (indicator) {
@@ -392,6 +398,60 @@
         return error && error.message ? error.message : 'Gagal menyimpan data.';
     }
 
+    function validateOfflineForm(form) {
+        if (form.id !== 'warehouse-sale-form') {
+            return;
+        }
+
+        var buyerType = form.querySelector('[name="buyer_type"]');
+        var isBranchSale = form.getAttribute('data-branch-sale') === 'true'
+            || (buyerType && buyerType.type === 'hidden' && buyerType.value === 'toko' && !form.querySelector('#toko_id'));
+
+        if (!isBranchSale) {
+            if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
+                if (typeof form.reportValidity === 'function') {
+                    form.reportValidity();
+                }
+
+                throw new Error('Lengkapi data penjualan terlebih dahulu.');
+            }
+
+            return;
+        }
+
+        var outletTarget = form.querySelector('[name="outlet_target_id"]');
+
+        if (buyerType && buyerType.value === 'toko' && (!outletTarget || !outletTarget.value)) {
+            if (outletTarget) {
+                outletTarget.disabled = false;
+                outletTarget.setCustomValidity('Customer/Toko wajib dipilih.');
+
+                var buyerContainer = outletTarget.closest('.buyer-select');
+                if (buyerContainer) {
+                    buyerContainer.style.display = '';
+                }
+            }
+
+            if (typeof form.reportValidity === 'function') {
+                form.reportValidity();
+            }
+
+            throw new Error('Customer/Toko wajib dipilih.');
+        }
+
+        if (outletTarget) {
+            outletTarget.setCustomValidity('');
+        }
+
+        if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
+            if (typeof form.reportValidity === 'function') {
+                form.reportValidity();
+            }
+
+            throw new Error('Lengkapi data penjualan terlebih dahulu.');
+        }
+    }
+
     function setFormBusy(form, busy) {
         Array.prototype.forEach.call(form.querySelectorAll('[type="submit"]'), function (button) {
             button.disabled = busy;
@@ -514,6 +574,7 @@
         var item;
 
         try {
+            validateOfflineForm(form);
             item = buildFormRequest(form);
         } catch (error) {
             delete form.dataset.offlineSubmitting;
@@ -612,8 +673,21 @@
         }).then(syncQueue);
     }
 
+    function discardFailed() {
+        return allRequests().then(function (items) {
+            items = currentUserRequests(items);
+
+            return Promise.all(items.filter(function (item) {
+                return item.status === 'failed';
+            }).map(function (item) {
+                return deleteRequest(item.id);
+            }));
+        }).then(updateIndicator);
+    }
+
     function enqueueForm(form, title) {
         normaliseFormValues(form);
+        validateOfflineForm(form);
 
         if (hasSelectedFile(form)) {
             return Promise.reject(new Error('Form dengan file harus dikirim saat online.'));
@@ -708,7 +782,7 @@
 
     function clearRuntimeCaches() {
         var scope = currentUserScope();
-        var cacheName = scope ? 'alami-admin-pwa-user-' + scope : null;
+        var cacheName = scope ? 'alami-admin-pwa-user-v2-' + scope : null;
 
         if (navigator.serviceWorker && navigator.serviceWorker.controller && cacheName) {
             navigator.serviceWorker.controller.postMessage({
@@ -773,12 +847,28 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         var button = document.getElementById('offline-sync-button');
+        var discardButton = document.getElementById('offline-discard-button');
 
         if (button) {
             button.addEventListener('click', function () {
                 button.disabled = true;
                 retryFailed().finally(function () {
                     button.disabled = false;
+                });
+            });
+        }
+
+        if (discardButton) {
+            discardButton.addEventListener('click', function () {
+                if (!window.confirm('Hapus semua data offline yang gagal disinkronkan?')) {
+                    return;
+                }
+
+                discardButton.disabled = true;
+                discardFailed().then(function () {
+                    notify('success', 'Data offline yang gagal telah dihapus.');
+                }).finally(function () {
+                    discardButton.disabled = false;
                 });
             });
         }
@@ -799,6 +889,7 @@
         sync: syncQueue,
         refresh: updateIndicator,
         enqueueForm: enqueueForm,
+        discardFailed: discardFailed,
         clearRuntimeCaches: clearRuntimeCaches,
         enqueue: function (options) {
             return queueItem(buildAjaxRequest(options));

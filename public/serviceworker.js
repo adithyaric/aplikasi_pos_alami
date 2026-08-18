@@ -1,5 +1,7 @@
 var staticCacheName = 'alami-admin-pwa-static-v5';
-var userCachePrefix = 'alami-admin-pwa-user-';
+// Bump this when the cached HTML contract changes so stale forms cannot be
+// opened offline after a deployment.
+var userCachePrefix = 'alami-admin-pwa-user-v2-';
 var filesToCache = [
     '/img/logo.png'
 ];
@@ -260,7 +262,31 @@ function matchUserCache(cacheName, request) {
 
     return caches.open(cacheName).then(function (cache) {
         return cache.match(request).then(function (response) {
-            return response || cache.match(request, { ignoreSearch: true });
+            if (response) {
+                return response;
+            }
+
+            return cache.match(request, { ignoreSearch: true }).then(function (responseWithoutSearch) {
+                if (responseWithoutSearch) {
+                    return responseWithoutSearch;
+                }
+
+                // Branch-scoped users are redirected from /penjualan to
+                // /penjualan/cabang online. Treat those URLs as the same
+                // offline page so a queued sale never lands on an uncached
+                // redirect alias.
+                var url = new URL(request.url);
+                if (url.pathname !== '/penjualan') {
+                    return null;
+                }
+
+                url.pathname = '/penjualan/cabang';
+                var branchRequest = new Request(url.href, {
+                    credentials: 'include'
+                });
+
+                return cache.match(branchRequest, { ignoreSearch: true });
+            });
         });
     });
 }

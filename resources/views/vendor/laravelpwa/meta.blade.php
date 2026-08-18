@@ -43,9 +43,13 @@
         $offlineWarmUrls = [route('dashboard')];
 
         if (in_array(auth()->user()->role, ['sales'], true)) {
+            // Keep the redirect alias cached as well: the generic controller
+            // route redirects branch-scoped users to the branch index online.
+            $offlineWarmUrls[] = route('penjualan.index');
             $offlineWarmUrls[] = route('penjualan.branch-index');
             $offlineWarmUrls[] = route('penjualan.create');
         } elseif (auth()->user()->role === 'admin-cabang') {
+            $offlineWarmUrls[] = route('penjualan.index');
             $offlineWarmUrls[] = route('penjualan.branch-index');
         } elseif (in_array(auth()->user()->role, ['superadmin', 'admin-gudang', 'owner'], true)) {
             $offlineWarmUrls[] = route('penjualan.index');
@@ -133,7 +137,7 @@
     if ('serviceWorker' in navigator) {
         // The query string forces browsers that still have the old package
         // worker registered to fetch this worker again after deployment.
-        navigator.serviceWorker.register('/serviceworker.js?v=offline-pages-v2', {
+        navigator.serviceWorker.register('/serviceworker.js?v=offline-pages-v3', {
             scope: '/'
         }).then(function (registration) {
             // Registration was successful

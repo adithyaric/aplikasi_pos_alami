@@ -57,6 +57,9 @@
         <button type="button" id="offline-sync-button" class="btn btn-xs btn-default" style="display:none; margin-left:8px;">
             Sinkronkan sekarang
         </button>
+        <button type="button" id="offline-discard-button" class="btn btn-xs btn-danger" style="display:none; margin-left:8px;">
+            Hapus data gagal
+        </button>
     </div>
     <div class="wrapper">
         @include('sweetalert::alert')

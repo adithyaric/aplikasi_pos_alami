@@ -31,10 +31,11 @@
 
                 <form action="{{ $formAction }}" method="POST" id="warehouse-sale-form"
                     data-penjualan-id="{{ $penjualan?->id ?? '' }}"
+                    data-branch-sale="{{ $isBranchSaleMode ? 'true' : 'false' }}"
                     @if (! $penjualan)
                         data-offline-queue="penjualan-create"
                         data-offline-title="Penjualan"
-                        data-offline-redirect="{{ route('penjualan.index') }}"
+                        data-offline-redirect="{{ $isBranchSaleMode ? route('penjualan.branch-index') : route('penjualan.index') }}"
                     @endif>
                     @csrf
                     @if ($formMethod !== 'POST')
@@ -87,10 +88,12 @@
 
                         <div class="row">
                             @if ($isBranchSaleMode)
-                            <div class="col-md-4 buyer-select buyer-toko" style="display:none">
+                            <div class="col-md-4 buyer-select buyer-toko"
+                                @unless ($isBranchSaleMode) style="display:none" @endunless>
                                 <div class="form-group">
                                     <label>Customer/Toko</label>
-                                    <select class="form-control select2" id="outlet_target_id" name="outlet_target_id" style="width:100%">
+                                    <select class="form-control select2" id="outlet_target_id" name="outlet_target_id"
+                                        style="width:100%" @if ($isBranchSaleMode) required @endif>
                                         <option value="">Pilih Customer/Toko</option>
                                         @foreach ($outlets as $outlet)
                                             <option value="{{ $outlet->id }}" {{ (string) $selectedOutletId === (string) $outlet->id ? 'selected' : '' }}>

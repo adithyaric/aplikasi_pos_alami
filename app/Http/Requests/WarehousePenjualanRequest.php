@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class WarehousePenjualanRequest extends FormRequest
 {
@@ -59,7 +60,7 @@ class WarehousePenjualanRequest extends FormRequest
             'agent_id' => $isBranchSale ? 'nullable' : 'nullable|required_if:buyer_type,agent|exists:agents,id',
             'canvas_id' => $isBranchSale ? 'nullable' : 'nullable|required_if:buyer_type,canvas|exists:canvases,id',
             'outlet_target_id' => $isBranchSale
-                ? 'required|exists:outlets,id'
+                ? ['required', Rule::exists('outlets', 'id')->where(fn ($query) => $query->where('jenis_outlet', 'toko'))]
                 : 'nullable|required_if:buyer_type,outlet|exists:outlets,id',
             'toko_id' => $isBranchSale ? 'nullable' : 'nullable|required_if:buyer_type,toko|exists:outlets,id',
             'payment_type' => 'required|in:cash,termin',
@@ -85,7 +86,9 @@ class WarehousePenjualanRequest extends FormRequest
             'buyer_type.required' => 'Jenis pembeli wajib dipilih.',
             'agent_id.required_if' => 'Agen wajib dipilih.',
             'canvas_id.required_if' => 'Canvas wajib dipilih.',
+            'outlet_target_id.required' => 'Customer/Toko wajib dipilih.',
             'outlet_target_id.required_if' => 'Cabang wajib dipilih.',
+            'outlet_target_id.exists' => 'Customer/Toko tidak valid.',
             'toko_id.required_if' => 'Toko wajib dipilih.',
             'payment_type.required' => 'Tipe pembayaran wajib dipilih.',
             'due_date.after_or_equal' => 'Jatuh tempo tidak boleh sebelum tanggal penjualan.',
