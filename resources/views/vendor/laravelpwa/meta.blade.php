@@ -30,6 +30,34 @@
 <meta name="msapplication-TileColor" content="{{ $config['background_color'] }}">
 <meta name="msapplication-TileImage" content="{{ asset(data_get(end($config['icons']), 'src')) }}">
 
+@auth
+    @php
+        // The service worker must never use one user's cached HTML for another
+        // user.  The opaque value is only a cache namespace, not an identity.
+        $offlineCacheKey = hash_hmac(
+            'sha256',
+            'offline-user:'.auth()->id().':'.auth()->user()->role,
+            (string) config('app.key')
+        );
+    @endphp
+    <meta name="offline-user-scope" content="{{ $offlineCacheKey }}">
+    <script>
+        (function () {
+            var key = @json($offlineCacheKey);
+            document.cookie = 'alami_pwa_user=' + encodeURIComponent(key) + '; path=/; SameSite=Lax';
+
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.ready.then(function (registration) {
+                    var worker = navigator.serviceWorker.controller || registration.active;
+                    if (worker) {
+                        worker.postMessage({ type: 'set-user-cache', key: key });
+                    }
+                });
+            }
+        }());
+    </script>
+@endauth
+
 <script type="text/javascript">
     // Initialize the service worker
     if ('serviceWorker' in navigator) {

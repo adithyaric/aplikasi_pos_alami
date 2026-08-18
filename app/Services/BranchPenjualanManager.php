@@ -71,6 +71,12 @@ class BranchPenjualanManager
         }
 
         return DB::transaction(function () use ($penjualan, $payload, $operatorId, $branchId, $salesmanId) {
+            // Serialize edits to the same sale before rolling its branch stock
+            // back and allocating the replacement lines.
+            $penjualan = Penjualan::whereKey($penjualan->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $this->rollbackSale($penjualan, $operatorId);
             $this->purgeSaleItems($penjualan);
 

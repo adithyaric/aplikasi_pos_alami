@@ -14,7 +14,9 @@
                     </div><!-- /.box-header -->
                     <!-- form start -->
                     <form action="{{ route('pembelian.store') }}" method="POST" enctype="multipart/form-data"
-                        data-offline-queue="pembelian-create" data-offline-title="Pembelian">
+                        data-offline-queue="pembelian-create"
+                        data-offline-title="Pembelian"
+                        data-offline-redirect="{{ route('pembelian.index') }}">
                         @csrf
                         <div class="box-body">
                             <div class="form-group">

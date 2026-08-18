@@ -88,6 +88,13 @@ class WarehousePenjualanManager
         }
 
         return DB::transaction(function () use ($penjualan, $payload, $operatorId) {
+            // Serialize edits to the same sale before rolling its stock back.
+            // Stock rows are locked below as well, so a concurrent sale still
+            // waits instead of applying a stale rollback.
+            $penjualan = Penjualan::whereKey($penjualan->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $this->rollbackSale($penjualan, $operatorId);
             $this->purgeSaleItems($penjualan);
 

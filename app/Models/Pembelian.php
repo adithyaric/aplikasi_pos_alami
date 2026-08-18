@@ -50,6 +50,11 @@ class Pembelian extends Model
         return $this->belongsTo(Supplier::class)->withTrashed();
     }
 
+    public function customerPo()
+    {
+        return $this->hasOne(CustomerPo::class, 'name', 'customer_po')->withTrashed();
+    }
+
     public function kas()
     {
         return $this->belongsTo(Kas::class);

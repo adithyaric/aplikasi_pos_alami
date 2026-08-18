@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Agent;
 use App\Models\Category;
+use App\Models\CustomerPo;
 use App\Models\Pembelian;
 use App\Models\Penjualan;
 use App\Models\Product;
@@ -31,7 +32,7 @@ class DocumentTemplateRendererTest extends TestCase
         ]));
 
         $sale = $this->createSaleWithItems();
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setCellValue('A1', 'INVOICE');
         $sheet->setCellValue('A2', '{{company.name}}');
@@ -84,7 +85,7 @@ class DocumentTemplateRendererTest extends TestCase
         ]));
 
         $sale = $this->createSaleWithItems();
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setCellValue('A1', '{{company.logo}}');
         $sheet->setCellValue('A2', '{{company.ttd}}');
@@ -130,7 +131,7 @@ class DocumentTemplateRendererTest extends TestCase
             'konversi_qty_terbesar' => 25,
         ]);
         $pembelian->pembelianProducts()->first()->update(['qty' => 265]);
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setCellValue('A1', 'PURCHASE ORDER');
         $sheet->setCellValue('A2', '{{company.name}}');
@@ -171,6 +172,110 @@ class DocumentTemplateRendererTest extends TestCase
         @unlink($output);
     }
 
+    public function test_purchase_buyer_variables_use_customer_po_details_in_xlsx_and_docx(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('settings.json', json_encode([
+            'name' => 'Settings Company Must Not Be Used',
+            'address' => 'Settings Address',
+            'telp' => '0800000000',
+            'email' => 'settings@example.com',
+            'purchase_template_xlsx' => 'templates/documents/customer-po.xlsx',
+        ]));
+
+        $pembelian = $this->createPurchaseWithItems();
+        $pembelian->update(['customer_po' => 'Customer Contact']);
+        CustomerPo::create([
+            'name' => 'Customer Contact',
+            'company_name' => 'Customer Company',
+            'address' => 'Customer Address',
+            'phone' => '081234567890',
+            'email' => 'customer@example.com',
+        ]);
+
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setCellValue('A1', '{{buyer.name}}');
+        $sheet->setCellValue('A2', '{{buyer.company_name}}');
+        $sheet->setCellValue('A3', '{{buyer.address}}');
+        $sheet->setCellValue('A4', '{{buyer.phone}}');
+        $sheet->setCellValue('A5', '{{buyer.email}}');
+        $this->storeSpreadsheet($spreadsheet, 'templates/documents/customer-po.xlsx');
+
+        $output = app(DocumentTemplateRenderer::class)->renderPurchaseXlsx($pembelian);
+        $result = IOFactory::load($output)->getActiveSheet();
+        $this->assertSame('Customer Contact', $result->getCell('A1')->getValue());
+        $this->assertSame('Customer Company', $result->getCell('A2')->getValue());
+        $this->assertSame('Customer Address', $result->getCell('A3')->getValue());
+        $this->assertSame('081234567890', $result->getCell('A4')->getValue());
+        $this->assertSame('customer@example.com', $result->getCell('A5')->getValue());
+        @unlink($output);
+
+        $docxPath = 'templates/documents/suppliers/'.$pembelian->supplier_id.'/customer-po.docx';
+        $pembelian->supplier->update(['po_template' => $docxPath]);
+        $temporaryTemplate = tempnam(sys_get_temp_dir(), 'alami-customer-po-docx-');
+        file_put_contents($temporaryTemplate, file_get_contents(base_path('template_alami_pembelian.docx')));
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open($temporaryTemplate) === true);
+        $xml = $zip->getFromName('word/document.xml');
+        $xml = str_replace(
+            '{{supplier.name}} di',
+            '{{buyer.name}} / {{buyer.company_name}} / {{buyer.email}} di',
+            $xml,
+            $replacementCount,
+        );
+        $this->assertSame(1, $replacementCount);
+        $zip->addFromString('word/document.xml', $xml);
+        $zip->close();
+        Storage::disk('public')->put($docxPath, file_get_contents($temporaryTemplate));
+        @unlink($temporaryTemplate);
+
+        $output = app(DocumentTemplateRenderer::class)->renderPurchaseDocx($pembelian);
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open($output) === true);
+        $resultXml = $zip->getFromName('word/document.xml');
+        $zip->close();
+        $this->assertStringContainsString('Customer Contact', $resultXml);
+        $this->assertStringContainsString('Customer Company', $resultXml);
+        $this->assertStringContainsString('customer@example.com', $resultXml);
+        @unlink($output);
+    }
+
+    public function test_xlsx_item_borders_cover_blank_cells_in_the_template_table(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('settings.json', json_encode([
+            'purchase_template_xlsx' => 'templates/documents/bordered-purchase.xlsx',
+        ]));
+
+        $pembelian = $this->createPurchaseWithItems();
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setCellValue('A1', 'NO');
+        $sheet->setCellValue('B1', 'NAMA');
+        $sheet->setCellValue('C1', 'CATATAN');
+        $sheet->setCellValue('A2', '{{purchase.items.no}}');
+        $sheet->getStyle('A1:C1')->applyFromArray([
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                ],
+            ],
+        ]);
+        $this->storeSpreadsheet($spreadsheet, 'templates/documents/bordered-purchase.xlsx');
+
+        $output = app(DocumentTemplateRenderer::class)->renderPurchaseXlsx($pembelian);
+        $result = IOFactory::load($output)->getActiveSheet();
+        foreach (['A2:C2', 'A3:C3'] as $range) {
+            $borders = $result->getStyle($range)->getBorders();
+            $this->assertSame(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN, $borders->getTop()->getBorderStyle());
+            $this->assertSame(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN, $borders->getRight()->getBorderStyle());
+            $this->assertSame(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN, $borders->getBottom()->getBorderStyle());
+            $this->assertSame(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN, $borders->getLeft()->getBorderStyle());
+        }
+        @unlink($output);
+    }
+
     public function test_purchase_xlsx_prefers_the_selected_supplier_template(): void
     {
         Storage::fake('public');
@@ -183,13 +288,13 @@ class DocumentTemplateRendererTest extends TestCase
             'po_template' => 'templates/documents/suppliers/'.$pembelian->supplier_id.'/template-po-supplier-a.xlsx',
         ]);
 
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setCellValue('A1', 'SUPPLIER A TEMPLATE');
         $sheet->setCellValue('A2', '{{purchase.number}}');
         $this->storeSpreadsheet($spreadsheet, 'templates/documents/suppliers/'.$pembelian->supplier_id.'/template-po-supplier-a.xlsx');
 
-        $globalSpreadsheet = new Spreadsheet();
+        $globalSpreadsheet = new Spreadsheet;
         $globalSpreadsheet->getActiveSheet()->setCellValue('A1', 'GLOBAL TEMPLATE');
         $this->storeSpreadsheet($globalSpreadsheet, 'templates/documents/global-purchase.xlsx');
 
@@ -211,7 +316,7 @@ class DocumentTemplateRendererTest extends TestCase
         $xlsxPath = 'templates/documents/suppliers/'.$pembelian->supplier_id.'/supplier-po.xlsx';
         $pembelian->supplier->update(['po_template' => $xlsxPath]);
 
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $spreadsheet->getActiveSheet()->setCellValue('A1', '{{purchase.number}}');
         $this->storeSpreadsheet($spreadsheet, $xlsxPath);
 
@@ -258,7 +363,7 @@ class DocumentTemplateRendererTest extends TestCase
         $temporaryTemplate = tempnam(sys_get_temp_dir(), 'alami-test-docx-');
         file_put_contents($temporaryTemplate, file_get_contents($source));
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $this->assertTrue($zip->open($temporaryTemplate) === true);
         $xml = $zip->getFromName('word/document.xml');
         $splitNumber = '<w:t>Nomor: {{purchase.number}}    Lampiran: -</w:t>';
@@ -276,7 +381,7 @@ class DocumentTemplateRendererTest extends TestCase
         @unlink($temporaryTemplate);
 
         $output = app(DocumentTemplateRenderer::class)->renderPurchaseDocx($pembelian);
-        $resultZip = new ZipArchive();
+        $resultZip = new ZipArchive;
         $this->assertTrue($resultZip->open($output) === true);
         $resultXml = $resultZip->getFromName('word/document.xml');
         $resultZip->close();
@@ -303,7 +408,7 @@ class DocumentTemplateRendererTest extends TestCase
         Storage::disk('public')->put($templatePath, file_get_contents(base_path('template_alami_pembelian.docx')));
 
         $output = app(DocumentTemplateRenderer::class)->renderPurchaseDocx($pembelian);
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $this->assertTrue($zip->open($output) === true);
         $documentXml = $zip->getFromName('word/document.xml');
         $relationshipsXml = $zip->getFromName('word/_rels/document.xml.rels');
@@ -329,7 +434,7 @@ class DocumentTemplateRendererTest extends TestCase
 
         $temporaryTemplate = tempnam(sys_get_temp_dir(), 'alami-signature-docx-');
         file_put_contents($temporaryTemplate, file_get_contents(base_path('template_alami_pembelian.docx')));
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $this->assertTrue($zip->open($temporaryTemplate) === true);
         $documentXml = $zip->getFromName('word/document.xml');
         $this->assertStringContainsString('<w:t>Hormat</w:t>', $documentXml);
@@ -346,7 +451,7 @@ class DocumentTemplateRendererTest extends TestCase
         @unlink($temporaryTemplate);
 
         $output = app(DocumentTemplateRenderer::class)->renderPurchaseDocx($pembelian);
-        $resultZip = new ZipArchive();
+        $resultZip = new ZipArchive;
         $this->assertTrue($resultZip->open($output) === true);
         $resultXml = $resultZip->getFromName('word/document.xml');
         $relationshipsXml = $resultZip->getFromName('word/_rels/document.xml.rels');
@@ -387,7 +492,7 @@ class DocumentTemplateRendererTest extends TestCase
 
         $templatePath = 'templates/documents/suppliers/'.$first->supplier_id.'/bulk-purchase.xlsx';
         $first->supplier->update(['po_template' => $templatePath]);
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setCellValue('A1', '{{sale.number}}');
         $sheet->setCellValue('A2', '{{buyer.name}}');
@@ -461,7 +566,7 @@ class DocumentTemplateRendererTest extends TestCase
             ->orderBy('id')
             ->get();
         $output = app(DocumentTemplateRenderer::class)->renderPurchaseBatch($pembelians);
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $this->assertTrue($zip->open($output['path']) === true);
         $xml = $zip->getFromName('word/document.xml');
         $zip->close();
@@ -472,6 +577,23 @@ class DocumentTemplateRendererTest extends TestCase
         $this->assertStringContainsString('Purchase Product One', $xml);
         $this->assertStringContainsString('<w:tcBorders>', $xml);
         $this->assertStringContainsString('<w:top w:val="single"', $xml);
+        $this->assertStringContainsString('<w:tblBorders>', $xml);
+        $this->assertStringContainsString('<w:insideH w:val="single"', $xml);
+
+        $document = new \DOMDocument('1.0', 'UTF-8');
+        $this->assertTrue($document->loadXML($xml));
+        $xpath = new \DOMXPath($document);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        foreach ($xpath->query('//w:body/w:tbl[1]/w:tr/w:tc') as $cell) {
+            foreach (['top', 'right', 'bottom', 'left'] as $side) {
+                $border = $xpath->query('./w:tcPr/w:tcBorders/w:'.$side, $cell)->item(0);
+                $this->assertNotNull($border);
+                $this->assertSame('single', $border->getAttributeNS(
+                    'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+                    'val',
+                ));
+            }
+        }
 
         @unlink($output['path']);
     }

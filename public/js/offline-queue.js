@@ -2,12 +2,17 @@
     'use strict';
 
     var DB_NAME = 'alami-pwa';
-    var DB_VERSION = 1;
+    var DB_VERSION = 2;
     var STORE_NAME = 'requests';
     var REQUEST_TIMEOUT = 15000;
-    var RUNTIME_CACHE_NAME = 'alami-admin-pwa-runtime-v2';
     var databasePromise = null;
     var synchronizing = false;
+
+    function currentUserScope() {
+        var element = document.querySelector('meta[name="offline-user-scope"]');
+
+        return element ? element.getAttribute('content') : null;
+    }
 
     function openDatabase() {
         if (databasePromise) {
@@ -82,6 +87,16 @@
         });
     }
 
+    function currentUserRequests(items) {
+        var scope = currentUserScope();
+
+        // Requests created by this version are always scoped.  Do not replay
+        // an unscoped request under a different account after logout/login.
+        return (items || []).filter(function (item) {
+            return scope && item.userScope === scope;
+        });
+    }
+
     function putRequest(item) {
         return transaction('readwrite', function (store) {
             store.put(item);
@@ -125,6 +140,7 @@
         var button = document.getElementById('offline-sync-button');
 
         return allRequests().then(function (items) {
+            items = currentUserRequests(items);
             var pending = items.filter(function (item) { return item.status === 'pending'; }).length;
             var failed = items.filter(function (item) { return item.status === 'failed'; }).length;
             var offline = !navigator.onLine;
@@ -202,6 +218,7 @@
 
         return !path
             || /(^|\/)(laporan|export|pdf|download|import)(\/|$)/i.test(path)
+            || /^\/offline\/csrf-token$/.test(path)
             || /^\/(logout|login|register|password|email|verification)(\/|$)/i.test(path);
     }
 
@@ -221,6 +238,61 @@
         });
     }
 
+    function replaceCsrfToken(item, token) {
+        if (!item.body || !item.contentType) {
+            return;
+        }
+
+        if (item.contentType.indexOf('application/json') !== -1) {
+            var json = JSON.parse(item.body);
+            json._token = token;
+            item.body = JSON.stringify(json);
+            return;
+        }
+
+        var params = new URLSearchParams(item.body);
+        params.set('_token', token);
+        item.body = params.toString();
+    }
+
+    function refreshCsrfToken(item) {
+        if (!isUnsafeMethod(item.method)) {
+            return Promise.resolve(item);
+        }
+
+        return fetch('/offline/csrf-token?refresh=' + Date.now(), {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            cache: 'no-store'
+        }).then(function (response) {
+            return response.text().then(function (text) {
+                var payload = null;
+
+                try {
+                    payload = text ? JSON.parse(text) : null;
+                } catch (error) {
+                    payload = null;
+                }
+
+                if (!response.ok || !payload || !payload.token) {
+                    var tokenError = new Error('Sesi login tidak tersedia. Login kembali untuk menyinkronkan data.');
+                    tokenError.status = response.status || 401;
+                    tokenError.payload = payload;
+                    throw tokenError;
+                }
+
+                item.csrfToken = payload.token;
+                replaceCsrfToken(item, payload.token);
+
+                return item;
+            });
+        });
+    }
+
     function requestJson(item) {
         var controller = window.AbortController ? new AbortController() : null;
         var timeout = controller
@@ -234,17 +306,19 @@
         if (item.contentType) {
             headers['Content-Type'] = item.contentType;
         }
-        if (item.csrfToken) {
-            headers['X-CSRF-TOKEN'] = item.csrfToken;
-        }
+        return refreshCsrfToken(item).then(function () {
+            if (item.csrfToken) {
+                headers['X-CSRF-TOKEN'] = item.csrfToken;
+            }
 
-        return fetch(item.url, {
-            method: item.method,
-            headers: headers,
-            credentials: 'same-origin',
-            redirect: 'follow',
-            body: item.body,
-            signal: controller ? controller.signal : undefined
+            return fetch(item.url, {
+                method: item.method,
+                headers: headers,
+                credentials: 'same-origin',
+                redirect: 'follow',
+                body: item.body,
+                signal: controller ? controller.signal : undefined
+            });
         }).then(function (response) {
             return response.text().then(function (text) {
                 var payload = null;
@@ -348,6 +422,8 @@
             csrfToken: csrfToken(),
             allowNonJson: !form.hasAttribute('data-offline-queue'),
             title: form.getAttribute('data-offline-title') || 'Perubahan data',
+            redirect: form.getAttribute('data-offline-redirect') || null,
+            userScope: currentUserScope(),
             createdAt: Date.now(),
             attempts: 0,
             status: 'pending',
@@ -397,6 +473,8 @@
                 || csrfToken(),
             allowNonJson: true,
             title: options.offlineTitle || 'Perubahan data',
+            redirect: options.offlineRedirect || null,
+            userScope: currentUserScope(),
             createdAt: Date.now(),
             attempts: 0,
             status: 'pending',
@@ -458,7 +536,11 @@
             }
         }).catch(function (error) {
             if (!error.status) {
-                queueItem(item).catch(showServerError);
+                queueItem(item).then(function () {
+                    if (item.redirect) {
+                        window.location.assign(item.redirect);
+                    }
+                }).catch(showServerError);
                 return;
             }
 
@@ -477,6 +559,7 @@
         synchronizing = true;
 
         return allRequests().then(function (items) {
+            items = currentUserRequests(items);
             return items.filter(function (item) {
                 return item.status === 'pending';
             }).sort(function (a, b) {
@@ -518,6 +601,7 @@
 
     function retryFailed() {
         return allRequests().then(function (items) {
+            items = currentUserRequests(items);
             return Promise.all(items.filter(function (item) {
                 return item.status === 'failed';
             }).map(function (item) {
@@ -622,6 +706,30 @@
         $.ajax = offlineAjax;
     }
 
+    function clearRuntimeCaches() {
+        var scope = currentUserScope();
+        var cacheName = scope ? 'alami-admin-pwa-user-' + scope : null;
+
+        if (navigator.serviceWorker && navigator.serviceWorker.controller && cacheName) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'clear-user-cache',
+                cacheName: cacheName
+            });
+        }
+
+        if (window.caches) {
+            window.caches.keys().then(function (cacheNames) {
+                cacheNames.filter(function (name) {
+                    return name.indexOf('alami-admin-pwa-user-') === 0;
+                }).forEach(function (name) {
+                    window.caches.delete(name);
+                });
+            });
+        }
+
+        document.cookie = 'alami_pwa_user=; Max-Age=0; path=/; SameSite=Lax';
+    }
+
     document.addEventListener('submit', function (event) {
         var form = event.target;
 
@@ -630,9 +738,7 @@
         }
 
         if (form.hasAttribute('data-clear-offline-cache')) {
-            if (window.caches) {
-                window.caches.delete(RUNTIME_CACHE_NAME);
-            }
+            clearRuntimeCaches();
             return;
         }
 
@@ -693,6 +799,7 @@
         sync: syncQueue,
         refresh: updateIndicator,
         enqueueForm: enqueueForm,
+        clearRuntimeCaches: clearRuntimeCaches,
         enqueue: function (options) {
             return queueItem(buildAjaxRequest(options));
         }

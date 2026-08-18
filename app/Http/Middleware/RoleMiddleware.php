@@ -56,6 +56,7 @@ class RoleMiddleware
 
         $commonRoutes = [
             'dashboard',
+            'offline.csrf-token',
             'profile.edit',
             'profile.update',
             'profile.destroy',

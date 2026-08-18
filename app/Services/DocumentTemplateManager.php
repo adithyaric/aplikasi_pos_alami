@@ -257,7 +257,8 @@ class DocumentTemplateManager
                     '{{sale.number}}', '{{sale.date}}', '{{sale.subtotal}}',
                     '{{sale.old_debt}}', '{{sale.shipping_cost}}', '{{sale.payment}}',
                     '{{sale.new_debt}}', '{{buyer.name}}', '{{buyer.address}}',
-                    '{{buyer.phone}}', '{{sale.items.no}}', '{{sale.items.code}}',
+                    '{{buyer.company_name}}', '{{buyer.phone}}', '{{buyer.email}}',
+                    '{{sale.items.no}}', '{{sale.items.code}}',
                     '{{sale.items.name}}', '{{sale.items.qty}}', '{{sale.items.unit}}',
                     '{{sale.items.discount}}', '{{sale.items.price}}', '{{sale.items.subtotal}}',
                 ],
@@ -275,7 +276,8 @@ class DocumentTemplateManager
                     '{{sale.paid}}',
                 ],
                 'Pembeli' => [
-                    '{{buyer.type}}', '{{buyer.name}}', '{{buyer.address}}', '{{buyer.phone}}',
+                    '{{buyer.type}}', '{{buyer.name}}', '{{buyer.company_name}}',
+                    '{{buyer.address}}', '{{buyer.phone}}', '{{buyer.email}}',
                 ],
                 'Petugas penjualan' => [
                     '{{operator.name}}', '{{salesman.name}}',

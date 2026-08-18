@@ -297,8 +297,15 @@ class PembelianController extends Controller
 
         $data = $request->validated();
         $data['customer_po'] = $this->syncCustomerPoMaster($request->customer_po);
-        $pembelian->update($data);
-        $this->updateStock($request, $pembelian);
+
+        DB::transaction(function () use ($data, $request, $pembelian) {
+            $pembelian = Pembelian::whereKey($pembelian->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $pembelian->update($data);
+            $this->updateStock($request, $pembelian);
+        });
 
         return redirect(route('pembelian.index'))->with('toast_success', 'Berhasil Memperbarui Data!');
     }
@@ -363,6 +370,12 @@ class PembelianController extends Controller
 
         DB::beginTransaction();
         try {
+            // Receipt, PO edits, and sale allocation must not observe or write
+            // half of the same purchase at the same time.
+            $pembelian = Pembelian::whereKey($pembelian->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $converter = app(ProductUnitConverter::class);
             $photoPath = $pembelian->receipt_photo;
             if ($request->hasFile('receipt_photo')) {
@@ -393,6 +406,7 @@ class PembelianController extends Controller
                 // Cek apakah sudah ada stock global untuk product ini dari pembelian ini
                 $existingStock = Stock::where('pembelian_id', $pembelian->id)
                     ->where('product_id', $itemData['product_id'])
+                    ->lockForUpdate()
                     ->first();
 
                 if ($existingStock) {
@@ -495,6 +509,10 @@ class PembelianController extends Controller
 
         DB::beginTransaction();
         try {
+            $pembelian = Pembelian::whereKey($pembelian->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $photoPath = $pembelian->receipt_photo;
             if ($request->hasFile('receipt_photo')) {
                 $photoPath = $request->file('receipt_photo')->store('receipt-photos', 'public');
@@ -544,7 +562,8 @@ class PembelianController extends Controller
                     : array_filter(array_map('trim', explode("\n", $productData['serial_numbers'])));
             }
 
-            PembelianProduct::updateOrCreate(
+            $this->upsertLocked(
+                PembelianProduct::class,
                 ['pembelian_id' => $pembelian->id, 'product_id' => $productData['product_id']],
                 [
                     'harga_beli' => $hargaBeli,
@@ -558,7 +577,8 @@ class PembelianController extends Controller
             if ($pembelian->is_published) {
                 if ($product->is_serialized && ! empty($serialNumbers)) {
                     foreach ($serialNumbers as $serial) {
-                        Stock::updateOrCreate(
+                        $this->upsertLocked(
+                            Stock::class,
                             [
                                 'pembelian_id' => $pembelian->id,
                                 'product_id' => $productData['product_id'],
@@ -575,7 +595,8 @@ class PembelianController extends Controller
                         );
                     }
                 } else {
-                    Stock::updateOrCreate(
+                    $this->upsertLocked(
+                        Stock::class,
                         ['pembelian_id' => $pembelian->id, 'product_id' => $productData['product_id']],
                         [
                             'harga_beli' => $hargaBeli,
@@ -589,7 +610,8 @@ class PembelianController extends Controller
                 }
             } elseif ($product->is_serialized && ! empty($serialNumbers)) {
                 foreach ($serialNumbers as $serial) {
-                    StockPembelian::updateOrCreate(
+                    $this->upsertLocked(
+                        StockPembelian::class,
                         [
                             'pembelian_id' => $pembelian->id,
                             'product_id' => $productData['product_id'],
@@ -606,7 +628,8 @@ class PembelianController extends Controller
                     );
                 }
             } else {
-                StockPembelian::updateOrCreate(
+                $this->upsertLocked(
+                    StockPembelian::class,
                     ['pembelian_id' => $pembelian->id, 'product_id' => $productData['product_id']],
                     [
                         'harga_beli' => $hargaBeli,
@@ -621,6 +644,31 @@ class PembelianController extends Controller
 
             $product->update(['harga_beli' => $hargaBeli]);
         }
+    }
+
+    /**
+     * Serialize edits to one purchase/product row before replacing its stock
+     * snapshot. This is intentionally synchronous; no worker or cron process
+     * is required for a stock-safe controller request.
+     */
+    private function upsertLocked(string $modelClass, array $keys, array $values): void
+    {
+        $model = $modelClass::withTrashed()
+            ->where($keys)
+            ->lockForUpdate()
+            ->first();
+
+        if ($model) {
+            if (method_exists($model, 'trashed') && $model->trashed()) {
+                $model->restore();
+            }
+
+            $model->update($values);
+
+            return;
+        }
+
+        $modelClass::create(array_merge($keys, $values));
     }
 
     private function normalizeMoney($value): int

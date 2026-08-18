@@ -41,6 +41,15 @@ Route::get('/', function () {
 });
 
 Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|superadmin'])->group(function () {
+    // Queued browser writes must get the current session token at replay time.
+    // This endpoint deliberately remains uncached and is protected by the
+    // authenticated role group above.
+    Route::get('/offline/csrf-token', function () {
+        return response()
+            ->json(['token' => csrf_token()])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    })->name('offline.csrf-token');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

@@ -6,6 +6,7 @@ use App\Models\OfflineSyncRequest;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 class ReplayOfflineRequest
@@ -22,9 +23,27 @@ class ReplayOfflineRequest
             return $next($request);
         }
 
-        $existing = OfflineSyncRequest::where('client_id', $clientId)->first();
+        /*
+         * Claim the client id inside the same transaction as the controller.
+         * insertOrIgnore gives concurrent replays one unique row to lock; the
+         * second request waits for the first transaction and then returns its
+         * stored response instead of running stock mutations again.
+         */
+        return DB::transaction(function () use ($request, $next, $clientId) {
+            OfflineSyncRequest::query()->insertOrIgnore([
+                'client_id' => $clientId,
+                'user_id' => $request->user()->getAuthIdentifier(),
+                'method' => strtoupper($request->method()),
+                'path' => '/'.$request->path(),
+                'response_status' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
-        if ($existing) {
+            $existing = OfflineSyncRequest::where('client_id', $clientId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             if ((int) $existing->user_id !== (int) $request->user()->getAuthIdentifier()) {
                 return response()->json([
                     'success' => false,
@@ -32,38 +51,40 @@ class ReplayOfflineRequest
                 ], 409);
             }
 
-            return $this->replayedResponse($existing);
-        }
+            if ($existing->completed_at) {
+                return $this->replayedResponse($existing);
+            }
 
-        $response = $next($request);
+            $response = $next($request);
 
-        if (! $response->isSuccessful() && ! $response->isRedirection()) {
-            return $response;
-        }
+            if (! $response->isSuccessful() && ! $response->isRedirection()) {
+                $existing->delete();
 
-        $payload = $this->responsePayload($response);
-        $location = $response->headers->get('Location');
+                return $response;
+            }
 
-        if (($payload['success'] ?? true) === false || $this->isLoginRedirect($location)) {
-            return $response;
-        }
+            $payload = $this->responsePayload($response);
+            $location = $response->headers->get('Location');
 
-        OfflineSyncRequest::create([
-            'client_id' => $clientId,
-            'user_id' => $request->user()->getAuthIdentifier(),
-            'method' => strtoupper($request->method()),
-            'path' => '/'.$request->path(),
-            'response_status' => $response->getStatusCode(),
-            'response_payload' => $payload ? json_encode($payload) : null,
-            'response_location' => $location,
-            'completed_at' => now(),
-        ]);
+            if (($payload['success'] ?? true) === false || $this->isLoginRedirect($location)) {
+                $existing->delete();
 
-        $status = $response->isRedirection() || $response->getStatusCode() === 204
-            ? 200
-            : $response->getStatusCode();
+                return $response;
+            }
 
-        return response()->json($this->normalisePayload($payload, $location), $status);
+            $existing->update([
+                'response_status' => $response->getStatusCode(),
+                'response_payload' => $payload ? json_encode($payload) : null,
+                'response_location' => $location,
+                'completed_at' => now(),
+            ]);
+
+            $status = $response->isRedirection() || $response->getStatusCode() === 204
+                ? 200
+                : $response->getStatusCode();
+
+            return response()->json($this->normalisePayload($payload, $location), $status);
+        });
     }
 
     private function isReplayableRequest(Request $request, string $clientId): bool

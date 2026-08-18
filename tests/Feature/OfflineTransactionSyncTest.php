@@ -16,6 +16,22 @@ class OfflineTransactionSyncTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_authenticated_offline_clients_can_refresh_the_current_csrf_token(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'sales',
+            'username' => 'offline-csrf-sales',
+            'email' => 'offline-csrf-sales@alami.test',
+        ]);
+
+        $response = $this->actingAs($user)
+            ->get(route('offline.csrf-token'));
+
+        $response->assertOk()
+            ->assertJsonStructure(['token']);
+        $this->assertNotSame('', (string) $response->json('token'));
+    }
+
     public function test_replaying_a_generic_admin_form_is_returned_without_running_it_twice(): void
     {
         $user = User::factory()->create([

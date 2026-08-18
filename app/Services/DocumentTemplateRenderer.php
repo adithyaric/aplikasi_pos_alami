@@ -14,8 +14,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use ZipArchive;
 
@@ -25,20 +25,18 @@ class DocumentTemplateRenderer
         private readonly DocumentTemplateManager $templates,
         private readonly PenjualanBalanceService $balances,
         private readonly ProductUnitConverter $units,
-    )
-    {
-    }
+    ) {}
 
     public function renderPurchaseDocx(Pembelian $pembelian): string
     {
-        $pembelian->loadMissing(['supplier', 'pembelianProducts.product', 'pembelianTransaction']);
+        $pembelian->loadMissing(['supplier', 'customerPo', 'pembelianProducts.product', 'pembelianTransaction']);
         $source = $pembelian->supplier
             ? $this->templates->resolvePurchase(DocumentTemplateManager::PURCHASE_DOCX, $pembelian->supplier)['path']
             : $this->templates->resolve(DocumentTemplateManager::PURCHASE_DOCX)['path'];
         $target = $this->temporaryPath('docx');
         abort_unless(copy($source, $target), 500, 'Template DOCX tidak dapat disalin.');
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         abort_unless($zip->open($target) === true, 500, 'Template DOCX tidak dapat dibuka.');
 
         $document = new DOMDocument('1.0', 'UTF-8');
@@ -64,7 +62,7 @@ class DocumentTemplateRenderer
 
     public function renderPurchaseXlsx(Pembelian $pembelian): string
     {
-        $pembelian->loadMissing(['supplier', 'pembelianProducts.product', 'pembelianTransaction']);
+        $pembelian->loadMissing(['supplier', 'customerPo', 'pembelianProducts.product', 'pembelianTransaction']);
         $context = $this->purchaseContext($pembelian);
 
         return $this->renderXlsx(DocumentTemplateManager::PURCHASE_XLSX, $context, $pembelian->supplier);
@@ -99,7 +97,7 @@ class DocumentTemplateRenderer
         abort_unless($pembelians->isNotEmpty(), 404, 'Tidak ada PO untuk dicetak.');
 
         $pembelians->each(
-            fn (Pembelian $pembelian) => $pembelian->loadMissing(['supplier', 'pembelianProducts.product', 'pembelianTransaction'])
+            fn (Pembelian $pembelian) => $pembelian->loadMissing(['supplier', 'customerPo', 'pembelianProducts.product', 'pembelianTransaction'])
         );
         $supplier = $pembelians->first()->supplier;
         $type = $supplier
@@ -256,8 +254,33 @@ class DocumentTemplateRenderer
     {
         $namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
-        foreach ($xpath->query('//w:tr[@data-alami-item-index]') as $row) {
-            foreach ($xpath->query('./w:tc', $row) as $cell) {
+        // The template can contain empty item rows in addition to the row
+        // carrying the item tokens. Styling only token rows makes the table
+        // look random in Word, so normalize the complete item table.
+        foreach ($xpath->query('//w:body/w:tbl[.//w:tr[@data-alami-item-index]]') as $table) {
+            $tableProperties = $xpath->query('./w:tblPr', $table)->item(0);
+            if (! $tableProperties instanceof DOMElement) {
+                $tableProperties = $table->ownerDocument->createElementNS($namespace, 'w:tblPr');
+                $table->insertBefore($tableProperties, $table->firstChild);
+            }
+
+            $tableBorders = $xpath->query('./w:tblBorders', $tableProperties)->item(0);
+            if (! $tableBorders instanceof DOMElement) {
+                $tableBorders = $table->ownerDocument->createElementNS($namespace, 'w:tblBorders');
+                $tableProperties->appendChild($tableBorders);
+            }
+
+            foreach (['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as $side) {
+                $border = $xpath->query('./w:'.$side, $tableBorders)->item(0);
+                if (! $border instanceof DOMElement) {
+                    $border = $table->ownerDocument->createElementNS($namespace, 'w:'.$side);
+                    $tableBorders->appendChild($border);
+                }
+
+                $this->setDocxBorder($border, $namespace);
+            }
+
+            foreach ($xpath->query('./w:tr/w:tc', $table) as $cell) {
                 $cellProperties = $xpath->query('./w:tcPr', $cell)->item(0);
                 if (! $cellProperties instanceof DOMElement) {
                     $cellProperties = $cell->ownerDocument->createElementNS($namespace, 'w:tcPr');
@@ -277,21 +300,25 @@ class DocumentTemplateRenderer
                         $borders->appendChild($border);
                     }
 
-                    $border->setAttributeNS($namespace, 'w:val', 'single');
-                    $border->setAttributeNS($namespace, 'w:sz', '4');
-                    $border->setAttributeNS($namespace, 'w:space', '0');
-                    $border->setAttributeNS($namespace, 'w:color', '000000');
+                    $this->setDocxBorder($border, $namespace);
                 }
             }
         }
+    }
+
+    private function setDocxBorder(DOMElement $border, string $namespace): void
+    {
+        $border->setAttributeNS($namespace, 'w:val', 'single');
+        $border->setAttributeNS($namespace, 'w:sz', '4');
+        $border->setAttributeNS($namespace, 'w:space', '0');
+        $border->setAttributeNS($namespace, 'w:color', '000000');
     }
 
     private function replaceDocxTokens(
         DOMXPath $xpath,
         array $variables,
         array $items,
-    ): void
-    {
+    ): void {
         foreach ($xpath->query('//w:p') as $paragraph) {
             $textNodes = $xpath->query('.//w:t', $paragraph);
             if ($textNodes->length === 0) {
@@ -519,51 +546,7 @@ class DocumentTemplateRenderer
     {
         foreach ($spreadsheet->getWorksheetIterator() as $sheet) {
             foreach (array_keys($itemRowIndexes[$sheet->getTitle()] ?? []) as $rowIndex) {
-                $columns = [];
-                foreach ($sheet->getRowIterator($rowIndex, $rowIndex) as $row) {
-                    $cellIterator = $row->getCellIterator();
-                    $cellIterator->setIterateOnlyExistingCells(true);
-                    foreach ($cellIterator as $cell) {
-                        $value = $this->spreadsheetText($cell->getValue());
-                        if ($value === null
-                            || ! preg_match('/\{\{(?:purchase\.items|sale\.items|item|items)\.(?!\d+\.)[a-z_]+\}\}/', $value)) {
-                            continue;
-                        }
-
-                        $columnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($cell->getColumn());
-                        $columns[] = $columnIndex;
-                        foreach ($sheet->getMergeCells() as $merge) {
-                            [$start, $end] = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::rangeBoundaries($merge);
-                            if ($start[1] <= $rowIndex && $end[1] >= $rowIndex
-                                && $columnIndex >= $start[0]
-                                && $columnIndex <= $end[0]) {
-                                for ($column = $start[0]; $column <= $end[0]; $column++) {
-                                    $columns[] = $column;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if ($columns === []) {
-                    continue;
-                }
-
-                sort($columns);
-                $columns = array_values(array_unique($columns));
-                $rangeStart = $columns[0];
-                $previous = $columns[0];
-                $ranges = [];
-                foreach (array_slice($columns, 1) as $column) {
-                    if ($column !== $previous + 1) {
-                        $ranges[] = [$rangeStart, $previous];
-                        $rangeStart = $column;
-                    }
-                    $previous = $column;
-                }
-                $ranges[] = [$rangeStart, $previous];
-
-                foreach ($ranges as [$start, $end]) {
+                foreach ($this->xlsxItemBorderRanges($sheet, $rowIndex) as [$start, $end]) {
                     $startColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($start);
                     $endColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($end);
                     $sheet->getStyle($startColumn.$rowIndex.':'.$endColumn.$rowIndex)->applyFromArray([
@@ -579,14 +562,88 @@ class DocumentTemplateRenderer
         }
     }
 
+    /**
+     * Find the visible table segments for an item row. Looking at the row
+     * above and below also picks up blank cells that are part of the template
+     * table but do not contain a token themselves.
+     */
+    private function xlsxItemBorderRanges(Worksheet $sheet, int $rowIndex): array
+    {
+        $columns = [];
+        $rows = array_values(array_unique(array_filter([
+            $rowIndex - 1,
+            $rowIndex,
+            $rowIndex + 1,
+        ], fn (int $row) => $row > 0 && $row <= $sheet->getHighestRow())));
+
+        foreach ($rows as $rowNumber) {
+            foreach ($sheet->getRowIterator($rowNumber, $rowNumber) as $row) {
+                $cellIterator = $row->getCellIterator();
+                $cellIterator->setIterateOnlyExistingCells(true);
+                foreach ($cellIterator as $cell) {
+                    if ($cell->getValue() !== null || $this->xlsxCellHasTableStyle($cell)) {
+                        $columns[] = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString(
+                            $cell->getColumn()
+                        );
+                    }
+                }
+            }
+        }
+
+        // Always include complete horizontal merges that belong to the item
+        // row. This is important for templates whose token sits in the first
+        // cell of a merged data column.
+        foreach ($sheet->getMergeCells() as $merge) {
+            [$start, $end] = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::rangeBoundaries($merge);
+            if ($start[1] <= $rowIndex && $end[1] >= $rowIndex) {
+                for ($column = $start[0]; $column <= $end[0]; $column++) {
+                    $columns[] = $column;
+                }
+            }
+        }
+
+        if ($columns === []) {
+            return [];
+        }
+
+        sort($columns);
+        $columns = array_values(array_unique($columns));
+        $rangeStart = $columns[0];
+        $previous = $columns[0];
+        $ranges = [];
+        foreach (array_slice($columns, 1) as $column) {
+            if ($column !== $previous + 1) {
+                $ranges[] = [$rangeStart, $previous];
+                $rangeStart = $column;
+            }
+            $previous = $column;
+        }
+        $ranges[] = [$rangeStart, $previous];
+
+        return $ranges;
+    }
+
+    private function xlsxCellHasTableStyle(\PhpOffice\PhpSpreadsheet\Cell\Cell $cell): bool
+    {
+        $borders = $cell->getStyle()->getBorders();
+
+        foreach (['top', 'right', 'bottom', 'left'] as $side) {
+            if ($borders->{'get'.ucfirst($side)}()->getBorderStyle() !== \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_NONE) {
+                return true;
+            }
+        }
+
+        return $cell->getStyle()->getFill()->getFillType()
+            !== \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_NONE;
+    }
+
     private function replaceXlsxTokens(
         Spreadsheet $spreadsheet,
         array $variables,
         array $items,
         string $type,
         array $itemRowIndexes = [],
-    ): void
-    {
+    ): void {
         foreach ($spreadsheet->getWorksheetIterator() as $sheet) {
             $rowMap = $itemRowIndexes[$sheet->getTitle()] ?? [];
             foreach ($sheet->getRowIterator() as $row) {
@@ -600,7 +657,7 @@ class DocumentTemplateRenderer
                         $cell->setValue(null);
                         $logoPath = $this->companyLogoPath();
                         if ($logoPath) {
-                            $drawing = new Drawing();
+                            $drawing = new Drawing;
                             $drawing->setName('Company Logo');
                             $drawing->setDescription('Logo perusahaan');
                             $drawing->setPath($logoPath);
@@ -616,7 +673,7 @@ class DocumentTemplateRenderer
                         $cell->setValue(null);
                         $signaturePath = $this->companySignaturePath();
                         if ($signaturePath) {
-                            $drawing = new Drawing();
+                            $drawing = new Drawing;
                             $drawing->setName('Company TTD');
                             $drawing->setDescription('TTD perusahaan');
                             $drawing->setPath($signaturePath);
@@ -872,6 +929,7 @@ class DocumentTemplateRenderer
         $settings = $this->templates->settings();
         $company = $this->companyContext($settings);
         $supplierModel = $pembelian->supplier;
+        $customerPo = $pembelian->customerPo;
         $supplier = [
             'code' => (string) ($supplierModel?->kode_supplier ?? ''),
             'name' => (string) ($supplierModel?->name ?? '-'),
@@ -919,12 +977,27 @@ class DocumentTemplateRenderer
             'location' => $this->locationFromAddress($company['address']),
             'items' => $items,
         ];
-        $buyer = [
-            'type' => 'Perusahaan',
-            'name' => $company['name'],
-            'address' => $company['address'],
-            'phone' => $company['phone'],
-        ];
+        // A purchase stores the selected Customer PO by name. Resolve the
+        // master record here so buyer.* comes from the PO snapshot instead of
+        // silently reusing the company settings.
+        $buyer = $customerPo
+            ? [
+                'type' => 'Customer PO',
+                'name' => (string) ($customerPo->name ?: '-'),
+                'company_name' => (string) ($customerPo->company_name ?: '-'),
+                'address' => (string) ($customerPo->address ?: '-'),
+                'phone' => (string) ($customerPo->phone ?: '-'),
+                'email' => (string) ($customerPo->email ?: '-'),
+            ]
+            : [
+                // Keep old purchases without a Customer PO renderable.
+                'type' => 'Perusahaan',
+                'name' => $company['name'],
+                'company_name' => $company['name'],
+                'address' => $company['address'],
+                'phone' => $company['phone'],
+                'email' => $company['email'],
+            ];
         $sale = [
             'number' => $purchase['number'],
             'date' => $purchase['date'],
@@ -962,8 +1035,10 @@ class DocumentTemplateRenderer
         $buyer = [
             'type' => (string) ($penjualan->buyer_type_label ?? '-'),
             'name' => (string) ($penjualan->buyer_display_name ?? '-'),
+            'company_name' => (string) ($buyerEntity?->company_name ?? '-'),
             'address' => (string) ($penjualan->buyer_address ?: $buyerEntity?->alamat ?: '-'),
             'phone' => (string) ($penjualan->buyer_phone ?: $buyerEntity?->no_telp ?: '-'),
+            'email' => (string) ($buyerEntity?->email ?? '-'),
         ];
         $date = $penjualan->sale_date ?: $penjualan->created_at ?: now();
         $items = $penjualan->items->values()->map(fn ($item, $index) => $this->itemContext(
@@ -1293,7 +1368,7 @@ class DocumentTemplateRenderer
         }
 
         $namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         abort_unless($zip->open($paths[0]) === true, 500, 'Dokumen DOCX tidak dapat digabungkan.');
 
         $document = new DOMDocument('1.0', 'UTF-8');
@@ -1314,7 +1389,7 @@ class DocumentTemplateRenderer
             $pageBreak->appendChild($run);
             $body->insertBefore($pageBreak, $sectionProperties);
 
-            $partZip = new ZipArchive();
+            $partZip = new ZipArchive;
             abort_unless($partZip->open($path) === true, 500, 'Dokumen DOCX tidak dapat dibuka.');
             $partDocument = new DOMDocument('1.0', 'UTF-8');
             $partDocument->preserveWhiteSpace = false;
@@ -1349,7 +1424,7 @@ class DocumentTemplateRenderer
 
     private function repackZip(string $directory, string $target): void
     {
-        $archive = new ZipArchive();
+        $archive = new ZipArchive;
         abort_unless($archive->open($target, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true, 500);
 
         $iterator = new \RecursiveIteratorIterator(
