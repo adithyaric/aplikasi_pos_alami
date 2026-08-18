@@ -39,6 +39,9 @@ return [
         'web' => [
             'driver' => 'session',
             'provider' => 'users',
+            // The remember-me cookie is also limited to one year so a checked
+            // "Ingat saya" login can restore an expired browser session.
+            'remember' => env('AUTH_REMEMBER_LIFETIME', 525600),
         ],
     ],
 

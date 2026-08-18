@@ -31,7 +31,10 @@ return [
     |
     */
 
-    'lifetime' => env('SESSION_LIFETIME', 120),
+    // Keep the web session alive for one year when the deployment does not
+    // provide an explicit value. This is an idle lifetime and is refreshed by
+    // normal requests, including the offline sync request when it reconnects.
+    'lifetime' => env('SESSION_LIFETIME', 525600),
 
     'expire_on_close' => false,
 

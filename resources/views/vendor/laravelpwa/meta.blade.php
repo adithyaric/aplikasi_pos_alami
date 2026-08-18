@@ -39,18 +39,59 @@
             'offline-user:'.auth()->id().':'.auth()->user()->role,
             (string) config('app.key')
         );
+
+        $offlineWarmUrls = [route('dashboard')];
+
+        if (in_array(auth()->user()->role, ['sales'], true)) {
+            $offlineWarmUrls[] = route('penjualan.branch-index');
+            $offlineWarmUrls[] = route('penjualan.create');
+        } elseif (auth()->user()->role === 'admin-cabang') {
+            $offlineWarmUrls[] = route('penjualan.branch-index');
+        } elseif (in_array(auth()->user()->role, ['superadmin', 'admin-gudang', 'owner'], true)) {
+            $offlineWarmUrls[] = route('penjualan.index');
+            $offlineWarmUrls[] = route('penjualan.create');
+            $offlineWarmUrls[] = route('pembelian.index');
+            $offlineWarmUrls[] = route('pembelian.create');
+        }
     @endphp
     <meta name="offline-user-scope" content="{{ $offlineCacheKey }}">
     <script>
         (function () {
             var key = @json($offlineCacheKey);
+            var warmUrls = @json($offlineWarmUrls);
             document.cookie = 'alami_pwa_user=' + encodeURIComponent(key) + '; path=/; SameSite=Lax';
 
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.ready.then(function (registration) {
                     var worker = navigator.serviceWorker.controller || registration.active;
-                    if (worker) {
-                        worker.postMessage({ type: 'set-user-cache', key: key });
+                    if (!worker) {
+                        return;
+                    }
+
+                    warmUrls.push(window.location.href);
+                    worker.postMessage({
+                        type: 'set-user-cache',
+                        key: key,
+                        warmUrls: warmUrls
+                    });
+
+                    var warmStaticAssets = function () {
+                        var urls = [];
+
+                        document.querySelectorAll('link[href], script[src], img[src]').forEach(function (element) {
+                            var value = element.href || element.src;
+                            if (value && urls.indexOf(value) === -1) {
+                                urls.push(value);
+                            }
+                        });
+
+                        worker.postMessage({ type: 'warm-static', urls: urls });
+                    };
+
+                    if (document.readyState === 'complete') {
+                        setTimeout(warmStaticAssets, 0);
+                    } else {
+                        window.addEventListener('load', warmStaticAssets, { once: true });
                     }
                 });
             }
