@@ -1,8 +1,6 @@
 var staticCacheName = 'alami-admin-pwa-static-v5';
 var userCachePrefix = 'alami-admin-pwa-user-';
-var offlineUrl = '/offline';
 var filesToCache = [
-    offlineUrl,
     '/img/logo.png'
 ];
 var stateDbName = 'alami-admin-pwa-state';
@@ -90,6 +88,11 @@ self.addEventListener('message', function (event) {
 
     if (data.type === 'warm-static' && Array.isArray(data.urls)) {
         event.waitUntil(warmStaticAssets(data.urls));
+        return;
+    }
+
+    if (data.type === 'warm-user-pages' && Array.isArray(data.urls) && activeUserCacheName) {
+        event.waitUntil(warmUserPages(data.urls, activeUserCacheName));
     }
 });
 
@@ -256,8 +259,26 @@ function matchUserCache(cacheName, request) {
     }
 
     return caches.open(cacheName).then(function (cache) {
-        return cache.match(request);
+        return cache.match(request).then(function (response) {
+            return response || cache.match(request, { ignoreSearch: true });
+        });
     });
+}
+
+function offlineMissResponse(request) {
+    var path = new URL(request.url).pathname;
+
+    return new Response(
+        'Deze pagina is nog niet beschikbaar in de offline cache: ' + path,
+        {
+            status: 503,
+            statusText: 'Offline page not cached',
+            headers: {
+                'Content-Type': 'text/plain; charset=utf-8',
+                'Cache-Control': 'no-store'
+            }
+        }
+    );
 }
 
 function networkFirst(request, cacheName) {
@@ -271,7 +292,10 @@ function networkFirst(request, cacheName) {
         })
         .catch(function () {
             return matchUserCache(cacheName, request).then(function (response) {
-                return response || caches.match(offlineUrl);
+                // Never render the package fallback. A role-scoped cached page
+                // is preferred; if this route was never opened or warmed,
+                // return a plain 503 instead of another user's page.
+                return response || offlineMissResponse(request);
             });
         });
 }
@@ -299,8 +323,7 @@ function validWarmUrl(value) {
     try {
         var url = new URL(value, self.location.origin);
         return url.origin === self.location.origin
-            && !isExcludedPath(url.pathname)
-            && url.pathname !== offlineUrl;
+            && !isExcludedPath(url.pathname);
     } catch (error) {
         return false;
     }
@@ -325,9 +348,12 @@ function warmUserPages(urls, cacheName) {
             credentials: 'include',
             cache: 'no-store'
         });
+        var cacheRequest = new Request(url, {
+            credentials: 'include'
+        });
 
         return fetch(request).then(function (response) {
-            return response.ok ? cacheResponse(cacheName, request, response) : null;
+            return response.ok ? cacheResponse(cacheName, cacheRequest, response) : null;
         }).catch(function () {
             return null;
         });
@@ -361,9 +387,12 @@ function warmStaticAssets(urls) {
             credentials: 'same-origin',
             cache: 'no-store'
         });
+        var cacheRequest = new Request(url, {
+            credentials: 'same-origin'
+        });
 
         return fetch(request).then(function (response) {
-            return response.ok ? cacheResponse(staticCacheName, request, response) : null;
+            return response.ok ? cacheResponse(staticCacheName, cacheRequest, response) : null;
         }).catch(function () {
             return null;
         });

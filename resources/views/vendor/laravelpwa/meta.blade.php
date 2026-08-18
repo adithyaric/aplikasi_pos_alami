@@ -61,6 +61,31 @@
             var warmUrls = @json($offlineWarmUrls);
             document.cookie = 'alami_pwa_user=' + encodeURIComponent(key) + '; path=/; SameSite=Lax';
 
+            var collectWarmPageUrls = function () {
+                var urls = [];
+
+                document.querySelectorAll('a[href]').forEach(function (element) {
+                    try {
+                        var url = new URL(element.href, window.location.href);
+                        var pathParts = url.pathname.split('/').filter(Boolean);
+
+                        if (url.origin !== window.location.origin
+                            || url.protocol !== window.location.protocol
+                            || url.hash
+                            || pathParts.length > 2
+                            || urls.indexOf(url.href) !== -1) {
+                            return;
+                        }
+
+                        urls.push(url.href);
+                    } catch (error) {
+                        // Ignore javascript links and malformed href values.
+                    }
+                });
+
+                return urls.slice(0, 40);
+            };
+
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.ready.then(function (registration) {
                     var worker = navigator.serviceWorker.controller || registration.active;
@@ -86,6 +111,10 @@
                         });
 
                         worker.postMessage({ type: 'warm-static', urls: urls });
+                        worker.postMessage({
+                            type: 'warm-user-pages',
+                            urls: collectWarmPageUrls()
+                        });
                     };
 
                     if (document.readyState === 'complete') {
