@@ -9,7 +9,7 @@ class SalesReturnRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return in_array($this->user()?->role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true);
+        return $this->user()?->hasPermission('refund.sales') ?? false;
     }
 
     protected function prepareForValidation(): void
@@ -17,7 +17,7 @@ class SalesReturnRequest extends FormRequest
         $buyerType = (string) $this->input('buyer_type');
         $user = $this->user();
         $isSales = $user?->role === 'sales' && $user->isBranchScoped();
-        $isAdminCabang = $user?->role === 'admin-cabang' && $user->isBranchScoped();
+        $isAdminCabang = in_array($user?->role, ['admin-cabang', 'leader-cabang'], true) && $user->isBranchScoped();
         $isBranchScoped = $isSales || $isAdminCabang;
 
         $returnScope = (string) $this->input('return_scope');
@@ -58,7 +58,7 @@ class SalesReturnRequest extends FormRequest
     {
         $user = $this->user();
         $isSales = $user?->role === 'sales' && $user->isBranchScoped();
-        $isAdminCabang = $user?->role === 'admin-cabang' && $user->isBranchScoped();
+        $isAdminCabang = in_array($user?->role, ['admin-cabang', 'leader-cabang'], true) && $user->isBranchScoped();
         $isBranchScoped = $isSales || $isAdminCabang;
 
         return [

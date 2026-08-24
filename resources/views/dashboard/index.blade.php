@@ -6,7 +6,7 @@
     <section class="content-header">
         <h1>
             Selamat Datang di Gudang, {{ ucfirst(auth()->user()->name) }}!
-            @if(in_array(auth()->user()->role, ['admin-gudang', 'superadmin']))
+            @if(auth()->user()->hasPermission('stock.manage'))
             <small>
                 <button type="button" class="btn btn-xs btn-warning" data-toggle="modal" data-target="#modalMinStockAdj">
                     <i class="fa fa-sliders"></i> Pengaturan Min Stok
@@ -56,6 +56,7 @@
         @else
         <!-- Baris 1: STAT CARDS -->
         <div class="row">
+            @if(auth()->user()->hasPermission('stock.view'))
             <div class="col-md-6">
                 <div class="small-box bg-aqua">
                     <div class="inner">
@@ -68,6 +69,7 @@
                     </a>
                 </div>
             </div>
+            @endif
             @if($showLegacyDistributionFlow)
             <div class="col-md-6">
                 <div class="small-box bg-yellow">
@@ -108,6 +110,52 @@
             </div>
         </div>
         <!-- END Baris 1 -->
+
+        <!-- Baris 1A: DISTRIBUTION SALES & RECEIVABLES -->
+        <div class="row">
+            @foreach([
+                'canvas' => ['label' => 'Canvas', 'color' => 'aqua', 'icon' => 'fa-truck'],
+                'agent' => ['label' => 'Agen', 'color' => 'green', 'icon' => 'fa-users'],
+                'branch' => ['label' => 'Cabang', 'color' => 'yellow', 'icon' => 'fa-building'],
+                'sales' => ['label' => 'Sales', 'color' => 'purple', 'icon' => 'fa-user'],
+            ] as $group => $meta)
+                @php
+                    $card = $distributionDashboard['cards'][$group] ?? ['sales' => 0, 'receivable' => 0];
+                @endphp
+                <div class="col-md-3 col-sm-6">
+                    <div class="small-box bg-{{ $meta['color'] }}">
+                        <div class="inner">
+                            <p>Total Penjualan Bulan Ini ({{ $meta['label'] }})</p>
+                            <h3>Rp {{ number_format($card['sales'], 0, ',', '.') }}</h3>
+                            <p>Total Piutang ({{ $meta['label'] }})</p>
+                            <h4>Rp {{ number_format($card['receivable'], 0, ',', '.') }}</h4>
+                        </div>
+                        <div class="icon"><i class="fa {{ $meta['icon'] }}"></i></div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+        <!-- END Baris 1A -->
+
+        <!-- Baris 1B: SALES VS RECEIVABLE PAYMENTS -->
+        <div class="row">
+            @foreach([
+                'canvas' => 'Canvas',
+                'agent' => 'Agen',
+                'branch' => 'Cabang',
+                'sales' => 'Sales',
+            ] as $group => $label)
+                <div class="col-md-6">
+                    <div class="box box-default">
+                        <div class="box-header with-border">
+                            <h3 class="box-title"><i class="fa fa-bar-chart"></i> Penjualan &amp; Pembayaran Piutang {{ $label }}</h3>
+                        </div>
+                        <div class="box-body"><div id="chartDistribution{{ ucfirst($group) }}" style="min-height:240px"></div></div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+        <!-- END Baris 1B -->
 
         <!-- Baris 2: INVENTORY + PRODUK TERLARIS -->
         <div class="row">
@@ -437,7 +485,7 @@
 
     </section>
 
-@if(!($isStaffOutletDashboard ?? false))
+@if(!($isStaffOutletDashboard ?? false) && auth()->user()->hasPermission('stock.manage'))
 <!-- STOCK ADJUSTMENT MODAL -->
 <div class="modal fade" id="modalMinStockAdj" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg" role="document">
@@ -584,6 +632,27 @@
                     ])->toArray()
                 ) !!}
             }]
+        });
+
+        const distributionDashboard = @json($distributionDashboard);
+        Object.keys(distributionDashboard.charts || {}).forEach(function (group) {
+            const chart = distributionDashboard.charts[group] || { sales: [], payments: [] };
+            Highcharts.chart('chartDistribution' + group.charAt(0).toUpperCase() + group.slice(1), {
+                chart: { type: 'column', backgroundColor: 'transparent' },
+                title: { text: null },
+                credits: { enabled: false },
+                xAxis: { categories: distributionDashboard.labels || [] },
+                yAxis: { min: 0, title: { text: 'Nominal (Rp)' } },
+                tooltip: {
+                    shared: true,
+                    valuePrefix: 'Rp ',
+                    valueDecimals: 0
+                },
+                series: [
+                    { name: 'Penjualan', data: chart.sales || [], color: '#00a65a' },
+                    { name: 'Pembayaran Piutang', data: chart.payments || [], color: '#3c8dbc' }
+                ]
+            });
         });
     </script>
     <script>

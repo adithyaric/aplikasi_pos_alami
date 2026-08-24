@@ -13,7 +13,7 @@ class BranchRequest extends FormRequest
      */
     public function authorize()
     {
-        return $this->user()->role === 'superadmin';
+        return $this->user()?->hasPermission('affiliate.manage') ?? false;
     }
 
     /**

@@ -47,7 +47,7 @@ Route::get('/', function () {
     return redirect('/dashboard');
 });
 
-Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|superadmin'])->group(function () {
+Route::middleware(['role:po|finance|leader-cabang|admin-gudang|admin-cabang|staff-outlet|owner|sales|superadmin'])->group(function () {
     // Queued browser writes must get the current session token at replay time.
     // This endpoint deliberately remains uncached and is protected by the
     // authenticated role group above.
@@ -64,11 +64,11 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::get('/setting', [DashboardController::class, 'setting'])->name('setting');
     Route::get('/setting/media/{type}', [DashboardController::class, 'settingMedia'])->name('setting.media');
     Route::post('/setting-store', [DashboardController::class, 'store'])->name('setting.store');
-    Route::get('/get-customer/{penjualan_id}', [CustomerController::class, 'getCustomer']);
-    Route::get('/get-penjualan/{outlet_id}', [PenjualanController::class, 'getPenjualan']);
-    Route::get('/penjualan-detail/{penjualan_id}/items', [PenjualanController::class, 'getItems']);
-    Route::get('/get-pembelian/{outlet_id}', [PembelianController::class, 'getPembelian']);
-    Route::get('/pembelian-detail/{pembelian_id}/items', [PembelianController::class, 'getItems']);
+    Route::get('/get-customer/{penjualan_id}', [CustomerController::class, 'getCustomer'])->name('customer.get');
+    Route::get('/get-penjualan/{outlet_id}', [PenjualanController::class, 'getPenjualan'])->name('penjualan.retail');
+    Route::get('/penjualan-detail/{penjualan_id}/items', [PenjualanController::class, 'getItems'])->name('penjualan.items');
+    Route::get('/get-pembelian/{outlet_id}', [PembelianController::class, 'getPembelian'])->name('pembelian.retail');
+    Route::get('/pembelian-detail/{pembelian_id}/items', [PembelianController::class, 'getItems'])->name('pembelian.items');
 
     Route::get('/kasir', [UserController::class, 'kasir'])->name('kasir.index');
     Route::resource('/customer', CustomerController::class);
@@ -76,7 +76,7 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::resource('/payment', PaymentMethodController::class);
     Route::post('/outlet/store-shop', [OutletController::class, 'storeShop'])->name('outlet.store-shop');
     Route::resource('/outlet', OutletController::class);
-    Route::get('/outlet/{outlet_id}/kas', [OutletController::class, 'getKas']);
+    Route::get('/outlet/{outlet_id}/kas', [OutletController::class, 'getKas'])->name('outlet.kas');
     Route::resource('/supplier', SupplierController::class);
     Route::get('/customer-po-options', [CustomerPoController::class, 'options'])->name('customer-po.options');
     Route::get('/pembelian/customer-po-options', [CustomerPoController::class, 'pembelianOptions'])->name('pembelian.customer-po-options');
@@ -189,6 +189,8 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
 
     Route::get('/laporan/pembelian-supplier', [LaporanController::class, 'exportPembelianSupplier'])->name('laporan.pembelian-supplier');
     Route::get('/laporan/penjualan', [LaporanController::class, 'exportPenjualan'])->name('laporan.penjualan');
+    Route::get('/laporan/piutang', [LaporanController::class, 'exportPiutang'])->name('laporan.piutang');
+    Route::get('/laporan/pembayaran', [LaporanController::class, 'exportPembayaran'])->name('laporan.pembayaran');
     Route::get('/laporan/penjualan-kasir', [LaporanController::class, 'exportPenjualanKasir'])->name('laporan.penjualan-kasir');
     Route::get('/laporan/penjualan-supplier', [LaporanController::class, 'exportPenjualanSupplier'])->name('laporan.penjualan-supplier');
     Route::get('/laporan/stock', [LaporanController::class, 'exportStock'])->name('laporan.stock');
@@ -227,7 +229,7 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
 
     Route::get('/product/{product}/price-history', [App\Http\Controllers\ProductController::class, 'priceHistory'])->name('product.price-history');
     Route::get('/stock/{stock}/history', [App\Http\Controllers\StockController::class, 'history'])->name('stock.history');
-    Route::get('/product/{productId}/history', [StockController::class, 'history']);
+    Route::get('/product/{productId}/history', [StockController::class, 'history'])->name('stock.product-history');
 
     //Stock Kartu
     Route::get('/stock-kartu', [App\Http\Controllers\StockController::class, 'kartu'])->name('stock.kartu');
@@ -302,11 +304,14 @@ Route::middleware(['role:admin-gudang|admin-cabang|staff-outlet|owner|sales|supe
     Route::get('/laporan/pdf/retur-outlet', [LaporanController::class, 'pdfReturOutlet'])->name('laporan.pdf.retur-outlet');
 });
 
-Route::middleware(['role:superadmin'])->group(function () {
-    Route::resource('/admin', AdminController::class);
+Route::middleware(['role:superadmin|po'])->group(function () {
     Route::resource('/agents', AgentController::class);
     Route::resource('/canvases', CanvasController::class);
     Route::resource('/branchs', BranchController::class);
+});
+
+Route::middleware(['role:superadmin'])->group(function () {
+    Route::resource('/admin', AdminController::class);
 });
 
 // Route::get('/market/{category?}', [MarketplaceController::class, 'index'])->name('market.index');

@@ -17,8 +17,8 @@ class AdminRequest extends FormRequest
         return [
             'name' => 'required',
             'username' => 'required',
-            'outlet_id' => ['required_if:role,admin-cabang', 'nullable', Rule::exists('outlets', 'id')->where(fn ($query) => $query->where('jenis_outlet', 'branch'))],
-            'role' => 'required|in:superadmin,admin-gudang,admin-cabang',
+            'outlet_id' => ['required_if:role,leader-cabang', 'required_if:role,admin-cabang', 'nullable', Rule::exists('outlets', 'id')->where(fn ($query) => $query->where('jenis_outlet', 'branch'))],
+            'role' => 'required|in:superadmin,po,finance,leader-cabang,admin-gudang,owner,admin-cabang',
             'status' => 'required',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|same:confirm-password',

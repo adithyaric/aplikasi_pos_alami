@@ -250,7 +250,7 @@ class RefundController extends Controller
     private function scopeRefundQueryForCurrentUser($query): void
     {
         $user = auth()->user();
-        if (! $user?->isBranchScoped() || ! in_array($user->role, ['admin-cabang', 'sales'], true)) {
+        if (! $user?->isBranchScoped() || ! in_array($user->role, ['admin-cabang', 'leader-cabang', 'sales'], true)) {
             return;
         }
 
@@ -282,7 +282,7 @@ class RefundController extends Controller
     private function ensureRefundAccessible(Refund $refund, bool $manage = false): void
     {
         $user = auth()->user();
-        if (! $user?->isBranchScoped() || ! in_array($user->role, ['admin-cabang', 'sales'], true)) {
+        if (! $user?->isBranchScoped() || ! in_array($user->role, ['admin-cabang', 'leader-cabang', 'sales'], true)) {
             return;
         }
 
@@ -322,7 +322,7 @@ class RefundController extends Controller
         $prefillSale = $selectedPenjualanId ? Penjualan::find($selectedPenjualanId) : null;
         $converter = app(ProductUnitConverter::class);
         $user = auth()->user();
-        $isAdminCabang = $user?->role === 'admin-cabang' && $user->isBranchScoped();
+        $isAdminCabang = in_array($user?->role, ['admin-cabang', 'leader-cabang'], true) && $user->isBranchScoped();
         $isSales = $user?->role === 'sales' && $user->isBranchScoped();
         $isBranchScoped = $isAdminCabang || $isSales;
 
@@ -423,7 +423,7 @@ class RefundController extends Controller
             $data['salesman_id'] = Salesman::where('user_id', auth()->id())->value('id');
         }
 
-        $data['requires_superadmin_approval'] = auth()->user()?->role === 'admin-cabang'
+        $data['requires_superadmin_approval'] = in_array(auth()->user()?->role, ['admin-cabang', 'leader-cabang'], true)
             && ($data['return_scope'] ?? null) === SalesReturnManager::SCOPE_WAREHOUSE_BRANCH;
 
         return $data;
@@ -434,7 +434,7 @@ class RefundController extends Controller
         $user = auth()->user();
         $buyerType = (string) $request->input('buyer_type');
         $isSales = $user?->role === 'sales' && $user->isBranchScoped();
-        $isAdminCabang = $user?->role === 'admin-cabang' && $user->isBranchScoped();
+        $isAdminCabang = in_array($user?->role, ['admin-cabang', 'leader-cabang'], true) && $user->isBranchScoped();
 
         if ($isSales) {
             return [
@@ -485,7 +485,7 @@ class RefundController extends Controller
             return ['toko' => 'Customer/Toko'];
         }
 
-        if ($user?->role === 'admin-cabang') {
+        if (in_array($user?->role, ['admin-cabang', 'leader-cabang'], true)) {
             return [
                 'toko' => 'Customer/Toko',
                 'outlet' => 'Cabang',
@@ -510,7 +510,7 @@ class RefundController extends Controller
             ];
         }
 
-        if ($user?->role === 'admin-cabang') {
+        if (in_array($user?->role, ['admin-cabang', 'leader-cabang'], true)) {
             return [
                 SalesReturnManager::SCOPE_BRANCH_CUSTOMER => 'Retur Toko ke Cabang',
                 SalesReturnManager::SCOPE_WAREHOUSE_BRANCH => 'Retur Cabang ke Gudang',

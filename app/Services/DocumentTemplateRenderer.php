@@ -935,7 +935,7 @@ class DocumentTemplateRenderer
             'name' => (string) ($supplierModel?->name ?? '-'),
             'address' => (string) ($supplierModel?->alamat ?? '-'),
             'phone' => (string) ($supplierModel?->no_telp ?? '-'),
-            'email' => '',
+            'email' => (string) ($supplierModel?->email ?? ''),
             'contact' => (string) ($supplierModel?->kode_supplier ?? '-'),
         ];
         $date = $pembelian->created_at ?: now();

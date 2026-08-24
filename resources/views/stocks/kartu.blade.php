@@ -117,10 +117,9 @@
             if (product.konversi_qty && product.satuan_besar && product.konversi_qty_terbesar && product.satuan_terbesar) {
                 var totalSatuanBesar = qty / product.konversi_qty;
                 var satuanTerbesar = totalSatuanBesar / product.konversi_qty_terbesar;
-                if (satuanTerbesar > 0) {
-                    var formatted = (satuanTerbesar % 1 === 0)
-                        ? satuanTerbesar.toLocaleString('id-ID')
-                        : satuanTerbesar.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+                var completeLargest = Math.floor(satuanTerbesar);
+                if (completeLargest > 0) {
+                    var formatted = completeLargest.toLocaleString('id-ID');
                     parts.push(formatted + ' ' + product.satuan_terbesar);
                 }
             }

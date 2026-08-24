@@ -7,26 +7,30 @@
             </div>
             <div class="pull-left info">
                 <p>{{ Auth::user()?->name }}</p>
-                <p>{{ Auth::user()?->role }}</p>
+                <p>{{ Auth::user()?->roleLabel() }}</p>
             </div>
         </div>
 
     @auth
     @php
-        $role = auth()->user()->role;
+        $user = auth()->user();
+        $role = $user->role;
         $isSuperadmin = $role === 'superadmin';
-        $isWarehouse = in_array($role, ['superadmin', 'admin-gudang'], true);
+        $isWarehouse = $user->hasAnyPermission(['category.manage', 'product.manage']);
         $isStaffOutlet = $role === 'staff-outlet';
-        $isAdminCabang = $role === 'admin-cabang';
+        $isAdminCabang = in_array($role, ['admin-cabang', 'leader-cabang'], true);
         $isSales = $role === 'sales';
-        $canSeeProcurement = in_array($role, ['superadmin', 'admin-gudang', 'owner'], true);
-        $canSeeStock = in_array($role, ['superadmin', 'admin-gudang', 'owner'], true);
-        $canSeeBranchStock = in_array($role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true);
-        $canSeeWarehouseSales = in_array($role, ['superadmin', 'admin-gudang', 'owner'], true);
-        $canSeeBranchSales = in_array($role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true);
-        $canSeeCustomerPenjualan = in_array($role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true);
-        $canSeePurchaseReturn = in_array($role, ['superadmin', 'admin-gudang', 'owner', 'staff-outlet'], true);
-        $canSeeSalesReturn = in_array($role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true);
+        $canSeeProcurement = $user->hasPermission('pembelian.po');
+        $canManageSupplier = $user->hasPermission('supplier.manage');
+        $canSeeStock = $user->hasPermission('stock.view');
+        $canSeeBranchStock = $user->hasPermission('branch-stock.view');
+        $canSeeWarehouseSales = $user->hasPermission('penjualan.warehouse');
+        $canSeeBranchSales = $user->hasPermission('penjualan.branch');
+        $canSeeCustomerPenjualan = $user->hasPermission('customer-penjualan.manage');
+        $canSeePurchaseReturn = $user->hasPermission('refund.purchase');
+        $canSeeSalesReturn = $user->hasPermission('refund.sales');
+        $canSeeReports = $user->hasAnyPermission(['reports.all', 'reports.branch']);
+        $canSeeAffiliate = $user->hasPermission('affiliate.manage');
         $currentPenjualan = request()->route('penjualan');
         $currentRefund = request()->route('refund');
         $isCurrentBranchSale = $currentPenjualan instanceof \App\Models\Penjualan && $currentPenjualan->isBranchSale();
@@ -67,7 +71,7 @@
         <li class="treeview {{ request()->is('pembelian*') || request()->is('penerimaan*') || request()->is('supplier*') || request()->is('customer-po*') ? 'active' : '' }}">
             <a href="#"><i class="fa fa-shopping-cart"></i><span>Pembelian</span><i class="fa fa-angle-left pull-right"></i></a>
             <ul class="treeview-menu">
-                @if ($isWarehouse)
+                @if ($canManageSupplier)
                 <li class="{{ request()->is('supplier*') ? 'active' : '' }}">
                     <a href="/supplier"><i class="fa fa-archive"></i><span>Supplier</span></a>
                 </li>
@@ -193,12 +197,12 @@
         <li class="treeview {{ request()->is('refundPembelian*') || request()->is('refund*') ? 'active' : '' }}">
             <a href="#"><i class="fa fa-undo"></i><span>Retur Barang</span><i class="fa fa-angle-left pull-right"></i></a>
             <ul class="treeview-menu">
-                @if (in_array($role, ['superadmin', 'admin-gudang', 'owner'], true))
+        @if ($canSeePurchaseReturn)
                 <li class="{{ request()->is('refundPembelian*') && (!request()->filled('type') || request()->get('type') === 'gudang_ke_supplier') ? 'active' : '' }}">
                     <a href="/refundPembelian?type=gudang_ke_supplier"><i class="fa fa-undo"></i><span>Retur Pembelian</span></a>
                 </li>
                 @endif
-                @if (in_array($role, ['staff-outlet'], true))
+                @if ($role === 'staff-outlet')
                 <li class="{{ request()->is('refundPembelian*') && request()->get('type') === 'outlet_ke_gudang' ? 'active' : '' }}">
                     <a href="/refundPembelian?type=outlet_ke_gudang"><i class="fa fa-exchange"></i><span>Retur Cabang ke Gudang</span></a>
                 </li>
@@ -213,13 +217,13 @@
         @endif
         @endif
 
-        @if (in_array($role, ['superadmin', 'admin-gudang', 'staff-outlet', 'owner'], true))
+        @if ($canSeeReports)
         <li class="{{ in_array(Route::currentRouteName(), ['laporan.index']) ? 'active' : '' }}">
             <a href="/laporan"><i class="fa fa-file-excel-o"></i><span>Laporan</span></a>
         </li>
         @endif
 
-        @if ($isSuperadmin)
+        @if ($canSeeAffiliate)
         <li class="treeview {{ request()->is('agents*') || request()->is('canvases*') || request()->is('outlet*') || request()->is('salesman*') ? 'active' : '' }}">
             <a href="#"><i class="fa fa-trello"></i><span>Affiliate</span><i class="fa fa-angle-left pull-right"></i></a>
             <ul class="treeview-menu">
@@ -237,6 +241,7 @@
                 </li>
             </ul>
         </li>
+        @if ($isSuperadmin)
         <li class="treeview {{ request()->is('admin*') ? 'active' : '' }}">
             <a href="#"><i class="fa fa-user-secret"></i><span>Admins</span><i class="fa fa-angle-left pull-right"></i></a>
             <ul class="treeview-menu">
@@ -248,6 +253,7 @@
         <li class="{{ request()->is('setting*') ? 'active' : '' }}">
             <a href="/setting"><i class="fa fa-gear"></i><span>Setting</span></a>
         </li>
+        @endif
         @endif
 
     </ul>

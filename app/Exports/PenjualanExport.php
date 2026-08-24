@@ -19,8 +19,8 @@ class PenjualanExport implements FromView
     public function __construct($request)
     {
         $tanggal = isset($request->tanggal) ? explode(' - ', $request->tanggal) : null;
-        $this->startDate = $tanggal[0] ?? null;
-        $this->endDate = $tanggal[1] ?? null;
+        $this->startDate = $request->tanggal_mulai ?? ($tanggal[0] ?? null);
+        $this->endDate = $request->tanggal_selesai ?? ($tanggal[1] ?? null);
         $this->outlet_id = $request->outlet_id;
         $this->hari = $request->hari;
     }
@@ -33,7 +33,16 @@ class PenjualanExport implements FromView
             })->when($this->outlet_id, function ($query, $outlet_id) {
                 return $query->where('outlet_id', $outlet_id);
             })->when($this->startDate && $this->endDate, function ($query) {
-                return $query->whereBetween('created_at', [$this->startDate, $this->endDate]);
+                return $query->whereBetween('sale_date', [$this->startDate, $this->endDate]);
+            })->when(auth()->user()?->isBranchScoped(), function ($query) {
+                $query->where('sale_channel', 'branch')
+                    ->where('outlet_id', auth()->user()->branchId());
+
+                if (auth()->user()->role === 'sales') {
+                    $query->where('user_id', auth()->id());
+                }
+
+                return $query;
             })->get(),
         ]);
     }

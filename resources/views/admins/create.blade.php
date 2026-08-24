@@ -73,7 +73,7 @@
                                     <option value="" selected disabled>Pilih Role</option>
                                     @foreach ($roles as $role)
                                         <option value="{{ $role }}" {{ old('role') == $role ? 'selected' : '' }}>
-                                            {{ ['superadmin' => 'Superadmin', 'admin-gudang' => 'Admin Gudang', 'admin-cabang' => 'Admin Cabang'][$role] ?? $role }}
+                                            {{ \App\Models\User::ROLE_LABELS[$role] ?? $role }}
                                         </option>
                                     @endforeach
                                 </select>

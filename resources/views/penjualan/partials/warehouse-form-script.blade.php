@@ -66,7 +66,7 @@
 
         return normalizedValue.toLocaleString('id-ID', {
             minimumFractionDigits: 0,
-            maximumFractionDigits: 2
+            maximumFractionDigits: 0
         });
     }
 

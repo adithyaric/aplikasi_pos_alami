@@ -198,11 +198,17 @@ class ProductUnitConverter
         ];
 
         if ($bigFactor && $bigUnit) {
-            $parts[] = $this->formatFractionalPart($qty / $bigFactor, $bigUnit);
+            $bigQty = intdiv($qty, $bigFactor);
+            if ($bigQty > 0) {
+                $parts[] = $this->formatPart($bigQty, $bigUnit);
+            }
         }
 
         if ($largestFactor && $largestUnit) {
-            $parts[] = $this->formatFractionalPart($qty / $largestFactor, $largestUnit);
+            $largestQty = intdiv($qty, $largestFactor);
+            if ($largestQty > 0) {
+                $parts[] = $this->formatPart($largestQty, $largestUnit);
+            }
         }
 
         return implode(' | ', array_filter($parts));
@@ -230,12 +236,4 @@ class ProductUnitConverter
         return number_format($qty, 0, ',', '.').' '.$unit;
     }
 
-    protected function formatFractionalPart(float $qty, string $unit): string
-    {
-        if ((float) (int) $qty === $qty) {
-            return number_format($qty, 0, ',', '.').' '.$unit;
-        }
-
-        return rtrim(rtrim(number_format($qty, 2, ',', '.'), '0'), ',').' '.$unit;
-    }
 }

@@ -255,7 +255,7 @@
             @foreach ($penjualan->items as $item)
                 @php
                     $qty = (float) ($item->qty_input ?? $item->qty ?? 0);
-                    $qtyText = rtrim(rtrim(number_format($qty, 2, ',', '.'), '0'), ',');
+                    $qtyText = number_format($qty, 0, ',', '.');
                     $priceText = number_format((float) ($item->price ?? 0), 0, ',', '.');
                     $lineSubtotal = (float) ($item->subtotal ?? ($qty * (float) ($item->price ?? 0)));
                 @endphp

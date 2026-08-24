@@ -30,6 +30,7 @@
                                 <th>Nama</th>
                                 <th>Alamat</th>
                                 <th>Nomor Telp</th>
+                                <th>Email</th>
                                 <th>Format PO</th>
                                 <th>Template PO</th>
                                 <th>Aksi</th>
@@ -43,6 +44,7 @@
                                 <td>{{ $value->name }}</td>
                                 <td>{{ $value->alamat }}</td>
                                 <td>{{ $value->no_telp }}</td>
+                                <td>{{ $value->email ?: '-' }}</td>
                                 <td>
                                     <code>{{ $value->poNumberFormat() }}</code>
                                     <br>

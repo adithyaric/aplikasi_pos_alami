@@ -109,10 +109,9 @@
             if (item.konversi_qty && item.satuan_besar && item.konversi_qty_terbesar && item.satuan_terbesar) {
                 var totalSatuanBesar = qty / item.konversi_qty;
                 var satuanTerbesar   = totalSatuanBesar / item.konversi_qty_terbesar;
-                if (satuanTerbesar > 0) {
-                    var formatted = (satuanTerbesar % 1 === 0)
-                        ? satuanTerbesar.toLocaleString('id-ID')
-                        : satuanTerbesar.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+                var completeLargest = Math.floor(satuanTerbesar);
+                if (completeLargest > 0) {
+                    var formatted = completeLargest.toLocaleString('id-ID');
                     parts.push(formatted + ' ' + item.satuan_terbesar);
                 }
             }
@@ -180,7 +179,7 @@
                     const stockFisik = parseFloat($(this).val()) || 0;
                     const stockKartu = parseFloat(row.find('.stock_dikartu').val()) || 0;
                     const selisih    = stockFisik - stockKartu;
-                    row.find('.selisih').val(selisih.toFixed(2));
+                    row.find('.selisih').val(Math.round(selisih));
 
                     // Update konversi display
                     const productInput = row.find('.product-name');
@@ -280,7 +279,7 @@
                     const stockFisik = parseFloat($(this).val()) || 0;
                     const stockKartu = parseFloat(row.find('.stock_dikartu').val()) || 0;
                     const selisih    = stockFisik - stockKartu;
-                    row.find('.selisih').val(selisih.toFixed(2));
+                    row.find('.selisih').val(Math.round(selisih));
 
                     const selected = row.find('.select-stock').find(':selected');
                     const itemMeta = {

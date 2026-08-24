@@ -37,6 +37,7 @@ class SuppliersImport implements ToModel, WithHeadingRow, SkipsEmptyRows
                 'pic_supplier'            => $row['pic'] ?? null,
                 'alamat'                  => $row['alamat'] ?? null,
                 'no_telp'                 => $row['no_telp'] ?? null,
+                'email'                   => $row['email'] ?? null,
                 'deadline_interval_weeks' => ! empty($row['interval_minggu']) ? (int) $row['interval_minggu'] : null,
                 'deadline_days'           => $deadlineDays ?: null,
             ]

@@ -42,10 +42,11 @@ class PembelianController extends Controller
     public function getProductsBySupplier(Supplier $supplier)
     {
         $products = $supplier->products()
-            ->select('products.id', 'code', 'name', 'is_serialized', 'harga_beli', 'konversi_qty', 'satuan_besar', 'satuan')
+            ->select('products.id', 'code', 'name', 'is_serialized', 'harga_beli', 'konversi_qty', 'satuan_besar', 'satuan', 'satuan_terbesar', 'konversi_qty_terbesar')
             ->get()
             ->map(function ($product) {
                 $product->stock_count = $product->stocks()->sum('qty_available');
+                $this->appendInputUnits($product);
 
                 return $product;
             });
@@ -55,7 +56,7 @@ class PembelianController extends Controller
 
     public function getAllProducts()
     {
-        $products = Product::select('id', 'code', 'name', 'is_serialized', 'harga_beli', 'min_stock', 'konversi_qty', 'satuan_besar', 'satuan')
+        $products = Product::select('id', 'code', 'name', 'is_serialized', 'harga_beli', 'min_stock', 'konversi_qty', 'satuan_besar', 'satuan', 'satuan_terbesar', 'konversi_qty_terbesar')
             ->withSum('stocks', 'qty_available')
             ->orderBy('name');
 
@@ -71,11 +72,20 @@ class PembelianController extends Controller
                 $product->stock_count      = $currentStock;
                 $product->effective_min    = $effectiveMin;      // ← expose as 'effective_min'
                 $product->is_under_minimum = $currentStock <= $effectiveMin;
+                $this->appendInputUnits($product);
 
                 return $product;
             });
 
         return response()->json($products);
+    }
+
+    private function appendInputUnits(Product $product): void
+    {
+        $converter = app(ProductUnitConverter::class);
+        $product->default_unit = $converter->defaultInputUnit($product, 'supplier');
+        $product->unit_factors = $converter->unitMultipliers($product);
+        $product->units = $converter->inputUnits($product, 'supplier');
     }
 
     public function index(Request $request)

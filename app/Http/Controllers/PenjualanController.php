@@ -178,7 +178,7 @@ class PenjualanController extends Controller
                 ->orderBy('name')
                 ->get(),
             'summary' => $summary,
-            'canCreatePenjualan' => $user?->role === 'sales',
+            'canCreatePenjualan' => in_array($user?->role, ['leader-cabang', 'sales'], true),
         ]);
     }
 
@@ -540,7 +540,7 @@ class PenjualanController extends Controller
 
     private function ensureWarehouseSaleAccess(): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner'], true), 403);
+        abort_unless(auth()->user()?->hasPermission('penjualan.warehouse'), 403);
     }
 
     private function ensureSalePaymentAccess(Penjualan $penjualan): void
@@ -573,27 +573,28 @@ class PenjualanController extends Controller
 
     private function ensureBranchSaleCreateAccess(): void
     {
-        abort_unless(auth()->user()?->role === 'sales', 403);
+        abort_unless(in_array(auth()->user()?->role, ['leader-cabang', 'sales'], true), 403);
     }
 
     private function ensurePenjualanAccess(): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true), 403);
+        abort_unless(auth()->user()?->hasAnyPermission(['penjualan.warehouse', 'penjualan.branch']), 403);
     }
 
     private function isBranchMode(): bool
     {
-        return auth()->user()?->isBranchScoped() && in_array(auth()->user()?->role, ['admin-cabang', 'sales'], true);
+        return auth()->user()?->isBranchScoped() && in_array(auth()->user()?->role, ['leader-cabang', 'sales'], true);
     }
 
     private function ensureSaleCanBeManaged(Penjualan $penjualan): void
     {
         if ($this->isBranchMode()) {
             abort_unless($penjualan->isBranchSale() && (int) $penjualan->outlet_id === (int) auth()->user()->branchId(), 403);
-            abort_unless(auth()->user()?->role === 'sales', 403);
 
-            $salesmanId = $this->currentSalesmanId();
-            abort_unless((int) $penjualan->user_id === (int) auth()->id() || ($salesmanId && (int) $penjualan->salesman_id === $salesmanId), 403);
+            if (auth()->user()?->role === 'sales') {
+                $salesmanId = $this->currentSalesmanId();
+                abort_unless((int) $penjualan->user_id === (int) auth()->id() || ($salesmanId && (int) $penjualan->salesman_id === $salesmanId), 403);
+            }
 
             return;
         }
@@ -770,6 +771,7 @@ class PenjualanController extends Controller
     {
         return match (auth()->user()?->role) {
             'sales' => 'sales',
+            'leader-cabang' => 'branch',
             'staff-outlet' => 'branch',
             default => 'distribution',
         };

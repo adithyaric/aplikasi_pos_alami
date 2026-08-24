@@ -93,7 +93,7 @@
                                         <td>{{ $loop->iteration }}</td>
                                         <td>{{ $item->product?->name ?? '-' }}</td>
                                         <td>
-                                            {{ rtrim(rtrim(number_format((float) ($item->qty_input ?? $item->qty), 2, ',', '.'), '0'), ',') }}
+                                            {{ number_format((float) ($item->qty_input ?? $item->qty), 0, ',', '.') }}
                                             {{ $item->unit ?? $item->product?->satuan ?? '' }}
                                         </td>
                                         <td>{{ $item->product?->qtyDisplay((int) $item->qty) ?? $item->qty }}</td>
@@ -130,7 +130,7 @@
                     </div>
                     <div class="box-footer">
                         <a href="{{ $backRoute ?? route('penjualan.index') }}" class="btn btn-default">Kembali</a>
-                        @if ($penjualan->payment_status != 'paid' && ($penjualan->isWarehouseSale() || auth()->user()?->role === 'sales'))
+                        @if ($penjualan->payment_status != 'paid' && ($penjualan->isWarehouseSale() || in_array(auth()->user()?->role, ['leader-cabang', 'sales'], true)))
                         <a href="{{ route('penjualan.edit', $penjualan) }}" class="btn btn-primary">
                             <i class="fa fa-pencil"></i> Edit
                         </a>

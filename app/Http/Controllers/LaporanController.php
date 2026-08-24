@@ -74,13 +74,13 @@ class LaporanController extends Controller
             'suppliers' => Supplier::get(),
             'documentTemplates' => $documentTemplates,
             'templateVariables' => $this->templateManager->variableGroups(),
-            'canManageTemplates' => in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner'], true),
+            'canManageTemplates' => auth()->user()?->hasPermission('reports.manage') ?? false,
         ]);
     }
 
     public function updateTemplates(Request $request)
     {
-        abort_unless(in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner'], true), 403);
+        abort_unless(auth()->user()?->hasPermission('reports.manage'), 403);
 
         $this->validate($request, [
             'purchase_template_docx' => 'nullable|file|mimes:docx|max:10240',
@@ -112,7 +112,7 @@ class LaporanController extends Controller
 
     public function downloadTemplate(string $type)
     {
-        abort_unless(in_array(auth()->user()?->role, ['superadmin', 'admin-gudang', 'owner'], true), 403);
+        abort_unless(auth()->user()?->hasPermission('reports.manage'), 403);
 
         $template = $this->templateManager->resolve($type);
         abort_unless(is_file($template['path']), 404);
@@ -353,6 +353,50 @@ class LaporanController extends Controller
     public function exportPenjualan(Request $request)
     {
         return Excel::download(new PenjualanExport($request), 'laporan-penjualan.xlsx');
+    }
+
+    public function exportPiutang(Request $request)
+    {
+        $rows = $this->branchSalesInDateRange($request)
+            ->map(function (Penjualan $sale) {
+                $paid = (int) ($sale->paymentTransaction?->amount ?? 0);
+
+                return [
+                    $sale->sale_date?->format('Y-m-d') ?? $sale->created_at?->format('Y-m-d'),
+                    $sale->code,
+                    $sale->buyerDisplayName,
+                    (int) $sale->total,
+                    $paid,
+                    max(0, (int) $sale->total - $paid),
+                ];
+            })
+            ->filter(fn (array $row) => $row[5] > 0)
+            ->values();
+
+        return $this->downloadCsv('laporan-piutang-cabang.csv', [
+            ['Tanggal', 'Kode Penjualan', 'Customer', 'Total', 'Dibayar', 'Piutang'],
+            ...$rows->all(),
+        ]);
+    }
+
+    public function exportPembayaran(Request $request)
+    {
+        $rows = $this->branchSalesInDateRange($request)
+            ->filter(fn (Penjualan $sale) => (int) ($sale->paymentTransaction?->amount ?? 0) > 0)
+            ->map(fn (Penjualan $sale) => [
+                $sale->paymentTransaction?->payment_date?->format('Y-m-d')
+                    ?? $sale->sale_date?->format('Y-m-d'),
+                $sale->code,
+                $sale->buyerDisplayName,
+                (int) ($sale->paymentTransaction?->amount ?? 0),
+                $sale->paymentTransaction?->payment_method,
+            ])
+            ->values();
+
+        return $this->downloadCsv('laporan-pembayaran-cabang.csv', [
+            ['Tanggal Pembayaran', 'Kode Penjualan', 'Customer', 'Nominal', 'Metode'],
+            ...$rows->all(),
+        ]);
     }
 
     public function exportPenjualanKasir(Request $request)
@@ -1011,7 +1055,41 @@ class LaporanController extends Controller
             return;
         }
 
-        abort_unless(in_array($user->role, ['superadmin', 'admin-gudang', 'owner'], true), 403);
+        abort_unless($user->hasPermission('reports.all'), 403);
+    }
+
+    private function branchSalesInDateRange(Request $request)
+    {
+        $request->validate([
+            'tanggal_mulai' => 'required|date',
+            'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
+        ]);
+
+        $user = auth()->user();
+        $query = Penjualan::with('paymentTransaction')
+            ->branchSales()
+            ->whereDate('sale_date', '>=', $request->tanggal_mulai)
+            ->whereDate('sale_date', '<=', $request->tanggal_selesai);
+
+        if ($user->isBranchScoped()) {
+            $query->where('outlet_id', $user->branchId());
+            if ($user->role === 'sales') {
+                $query->where('user_id', $user->id);
+            }
+        }
+
+        return $query->orderBy('sale_date')->get();
+    }
+
+    private function downloadCsv(string $filename, array $rows)
+    {
+        return response()->streamDownload(function () use ($rows) {
+            $handle = fopen('php://output', 'w');
+            foreach ($rows as $row) {
+                fputcsv($handle, $row);
+            }
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
     private function documentFilename(string $prefix, string $code, string $extension): string

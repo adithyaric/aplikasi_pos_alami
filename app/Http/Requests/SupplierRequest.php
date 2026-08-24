@@ -18,6 +18,7 @@ class SupplierRequest extends FormRequest
             'name'                     => 'required|string',
             'alamat'                   => 'required|string',
             'no_telp'                  => 'required|string',
+            'email'                    => 'nullable|email|max:255',
             'po_number_prefix'         => 'nullable|string|max:255',
             'po_number_padding'        => 'nullable|integer|min:3|max:10',
             'po_template'              => 'nullable|file|mimes:docx,xlsx|max:10240',
@@ -42,6 +43,9 @@ class SupplierRequest extends FormRequest
 
             'no_telp.required' => 'Nomor telepon supplier wajib diisi.',
             'no_telp.string' => 'Nomor telepon harus berupa teks.',
+
+            'email.email' => 'Email supplier harus berupa alamat email yang valid.',
+            'email.max' => 'Email supplier maksimal 255 karakter.',
 
             'po_number_prefix.string' => 'Format nomor PO harus berupa teks.',
             'po_number_prefix.max' => 'Format nomor PO maksimal 255 karakter.',

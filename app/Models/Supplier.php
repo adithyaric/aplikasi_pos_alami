@@ -18,6 +18,7 @@ class Supplier extends Model
         'kode_supplier',
         'alamat',
         'no_telp',
+        'email',
         'deadline_days',
         'deadline_interval_weeks',
         'deadline_reference_date',

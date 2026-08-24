@@ -179,7 +179,9 @@ class Product extends Model
             return '-';
         }
 
-        return "1 {$this->satuan_besar} = {$this->konversi_qty} {$this->satuan}";
+        $factor = number_format((float) $this->konversi_qty, 0, ',', '.');
+
+        return "1 {$this->satuan_besar} = {$factor} {$this->satuan}";
     }
 
     public function getStatusProdukLabelAttribute(): string
@@ -210,7 +212,9 @@ class Product extends Model
             return '-';
         }
 
-        return "1 {$this->satuan_terbesar} = {$this->konversi_qty_terbesar} {$this->satuan_besar}";
+        $factor = number_format((float) $this->konversi_qty_terbesar, 0, ',', '.');
+
+        return "1 {$this->satuan_terbesar} = {$factor} {$this->satuan_besar}";
     }
 
     public function qtyDisplay(int|float $qty): string

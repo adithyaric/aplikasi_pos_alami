@@ -58,7 +58,7 @@
                                         <tr>
                                             <td>{{ $item->product?->name ?? '-' }}</td>
                                             <td>
-                                                {{ rtrim(rtrim(number_format((float) ($item->qty_input ?? $item->qty), 2, ',', '.'), '0'), ',') }}
+                                                {{ number_format((float) ($item->qty_input ?? $item->qty), 0, ',', '.') }}
                                                 {{ $item->unit ?? $item->product?->satuan ?? '' }}
                                             </td>
                                             <td class="text-right">@currency($item->discount ?? 0)</td>

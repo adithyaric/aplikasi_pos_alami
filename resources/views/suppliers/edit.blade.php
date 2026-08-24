@@ -41,6 +41,12 @@
                                 value="{{ old('no_telp', $supplier->no_telp) }}" placeholder="Masukkan Nomor Telp">
                             @error('no_telp')<div class="invalid-feedback text-danger">{{ $message }}</div>@enderror
                         </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" class="form-control" name="email"
+                                value="{{ old('email', $supplier->email) }}" placeholder="Masukkan Email Supplier">
+                            @error('email')<div class="invalid-feedback text-danger">{{ $message }}</div>@enderror
+                        </div>
                         @include('suppliers.partials.po-number-settings')
                     </div><!-- /.box-body -->
 

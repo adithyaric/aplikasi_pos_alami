@@ -9,7 +9,7 @@ class WarehousePenjualanRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return in_array($this->user()?->role, ['superadmin', 'admin-gudang', 'owner', 'admin-cabang', 'sales'], true);
+        return $this->user()?->hasAnyPermission(['penjualan.warehouse', 'penjualan.branch']) ?? false;
     }
 
     protected function prepareForValidation(): void
@@ -51,7 +51,8 @@ class WarehousePenjualanRequest extends FormRequest
 
     public function rules(): array
     {
-        $isBranchSale = in_array($this->user()?->role, ['admin-cabang', 'sales'], true);
+        $isBranchSale = $this->user()?->isBranchScoped()
+            && in_array($this->user()?->role, ['leader-cabang', 'sales'], true);
 
         return [
             'offline_client_id' => 'nullable|string|max:100',

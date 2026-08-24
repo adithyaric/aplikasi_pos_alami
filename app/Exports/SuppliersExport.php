@@ -28,7 +28,7 @@ class SuppliersExport implements FromCollection, WithHeadings, WithMapping
 
     public function headings(): array
     {
-        return ['kode_supplier', 'nama', 'pic', 'alamat', 'no_telp', 'interval_minggu', 'hari_order'];
+        return ['kode_supplier', 'nama', 'pic', 'alamat', 'no_telp', 'email', 'interval_minggu', 'hari_order'];
     }
 
     public function map($row): array
@@ -47,6 +47,7 @@ class SuppliersExport implements FromCollection, WithHeadings, WithMapping
             $row->pic_supplier,
             $row->alamat,
             $row->no_telp,
+            $row->email,
             $row->deadline_interval_weeks,
             $hariOrder,
         ];

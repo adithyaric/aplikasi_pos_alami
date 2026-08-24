@@ -6,7 +6,7 @@
 </section>
 <section class="content">
 
-@php $role = auth()->user()->role; @endphp
+@php $user = auth()->user(); $role = $user->role; @endphp
 
 @if ($canManageTemplates)
 <div class="row">
@@ -93,7 +93,7 @@
 
 <div class="row">
     {{-- Laporan PO --}}
-    @if (in_array($role, ['superadmin', 'admin-gudang']))
+    @if ($user->hasPermission('reports.all'))
     <div class="col-md-4 col-sm-6">
         <div class="box box-primary">
             <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-file-text-o"></i> Laporan PO</h3></div>
@@ -117,7 +117,7 @@
     {{-- @endif --}}
 
     {{-- Laporan Barang Masuk --}}
-    @if (in_array($role, ['superadmin', 'owner']))
+    @if ($user->hasPermission('reports.all'))
     <div class="col-md-4 col-sm-6">
         <div class="box box-success">
             <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-arrow-down"></i> Laporan Barang Masuk</h3></div>
@@ -129,7 +129,7 @@
     @endif
 
     {{-- Laporan Barang Keluar --}}
-    @if (in_array($role, ['superadmin', 'owner']))
+    @if ($user->hasPermission('reports.all'))
     <div class="col-md-4 col-sm-6">
         <div class="box box-warning">
             <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-arrow-up"></i> Laporan Barang Keluar</h3></div>
@@ -153,7 +153,7 @@
     {{-- @endif --}}
 
     {{-- Laporan Penerimaan Barang --}}
-    @if (in_array($role, ['superadmin', 'admin-gudang', 'owner']))
+    @if ($user->hasPermission('reports.all'))
     <div class="col-md-4 col-sm-6">
         <div class="box box-success">
             <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-inbox"></i> Laporan Penerimaan Barang</h3></div>
@@ -189,7 +189,7 @@
     {{-- @endif --}}
 
     {{-- Laporan Aktivitas Gudang --}}
-    @if (in_array($role, ['superadmin', 'owner']))
+    @if ($user->hasPermission('reports.all'))
     <div class="col-md-4 col-sm-6">
         <div class="box box-info">
             <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-tasks"></i> Laporan Aktivitas Gudang</h3></div>
@@ -237,7 +237,7 @@
     {{-- @endif --}}
 
     {{-- Laporan Retur Ke Supplier --}}
-    @if (in_array($role, ['superadmin', 'admin-gudang', 'owner']))
+    @if ($user->hasPermission('reports.all'))
     <div class="col-md-4 col-sm-6">
         <div class="box box-warning">
             <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-undo"></i> Laporan Retur Ke Supplier</h3></div>
@@ -249,7 +249,7 @@
     @endif
 
     {{-- Laporan Retur Cabang --}}
-    @if (in_array($role, ['superadmin', 'staff-outlet', 'owner']))
+    @if ($user->hasPermission('reports.all'))
     <div class="col-md-4 col-sm-6">
         <div class="box box-danger">
             <div class="box-header with-border"><h3 class="box-title"><i class="fa fa-undo"></i> Laporan Retur Cabang</h3></div>
@@ -260,6 +260,41 @@
     </div>
     @endif
 </div>
+
+@if (auth()->user()->hasPermission('reports.branch'))
+<div class="row">
+    <div class="col-md-12">
+        <div class="box box-primary">
+            <div class="box-header with-border">
+                <h3 class="box-title"><i class="fa fa-calendar"></i> Laporan Cabang Daterange</h3>
+            </div>
+            <div class="box-body">
+                <form method="GET" class="form-inline">
+                    <div class="form-group">
+                        <label for="branch_report_start">Dari</label>
+                        <input type="date" id="branch_report_start" name="tanggal_mulai" class="form-control"
+                            value="{{ now()->startOfMonth()->format('Y-m-d') }}" required>
+                    </div>
+                    <div class="form-group" style="margin-left:8px">
+                        <label for="branch_report_end">Sampai</label>
+                        <input type="date" id="branch_report_end" name="tanggal_selesai" class="form-control"
+                            value="{{ now()->format('Y-m-d') }}" required>
+                    </div>
+                    <button type="submit" formaction="{{ route('laporan.penjualan') }}" class="btn btn-primary" style="margin-left:8px">
+                        <i class="fa fa-file-excel-o"></i> Penjualan
+                    </button>
+                    <button type="submit" formaction="{{ route('laporan.piutang') }}" class="btn btn-warning">
+                        <i class="fa fa-file-excel-o"></i> Piutang
+                    </button>
+                    <button type="submit" formaction="{{ route('laporan.pembayaran') }}" class="btn btn-success">
+                        <i class="fa fa-file-excel-o"></i> Pembayaran
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- ============ MODALS ============ --}}
 

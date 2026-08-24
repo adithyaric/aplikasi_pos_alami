@@ -14,7 +14,12 @@ class AdminController extends Controller
 {
     private const MANAGED_ROLES = [
         'superadmin',
+        'po',
+        'finance',
+        'leader-cabang',
+        // Keep legacy values available when an existing account is edited.
         'admin-gudang',
+        'owner',
         'admin-cabang',
     ];
 
@@ -36,7 +41,9 @@ class AdminController extends Controller
     public function store(AdminRequest $request)
     {
         $data = $request->validated();
-        $data['outlet_id'] = $data['role'] === 'admin-cabang' ? ($data['outlet_id'] ?? null) : null;
+        $data['outlet_id'] = in_array($data['role'], ['leader-cabang', 'admin-cabang'], true)
+            ? ($data['outlet_id'] ?? null)
+            : null;
         $data['password'] = Hash::make($data['password']);
 
         User::create($data);
@@ -65,7 +72,7 @@ class AdminController extends Controller
         $this->validate($request, [
             'name' => 'required',
             'username' => 'required',
-            'outlet_id' => ['required_if:role,admin-cabang', 'nullable', Rule::exists('outlets', 'id')->where(fn ($query) => $query->where('jenis_outlet', 'branch'))],
+            'outlet_id' => ['required_if:role,leader-cabang', 'required_if:role,admin-cabang', 'nullable', Rule::exists('outlets', 'id')->where(fn ($query) => $query->where('jenis_outlet', 'branch'))],
             'role' => 'required|in:'.implode(',', self::MANAGED_ROLES),
             'status' => 'required',
             'email' => 'required|email|unique:users,email,'.$admin->id,
@@ -73,7 +80,9 @@ class AdminController extends Controller
         ]);
 
         $data = $request->all();
-        $data['outlet_id'] = $data['role'] === 'admin-cabang' ? ($data['outlet_id'] ?? null) : null;
+        $data['outlet_id'] = in_array($data['role'], ['leader-cabang', 'admin-cabang'], true)
+            ? ($data['outlet_id'] ?? null)
+            : null;
         if (! empty($data['password'])) {
             $data['password'] = Hash::make($data['password']);
         } else {

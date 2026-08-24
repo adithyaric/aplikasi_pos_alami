@@ -106,7 +106,8 @@
                             <table class="table table-bordered table-striped" id="example">
                                 <tr>
                                     <td>Nama Product</td>
-                                    <td>Qty (Satuan Besar)</td>
+                                    <td>Satuan</td>
+                                    <td>Qty</td>
                                     <td>Harga Beli (per satuan kecil)</td>
                                     <td>Sub Total</td>
                                     <td>Aksi</td>
@@ -120,9 +121,14 @@
                                             </select>
                                         </td>
                                         <td>
+                                            <select class="form-control unit" name="product[0][unit]" required disabled>
+                                                <option value="">Pilih produk terlebih dahulu</option>
+                                            </select>
+                                            <span class="konversi-display text-muted" style="font-size:11px;"></span>
+                                        </td>
+                                        <td>
                                             <input type="number" class="form-control qty" name="product[0][qty]" required
-                                                value="1" min="1">
-                                            <span class="konversi-display"></span>
+                                                value="1" min="1" step="1">
                                         </td>
                                         <td>
                                             <input type="text" class="form-control harga_beli numeral-mask"
@@ -637,7 +643,7 @@
                 return '<span class="text-muted">-</span>';
             }
             var satuanKecil = p.satuan || 'PCS';
-            return '1 ' + p.satuan_besar + ' = ' + p.konversi_qty + ' ' + satuanKecil;
+            return '1 ' + p.satuan_besar + ' = ' + Number(p.konversi_qty).toLocaleString('id-ID', { maximumFractionDigits: 0 }) + ' ' + satuanKecil;
         }
 
         function buildProductRow(index) {
@@ -649,11 +655,11 @@
                         </select>
                     </td>
                     <td>
-                        <div class="input-group">
-                            <input type="number" required value="1" min="1" class="form-control qty" name="product[${index}][qty]">
-                            <span class="input-group-addon satuan-besar-label" style="white-space:nowrap;">-</span>
-                        </div>
+                        <select required disabled class="form-control unit" name="product[${index}][unit]" style="width:100%;"><option value="">Pilih produk terlebih dahulu</option></select>
                         <span class="konversi-display text-muted" style="font-size:11px;"></span>
+                    </td>
+                    <td>
+                        <input type="number" required value="1" min="1" step="1" class="form-control qty" name="product[${index}][qty]">
                     </td>
                     <td><input required type="text" class="form-control harga_beli numeral-mask" name="product[${index}][harga_beli]"></td>
                     <td><input type="text" required class="form-control subtotal" name="product[${index}][subtotal]" readonly></td>
@@ -725,7 +731,7 @@
             initializeProductRow($('#product-repeater tr:last'));
         }
 
-        $(document).on('change', '.qty, .harga_beli', function() {
+        $(document).on('change input', '.qty, .unit, .harga_beli', function() {
             updateSubtotalAndTotal();
         });
 
@@ -746,9 +752,12 @@
             let total = 0;
             $('#product-repeater tr').each(function() {
                 let $row = $(this);
-                let qtySatuanBesar = parseInt($row.find('.qty').val()) || 0;
-                let konversiQty = parseInt($row.find('.qty').data('konversi-qty')) || 1;
-                let qtySatuanKecil = qtySatuanBesar * konversiQty;
+                let qtyInput = parseFloat($row.find('.qty').val()) || 0;
+                let productId = $row.find('.product').val();
+                let product = currentProducts?.find(p => p.id == productId);
+                let unit = $row.find('.unit').val();
+                let factors = product?.unit_factors || {};
+                let qtySatuanKecil = Math.round(qtyInput * (parseFloat(factors[String(unit).toLowerCase()]) || 1));
 
                 let $hargaInput = $row.find('.harga_beli');
                 let harga_beli = ($hargaInput.data('mask') !== undefined)
@@ -774,24 +783,30 @@
             }
         }
 
+        function buildUnitOptions(product, selectedUnit) {
+            if (!product || !product.units || !product.units.length) {
+                return '<option value="">Pilih satuan</option>';
+            }
+
+            return product.units.map(function(unit) {
+                var selected = String(selectedUnit || product.default_unit) === String(unit.value) ? ' selected' : '';
+                return '<option value="' + $('<div>').text(unit.value).html() + '"' + selected + '>'
+                    + $('<div>').text(unit.label).html() + '</option>';
+            }).join('');
+        }
+
         function updateKonversiDisplay($row) {
             if (!currentProducts) return;
             let productId = $row.find('.product').val();
-            let qtySatuanBesar = parseInt($row.find('.qty').val()) || 0;
+            let qtySatuanBesar = parseFloat($row.find('.qty').val()) || 0;
+            let unit = $row.find('.unit').val();
             let prod = currentProducts.find(function(p) { return p.id == productId; });
 
             if (!prod) return;
 
-            let konversiQty = prod.konversi_qty || 1;
-            let satuanBesar = prod.satuan_besar || prod.satuan || 'PCS';
             let satuan = prod.satuan || 'PCS';
-            let qtySatuanKecil = qtySatuanBesar * konversiQty;
-
-            // Update label satuan besar di input group
-            $row.find('.satuan-besar-label').text(satuanBesar);
-
-            // Simpan konversi_qty ke data attribute input qty
-            $row.find('.qty').data('konversi-qty', konversiQty);
+            let factors = prod.unit_factors || {};
+            let qtySatuanKecil = Math.round(qtySatuanBesar * (parseFloat(factors[String(unit).toLowerCase()]) || 1));
 
             // Tampilkan info konversi
             $row.find('.konversi-display').html(
@@ -807,11 +822,9 @@
             if (!product_id) return;
 
             let prod = currentProducts ? currentProducts.find(p => p.id == product_id) : null;
-            let konversiQty = prod?.konversi_qty || 1;
-            let satuanBesar = prod?.satuan_besar || prod?.satuan || 'PCS';
-
-            $row.find('.qty').data('konversi-qty', konversiQty);
-            $row.find('.satuan-besar-label').text(satuanBesar);
+            $row.find('.unit')
+                .html(buildUnitOptions(prod, prod?.default_unit || ''))
+                .prop('disabled', !prod);
 
             updateKonversiDisplay($row);
 
@@ -821,7 +834,7 @@
             });
         });
 
-        $(document).on('change input', '.qty', function() {
+        $(document).on('change input', '.qty, .unit', function() {
             updateKonversiDisplay($(this).closest('tr'));
         });
 
@@ -1071,7 +1084,7 @@
 
                 // Set product selection without firing the change handler
                 // (which would make an AJAX call before options are ready)
-                $productSelect.val(item.product_id).trigger('change.select2');
+                $productSelect.val(item.product_id).trigger('change');
 
                 // Populate harga_beli directly from cached data to avoid /product/null
                 $hargaInput.val(formatRupiah(item.harga)).trigger('input');

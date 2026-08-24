@@ -144,6 +144,8 @@ class DashboardController extends Controller
             ->limit(5)
             ->get();
 
+        $distributionDashboard = $this->distributionDashboardData();
+
         if ($request->wantsJson()) {
             return response()->json([
                 'bestBuyProducts'  => [],
@@ -197,7 +199,76 @@ class DashboardController extends Controller
             'lowVelocityProducts' => $lowVelocityProducts,
             'adjustmentProducts' => $adjustmentProducts,
             'pendingOwnerApprovals' => $pendingOwnerApprovals,
+            'distributionDashboard' => $distributionDashboard,
         ]);
+    }
+
+    /**
+     * Build the four distribution summaries used by the dashboard. Sales are
+     * grouped by the transaction's buyer type, while Sales is grouped by the
+     * presence of a salesman. Receivables are calculated from the remaining
+     * balance after the recorded payment transaction.
+     */
+    private function distributionDashboardData(): array
+    {
+        $monthStart = now()->startOfMonth();
+        $chartStart = $monthStart->copy()->subMonths(5);
+        $sales = Penjualan::with('paymentTransaction')->get();
+        $chartSales = $sales->filter(fn ($sale) => $sale->sale_date && $sale->sale_date->gte($chartStart));
+
+        $groups = [
+            'canvas' => fn ($sale) => $sale->buyer_type === 'canvas',
+            'agent' => fn ($sale) => $sale->buyer_type === 'agent',
+            'branch' => fn ($sale) => $sale->buyer_type === 'outlet',
+            'sales' => fn ($sale) => (bool) $sale->salesman_id,
+        ];
+
+        $cards = [];
+        $charts = [];
+        $labels = [];
+
+        for ($index = 0; $index < 6; $index++) {
+            $labels[] = $chartStart->copy()->addMonths($index)->format('M Y');
+        }
+
+        foreach ($groups as $key => $matches) {
+            $groupSales = $sales->filter($matches)->values();
+            $groupChartSales = $chartSales->filter($matches)->values();
+            $cards[$key] = [
+                'sales' => (int) $groupSales
+                    ->filter(fn ($sale) => $sale->sale_date && $sale->sale_date->gte($monthStart))
+                    ->sum(fn ($sale) => (int) ($sale->total ?? 0)),
+                'receivable' => (int) $groupSales->sum(function ($sale) {
+                    $paid = (int) ($sale->paymentTransaction?->amount ?? 0);
+
+                    return max(0, (int) ($sale->total ?? 0) - $paid);
+                }),
+            ];
+
+            $salesByMonth = [];
+            $paymentsByMonth = [];
+            foreach (range(0, 5) as $monthIndex) {
+                $periodStart = $chartStart->copy()->addMonths($monthIndex)->startOfMonth();
+                $periodEnd = $periodStart->copy()->endOfMonth();
+                $salesByMonth[] = (int) $groupChartSales
+                    ->filter(fn ($sale) => $sale->sale_date && $sale->sale_date->betweenIncluded($periodStart, $periodEnd))
+                    ->sum(fn ($sale) => (int) ($sale->total ?? 0));
+                $paymentsByMonth[] = (int) $groupSales
+                    ->filter(function ($sale) use ($periodStart, $periodEnd) {
+                        $paymentDate = $sale->paymentTransaction?->payment_date;
+
+                        return $paymentDate && $paymentDate->betweenIncluded($periodStart, $periodEnd);
+                    })
+                    ->sum(fn ($sale) => (int) ($sale->paymentTransaction?->amount ?? 0));
+            }
+
+            $charts[$key] = [
+                'sales' => $salesByMonth,
+                'payments' => $paymentsByMonth,
+            ];
+        }
+
+        return compact('cards', 'charts', 'labels');
     }
 
     public function setting()
