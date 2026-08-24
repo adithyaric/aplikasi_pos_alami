@@ -1,0 +1,32 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('pembelian_transactions', function (Blueprint $table) {
+            $table->foreignId('account_id')->nullable()->after('pembelian_id')->constrained('accounts')->nullOnDelete();
+        });
+
+        Schema::table('penjualan_payments', function (Blueprint $table) {
+            $table->foreignId('account_id')->nullable()->after('penjualan_id')->constrained('accounts')->nullOnDelete();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('penjualan_payments', function (Blueprint $table) {
+            $table->dropForeign(['account_id']);
+            $table->dropColumn('account_id');
+        });
+
+        Schema::table('pembelian_transactions', function (Blueprint $table) {
+            $table->dropForeign(['account_id']);
+            $table->dropColumn('account_id');
+        });
+    }
+};

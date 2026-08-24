@@ -1,0 +1,40 @@
+﻿PT ABC,,,,
+Neraca (Induk Skontro),,,,
+Per Tgl. 21 Agu 2026,,,,
+
+Deskripsi,Nilai (IDR),,Deskripsi,Nilai (IDR)
+
+ASET,,,LIABILITAS DAN EKUITAS,
+   ASET LANCAR,,,   LIABILITAS,
+      Kas dan Setara Kas,,,      LIABILITAS JANGKA PENDEK,
+         Kas & Bank,1469247930,,         Utang Usaha,
+            Kas Kasir,590009594,,            Utang Usaha,5987595100
+            Kas Bank BRI Aura,181828141,,               Utang Usaha IDR,5638135000
+            Kas Bank BRI Mellyn,465434172,,               Utang Bank BRI,199460100
+            Kas Bank BRI Esti,189966941,,               Utang Mobil Inova,150000000
+            Kas Kecil,42009082,,         Jumlah Utang,5987595100
+      Jumlah Kas dan Setara Kas,1469247930,,      ,
+      ,,,         Kewajiban Jangka Pendek Lainnya,
+      Piutang Usaha,,,         Jumlah Kewajiban Jangka Pendek Lainnya,0
+         Piutang Usaha,3433146097,,      Jumlah Kewajiban Jangka Pendek,5987595100
+            Piutang Usaha IDR,2786098300,,      ,
+            Piutang Karyawan,464802797,,      LIABILITAS JANGKA PANJANG,
+            Piutang Usaha Lainnya,182245000,,      Jumlah Kewajiban Jangka Panjang,0
+      Jumlah Piutang Usaha,3433146097,,   Jumlah Kewajiban,5987595100
+      ,,,      ,
+      Persediaan,,,   EKUITAS,
+         Persediaan,753688000,,      Modal,977936239
+            Persediaan,753688000,,         Equitas Saldo Awal,-641747525
+      Jumlah Persediaan,753688000,,         Laba Ditahan,233728707
+      ,,,         Modal Usaha,1385955057
+      Aset Lancar Lainnya,,,         Laba Tahun Ini,2566655688
+      Jumlah Aset Lancar Lainnya,0,,   Jumlah Ekuitas,3544591927
+   Jumlah Aset Lancar,5656082027,,JUMLAH LIABILITAS DAN EKUITAS,9532187027
+      ,,,,
+   ASET TIDAK LANCAR,,,,
+      Nilai Histori,,,,
+         Aset Tetap,2105151000,,,
+            Kendaraan,1230975000,,,
+            Peralatan,791800000,,,
+            Inventaris Kantor,82376000,,,
+      Jumlah Nilai Histori,2105151000

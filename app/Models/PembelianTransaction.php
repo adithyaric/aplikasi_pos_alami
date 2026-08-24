@@ -14,6 +14,7 @@ class PembelianTransaction extends Model
 
     protected $fillable = [
         'pembelian_id',
+        'account_id',
         'payment_date',
         'payment_method',
         'payment_reference',
@@ -33,6 +34,11 @@ class PembelianTransaction extends Model
     public function pembelian()
     {
         return $this->belongsTo(Pembelian::class)->withTrashed();
+    }
+
+    public function account()
+    {
+        return $this->belongsTo(Account::class);
     }
     public function getActivitylogOptions(): LogOptions
     {

@@ -1,0 +1,50 @@
+﻿PT ABC,
+Laba/Rugi (Standar),
+Dari 01 Agu 2026 s/d 21 Agu 2026,
+
+Deskripsi,1 - 21 Agu 2026
+
+PENDAPATAN,
+   Pendapatan Operasional,
+      Penjualan All Item,16896483000
+   Jumlah Pendapatan,16896483000
+      ,
+BEBAN POKOK PENJUALAN,
+   Beban Pokok Penjualan,16244977500
+   Jumlah Beban Pokok Penjualan,16244977500
+      ,
+LABA KOTOR,651505500
+      ,
+BEBAN OPERASIONAL,
+   Beban Operasional,204480907
+      Beban Iklan dan Promosi,2506000
+"      Beban Bensin, Parkir, Tol Kendaraan",7144500
+"      Beban Gaji, Upah & Honorer",11480707
+      Beban Transportasi Karyawan,835000
+      Beban Katering & Makan Karyawan,3030300
+      Beban Asuransi Karyawan,20377000
+      Beban Servis dan Perbaikan,7075500
+      Beban Operasional Area Luar,41992300
+"      Beban Ekspedisi, Pos & Materai",9350000
+      Beban Perlengkapan Kantor,2587000
+      Beban Operasional Kantor,44015100
+      Beban Retribusi & Sumbangan,7883500
+      Beban Sewa Gedung,29000000
+      Beban Operasional Lainnya,17204000
+   Jumlah Beban Operasional,204480907
+      ,
+PENDAPATAN OPERASIONAL,447024593
+      ,
+PENDAPATAN DAN BEBAN NON OPERASIONAL,
+   Pendapatan Non Operasional,
+      Pendapatan Diluar Usaha,1292965
+         Pendapatan Bunga Bank,617965
+         Penjualan Persediaan / Perlengkapan,675000
+      Jumlah Pendapatan Non Operasional,1292965
+   Beban Non Operasional,
+      Beban Diluar Usaha,136093
+         Beban Adm. Bank & Buku Cek/Giro,136093
+      Jumlah Beban Non Operasional,136093
+   Jumlah Pendapatan dan Beban Non Operasional,1156872
+      ,
+LABA BERSIH,448181465

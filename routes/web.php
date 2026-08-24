@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AgentController;
+use App\Http\Controllers\AccountingAccountController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchStockController;
 use App\Http\Controllers\CanvasController;
@@ -14,6 +15,8 @@ use App\Http\Controllers\SalesCustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\KasController;
 use App\Http\Controllers\LaporanController;
+use App\Http\Controllers\FinancialReportController;
+use App\Http\Controllers\JournalController;
 use App\Http\Controllers\MarketplaceController;
 use App\Http\Controllers\OutletController;
 use App\Http\Controllers\PaymentMethodController;
@@ -196,6 +199,23 @@ Route::middleware(['role:po|finance|leader-cabang|admin-gudang|admin-cabang|staf
     Route::get('/laporan/stock', [LaporanController::class, 'exportStock'])->name('laporan.stock');
     Route::get('/laporan/pengeluaran', [LaporanController::class, 'exportPengeluaran'])->name('laporan.pengeluaran');
     Route::get('/laporan/labarugi', [LaporanController::class, 'exportLabaRugi'])->name('laporan.labarugi');
+
+    // -------------------------------------------------------------------------------------------------------------------------------------
+    // Akuntansi: chart of accounts, jurnal umum, buku besar, laba rugi, neraca
+    Route::middleware(['role:po|finance|owner|superadmin|admin-gudang'])->prefix('akuntansi')->name('accounting.')->group(function () {
+        Route::get('/', [FinancialReportController::class, 'index'])->name('index');
+        Route::resource('akun', AccountingAccountController::class)->names('accounts')->parameters(['akun' => 'account'])->except(['show', 'create', 'edit']);
+        Route::resource('jurnal', JournalController::class)->names('journals')->parameters(['jurnal' => 'journal']);
+        Route::get('buku-besar', [FinancialReportController::class, 'ledger'])->name('ledger');
+        Route::get('buku-besar/export', [FinancialReportController::class, 'exportLedger'])->name('ledger.export');
+        Route::get('laba-rugi', [FinancialReportController::class, 'profitLoss'])->name('profit-loss');
+        Route::get('laba-rugi/export', [FinancialReportController::class, 'exportProfitLoss'])->name('profit-loss.export');
+        Route::get('neraca', [FinancialReportController::class, 'balanceSheet'])->name('balance-sheet');
+        Route::get('neraca/export', [FinancialReportController::class, 'exportBalanceSheet'])->name('balance-sheet.export');
+        Route::get('jurnal-umum', [FinancialReportController::class, 'generalJournal'])->name('general-journal');
+        Route::get('jurnal-umum/export', [FinancialReportController::class, 'exportGeneralJournal'])->name('general-journal.export');
+        Route::post('sinkronisasi', [FinancialReportController::class, 'sync'])->name('sync');
+    });
 
     // Request Orders
     Route::resource('request-orders', App\Http\Controllers\RequestOrderController::class);

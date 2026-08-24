@@ -214,6 +214,17 @@
                             </div>
 
                             <div class="form-group">
+                                <label class="control-label">Akun Kas / Bank</label>
+                                <select name="account_id" class="form-control" @if ($pembelian->pembelianTransaction?->status === 'paid') disabled @endif>
+                                    <option value="">Gunakan Kas Default</option>
+                                    @foreach ($paymentAccounts as $account)
+                                        <option value="{{ $account->id }}" @selected((int) ($pembelian->pembelianTransaction?->account_id ?? 0) === $account->id)>{{ $account->code }} - {{ $account->name }}</option>
+                                    @endforeach
+                                </select>
+                                <p class="help-block">Akun yang dikredit saat pembayaran pembelian dilakukan.</p>
+                            </div>
+
+                            <div class="form-group">
                                 <label class="control-label">No. Bukti / Referensi</label>
                                 @php
                                     $supplierCode = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', substr($pembelian->supplier?->name ?? 'SUP', 0, 5)));

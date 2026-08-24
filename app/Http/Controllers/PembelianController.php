@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\PembelianRequest;
 use App\Models\CustomerPo;
+use App\Models\Account;
 use App\Models\Kas;
 use App\Models\Outlet;
 use App\Models\Pembelian;
@@ -14,6 +15,7 @@ use App\Models\Stock;
 use App\Models\StockMovement;
 use App\Models\StockPembelian;
 use App\Models\Supplier;
+use App\Services\AccountingService;
 use App\Support\ProductUnitConverter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -489,6 +491,10 @@ class PembelianController extends Controller
                 $pembelian->update(['is_published' => true]);
             }
 
+            if ($request->receipt_status === 'completed' || $pembelian->is_published) {
+                app(AccountingService::class)->syncPurchase($pembelian->fresh(['pembelianProducts', 'stocks', 'pembelianTransaction']));
+            }
+
             DB::commit();
 
             return redirect()->route('pembelian.penerimaan', $pembelian)
@@ -538,6 +544,10 @@ class PembelianController extends Controller
 
             if ($request->receipt_status == 'completed' && ! $pembelian->is_published) {
                 $pembelian->update(['is_published' => true]);
+            }
+
+            if ($request->receipt_status === 'completed' || $pembelian->is_published) {
+                app(AccountingService::class)->syncPurchase($pembelian->fresh(['pembelianProducts', 'stocks', 'pembelianTransaction']));
             }
 
             DB::commit();
@@ -727,7 +737,12 @@ class PembelianController extends Controller
         $title = 'Edit Pembayaran Pembelian';
         $paymentHistory = $pembelian->pembelianTransaction?->payment_history ?? [];
 
-        return view('pembelians.pembayaran-edit', compact('pembelian', 'title', 'paymentHistory'));
+        return view('pembelians.pembayaran-edit', [
+            'pembelian' => $pembelian,
+            'title' => $title,
+            'paymentHistory' => $paymentHistory,
+            'paymentAccounts' => Account::active()->posting()->where('type_code', 'BANK')->orderBy('code')->get(),
+        ]);
     }
 
     public function updatePembayaran(Request $request, Pembelian $pembelian)
@@ -742,6 +757,7 @@ class PembelianController extends Controller
         $request->validate([
             'payment_date'      => 'required|date',
             'payment_method'    => 'required|in:cash,bank_transfer,giro_cek,lainnya',
+            'account_id'        => 'nullable|integer|exists:accounts,id',
             'payment_reference' => 'nullable|string',
             'amount'            => 'required|numeric|min:0|max:'.$maxAmount,
             'notes'             => 'nullable|string',
@@ -787,6 +803,7 @@ class PembelianController extends Controller
                         'payment_date'      => $request->payment_date,
                         'amount'            => $request->amount,
                         'payment_method'    => $request->payment_method,
+                        'account_id'       => $request->integer('account_id') ?: null,
                         'payment_reference' => $request->payment_reference,
                         'bukti_transfer'    => $buktiPath ?? null,
                         'notes'             => $request->notes,
@@ -797,6 +814,7 @@ class PembelianController extends Controller
                 $transactionData = [
                     'payment_date'      => $request->payment_date,
                     'payment_method'    => $request->payment_method,
+                    'account_id'       => $request->integer('account_id') ?: null,
                     'payment_reference' => $request->payment_reference,
                     'amount'            => $newTotalAmount,
                     'payment_history'   => $paymentHistory,
@@ -817,6 +835,7 @@ class PembelianController extends Controller
                         'payment_date'      => $request->payment_date,
                         'amount'            => $request->amount,
                         'payment_method'    => $request->payment_method,
+                        'account_id'       => $request->integer('account_id') ?: null,
                         'payment_reference' => $request->payment_reference,
                         'bukti_transfer'    => $buktiPath,
                         'notes'             => $request->notes,
@@ -827,6 +846,7 @@ class PembelianController extends Controller
                 $transactionData = [
                     'payment_date'      => $request->payment_date,
                     'payment_method'    => $request->payment_method,
+                    'account_id'       => $request->integer('account_id') ?: null,
                     'payment_reference' => $request->payment_reference,
                     'amount'            => $request->amount,
                     'payment_history'   => $paymentHistory,
@@ -838,6 +858,7 @@ class PembelianController extends Controller
                 $pembelian->pembelianTransaction()->create($transactionData);
             }
 
+            app(AccountingService::class)->syncPurchase($pembelian->fresh(['pembelianProducts', 'stocks', 'pembelianTransaction']));
             DB::commit();
 
         return response()->json([

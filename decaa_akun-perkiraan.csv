@@ -1,0 +1,101 @@
+﻿No. ,Tipe Akun,Kode Perkiraan,Nama,Akun Induk
+1,OASS,120007,Aktiva Lain Lain,
+2,DEPR,120006,Akumulasi Depresiasi Aset Tetap,
+3,DEPR,12000601,Akumulasi Penyusutan Gedung,120006
+4,DEPR,12000604,Akumulasi Penyusutan Inventaris Kantor,120006
+5,DEPR,12000602,Akumulasi Penyusutan Kendaraan,120006
+6,DEPR,12000603,Akumulasi Penyusutan Peralatan,120006
+7,OCAS,1105,Aset Lancar Lainnya,
+8,FASS,1200,Aset Tetap,
+9,OCAS,110503,Asuransi Dibayar Dimuka,1105
+10,OEXP,720002,Beban Adm. Bank & Buku Cek/Giro,7200
+11,EXPS,600009,Beban Asuransi Karyawan,6000
+12,EXPS,600003,"Beban Bensin, Parkir, Tol Kendaraan",6000
+13,EXPS,600005,"Beban Bonus, Pesangon & Kompensasi",6000
+14,OEXP,720001,Beban Bunga Pinjaman,7200
+15,OEXP,7200,Beban Diluar Usaha,
+16,OEXP,720007,Beban Diluar Usaha Lainnya,7200
+17,EXPS,600014,"Beban Ekspedisi, Pos & Materai",6000
+18,EXPS,600004,"Beban Gaji, Upah & Honorer",6000
+19,EXPS,600001,Beban Iklan dan Promosi,6000
+20,EXPS,600007,Beban Katering & Makan Karyawan,6000
+21,EXPS,600002,Beban Komisi,6000
+22,EXPS,6000,Beban Operasional,
+23,EXPS,600013,Beban Operasional Area Luar,6000
+24,EXPS,600017,Beban Operasional Kantor,6000
+25,EXPS,600020,Beban Operasional Lainnya,6000
+26,EXPS,600011,Beban Pajak Daerah,6000
+27,EXPS,600021,Beban Penyusutan Gedung,6000
+28,EXPS,600024,Beban Penyusutan Inventaris Kantor,6000
+29,EXPS,600022,Beban Penyusutan Kendaraan,6000
+30,EXPS,600023,Beban Penyusutan Peralatan,6000
+31,EXPS,600015,Beban Perjalanan Dinas,6000
+32,EXPS,600016,Beban Perlengkapan Kantor,6000
+33,COGS,5101,Beban Pokok Penjualan,
+34,EXPS,600018,Beban Retribusi & Sumbangan,6000
+35,EXPS,600012,Beban Servis dan Perbaikan,6000
+36,EXPS,600019,Beban Sewa Gedung,6000
+37,EXPS,600010,Beban THR,6000
+38,EXPS,600006,Beban Transportasi Karyawan,6000
+39,EXPS,600008,Beban Tunjangan Kesehatan,6000
+40,BANK,110201,Deposito Bank,1102
+41,REVE,400004,Diskon Penjualan,4000
+42,REVE,4401,Diskon Penjualan,
+43,REVE,440101,Diskon Penjualan IDR,4401
+44,OASS,120008,Emas,
+45,EQTY,300001,Equitas Saldo Awal,3000
+46,FASS,120002,Gedung,1200
+47,LTLY,2201,Hutang Jangka Panjang,
+48,OCLY,210203,Hutang Pembelian Belum Ditagih,2102
+49,FASS,120005,Inventaris Kantor,1200
+50,BANK,1101,Kas & Bank,
+51,BANK,110102,Kas Bank BRI Aura,1101
+52,BANK,110104,Kas Bank BRI Esti,1101
+53,BANK,110103,Kas Bank BRI Mellyn,1101
+54,BANK,110101,Kas Kasir,1101
+55,BANK,110105,Kas Kecil,1101
+56,FASS,120003,Kendaraan,1200
+57,OCLY,2102,Kewajiban Jangka Pendek Lainnya,
+58,EQTY,300002,Laba Ditahan,3000
+59,OEXP,720005,Laba/Rugi Belum Terealisasi,7200
+60,OEXP,7202,Laba/Rugi Belum Terealisasi,
+61,OEXP,720201,Laba/Rugi Belum Terealisasi IDR,7202
+62,OEXP,720006,Laba/Rugi Disposisi Aset,7200
+63,OINC,710004,Laba/Rugi Revaluasi Aset,7100
+64,OEXP,720004,Laba/Rugi Terealisasi,7200
+65,OEXP,7201,Laba/Rugi Terealisasi,
+66,OEXP,720101,Laba/Rugi Terealisasi IDR,7201
+67,OASS,120009,Mobil,
+68,EQTY,3000,Modal,
+69,EQTY,300003,Modal Usaha,3000
+70,OCLY,210201,PPN Keluaran,2102
+71,OCAS,110504,PPN Masukan,1105
+72,OCLY,210202,PPh 23 Pembelian,2102
+73,OCAS,110505,PPh 23 Penjualan,1105
+74,OEXP,720003,Pajak Jasa Giro,7200
+75,OINC,710002,Pendapatan Bunga Bank,7100
+76,OINC,7100,Pendapatan Diluar Usaha,
+77,OINC,710005,Pendapatan Diluar Usaha Lainnya,7100
+78,OINC,710001,Pendapatan Jasa Giro,7100
+79,REVE,4000,Pendapatan Operasional,
+80,REVE,400001,Penjualan All Item,4000
+81,REVE,400002,Penjualan Lain Lain,4000
+82,OINC,710003,Penjualan Persediaan / Perlengkapan,7100
+83,FASS,120004,Peralatan,1200
+84,OCAS,110501,Perlengkapan Kantor,1105
+85,INTR,1104,Persediaan,
+86,INTR,110401,Persediaan,1104
+87,INTR,110402,Persediaan Terkirim,1104
+88,AREC,110302,Piutang Karyawan,1103
+89,AREC,1103,Piutang Usaha,
+90,AREC,110301,Piutang Usaha IDR,1103
+91,AREC,110303,Piutang Usaha Lainnya,1103
+92,REVE,400003,Retur Penjualan,4000
+93,BANK,1102,Setara Kas,
+94,OCAS,110502,Sewa Gedung Dibayar Dimuka,1105
+95,FASS,120001,Tanah,1200
+96,APAY,210102,Utang Bank BRI,2101
+97,APAY,210103,Utang Mobil Inova,2101
+98,APAY,2101,Utang Usaha,
+99,APAY,210101,Utang Usaha IDR,2101
+100,APAY,210104,Utang Usaha Lainnya,2101

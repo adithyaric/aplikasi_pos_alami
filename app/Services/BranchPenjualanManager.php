@@ -16,7 +16,8 @@ use Illuminate\Support\Facades\DB;
 class BranchPenjualanManager
 {
     public function __construct(
-        private readonly ProductUnitConverter $converter
+        private readonly ProductUnitConverter $converter,
+        private readonly AccountingService $accounting
     ) {
     }
 
@@ -51,6 +52,7 @@ class BranchPenjualanManager
 
             $this->syncItems($penjualan, $items, $operatorId);
             $this->syncPaymentTransaction($penjualan);
+            $this->accounting->syncSale($penjualan->fresh(['items.product', 'items.stock', 'items.allocations.stock', 'paymentTransaction']));
 
             return $penjualan->fresh([
                 'items.product',
@@ -104,6 +106,7 @@ class BranchPenjualanManager
 
             $this->syncItems($penjualan, $items, $operatorId);
             $this->syncPaymentTransaction($penjualan);
+            $this->accounting->syncSale($penjualan->fresh(['items.product', 'items.stock', 'items.allocations.stock', 'paymentTransaction']));
 
             return $penjualan->fresh([
                 'items.product',

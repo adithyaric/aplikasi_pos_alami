@@ -20,7 +20,8 @@ use Illuminate\Support\Facades\DB;
 class WarehousePenjualanManager
 {
     public function __construct(
-        private readonly ProductUnitConverter $converter
+        private readonly ProductUnitConverter $converter,
+        private readonly AccountingService $accounting
     ) {
     }
 
@@ -76,6 +77,7 @@ class WarehousePenjualanManager
 
             $this->syncItems($penjualan, $items, $buyer, $operatorId);
             $this->syncPaymentTransaction($penjualan);
+            $this->accounting->syncSale($penjualan->fresh(['items.product', 'items.stock', 'items.allocations.stock', 'paymentTransaction']));
 
             return $penjualan;
         });
@@ -120,6 +122,7 @@ class WarehousePenjualanManager
 
             $this->syncItems($penjualan, $items, $buyer, $operatorId);
             $this->syncPaymentTransaction($penjualan);
+            $this->accounting->syncSale($penjualan->fresh(['items.product', 'items.stock', 'items.allocations.stock', 'paymentTransaction']));
 
             return $penjualan->fresh([
                 'items.product',

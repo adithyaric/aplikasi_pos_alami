@@ -11,6 +11,7 @@ class PenjualanPayment extends Model
 
     protected $fillable = [
         'penjualan_id',
+        'account_id',
         'payment_date',
         'payment_method',
         'payment_reference',
@@ -30,5 +31,10 @@ class PenjualanPayment extends Model
     public function penjualan()
     {
         return $this->belongsTo(Penjualan::class)->withTrashed();
+    }
+
+    public function account()
+    {
+        return $this->belongsTo(Account::class);
     }
 }

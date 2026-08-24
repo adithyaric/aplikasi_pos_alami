@@ -6,6 +6,7 @@ use App\Http\Requests\PengeluaranRequest;
 use App\Models\Category;
 use App\Models\Kas;
 use App\Models\Pengeluaran;
+use App\Services\AccountingService;
 
 class PengeluaranController extends Controller
 {
@@ -27,10 +28,11 @@ class PengeluaranController extends Controller
     public function store(PengeluaranRequest $request)
     {
         $data = $request->validated();
-        Pengeluaran::create($data);
+        $pengeluaran = Pengeluaran::create($data);
         $kas = Kas::find($data['kas_id']);
         $kas->nominal -= $data['jumlah'];
         $kas->save();
+        app(AccountingService::class)->syncExpense($pengeluaran->fresh('category'));
 
         return redirect(route('pengeluaran.index'))->with('toast_success', 'Berhasil Menyimpan Data!');
     }
@@ -54,6 +56,7 @@ class PengeluaranController extends Controller
         $data = $request->validated();
 
         $pengeluaran->update($data);
+        app(AccountingService::class)->syncExpense($pengeluaran->fresh('category'));
 
         return redirect(route('pengeluaran.index'))->with('toast_success', 'Berhasil Menyimpan Data!');
     }
@@ -61,6 +64,7 @@ class PengeluaranController extends Controller
     public function destroy(Pengeluaran $pengeluaran)
     {
         $pengeluaran->delete();
+        app(AccountingService::class)->deleteExpenseJournal($pengeluaran->id);
 
         return redirect(route('pengeluaran.index'))->with('toast_success', 'Berhasil Menghapus Data!');
     }

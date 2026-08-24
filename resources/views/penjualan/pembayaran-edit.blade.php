@@ -183,6 +183,17 @@
                             </div>
 
                             <div class="form-group">
+                                <label>Akun Kas / Bank</label>
+                                <select name="account_id" class="form-control" @if ($remainingAmount <= 0) disabled @endif>
+                                    <option value="">Gunakan Kas Default</option>
+                                    @foreach ($paymentAccounts as $account)
+                                        <option value="{{ $account->id }}" @selected((int) ($penjualan->paymentTransaction?->account_id ?? 0) === $account->id)>{{ $account->code }} - {{ $account->name }}</option>
+                                    @endforeach
+                                </select>
+                                <p class="help-block">Akun yang didebit saat pembayaran diterima.</p>
+                            </div>
+
+                            <div class="form-group">
                                 <label>No. Bukti / Referensi</label>
                                 <input type="text" name="payment_reference" class="form-control"
                                     value="{{ $defaultReference }}"

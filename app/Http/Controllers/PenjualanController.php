@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\WarehousePenjualanRequest;
 use App\Models\Agent;
+use App\Models\Account;
 use App\Models\Canvas;
 use App\Models\Outlet;
 use App\Models\OwnerStock;
@@ -13,6 +14,7 @@ use App\Models\Product;
 use App\Models\Salesman;
 use App\Models\Stock;
 use App\Services\BranchPenjualanManager;
+use App\Services\AccountingService;
 use App\Services\PenjualanBalanceService;
 use App\Services\WarehousePenjualanManager;
 use App\Support\ProductUnitConverter;
@@ -25,7 +27,8 @@ class PenjualanController extends Controller
     public function __construct(
         private readonly WarehousePenjualanManager $warehousePenjualanManager,
         private readonly BranchPenjualanManager $branchPenjualanManager,
-        private readonly PenjualanBalanceService $balanceService
+        private readonly PenjualanBalanceService $balanceService,
+        private readonly AccountingService $accounting
     ) {
     }
 
@@ -433,6 +436,7 @@ class PenjualanController extends Controller
         return view('penjualan.pembayaran-edit', [
             'penjualan' => $penjualan,
             'paymentHistory' => $penjualan->paymentTransaction?->payment_history ?? [],
+            'paymentAccounts' => Account::active()->posting()->where('type_code', 'BANK')->orderBy('code')->get(),
         ]);
     }
 
@@ -446,6 +450,7 @@ class PenjualanController extends Controller
         $request->validate([
             'payment_date' => 'required|date',
             'payment_method' => 'required|in:cash,bank_transfer,giro_cek,lainnya',
+            'account_id' => 'nullable|integer|exists:accounts,id',
             'payment_reference' => 'nullable|string|max:255',
             'amount' => 'required|numeric|min:0.01|max:'.$remainingAmount,
             'notes' => 'nullable|string',
@@ -468,6 +473,7 @@ class PenjualanController extends Controller
                 'payment_date' => $request->payment_date,
                 'amount' => (float) $request->amount,
                 'payment_method' => $request->payment_method,
+                'account_id' => $request->integer('account_id') ?: null,
                 'payment_reference' => $request->payment_reference ?: 'PAY-'.$penjualan->code.'-'.now()->format('YmdHis'),
                 'notes' => $request->notes,
                 'created_at' => now()->toDateTimeString(),
@@ -480,6 +486,7 @@ class PenjualanController extends Controller
             $payment->fill([
                 'payment_date' => $request->payment_date,
                 'payment_method' => $request->payment_method,
+                'account_id' => $request->integer('account_id') ?: null,
                 'payment_reference' => $request->payment_reference ?: 'PAY-'.$penjualan->code.'-'.now()->format('YmdHis'),
                 'payment_history' => $history,
                 'status' => $status,
@@ -491,6 +498,7 @@ class PenjualanController extends Controller
             $penjualan->update([
                 'payment_status' => $status,
             ]);
+            $this->accounting->syncSale($penjualan->fresh(['items.product', 'items.stock', 'items.allocations.stock', 'paymentTransaction']));
         });
 
         return redirect()

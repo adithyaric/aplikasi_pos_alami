@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Exports\DeliveryOrderSingleExport;
 use App\Exports\KartuStokExport;
-use App\Exports\LabaRugiExport;
 use App\Exports\LaporanAktifitasExport;
 use App\Exports\LaporanBarangKeluarExport;
 use App\Exports\LaporanBarangMasukExport;
@@ -15,6 +14,7 @@ use App\Exports\LaporanPergerakanExport;
 use App\Exports\LaporanPickingPackingExport;
 use App\Exports\LaporanPOExport;
 use App\Exports\LaporanPRExport;
+use App\Exports\ProfitLossExport;
 use App\Exports\PembelianExport;
 use App\Exports\PembelianBulkExport;
 use App\Exports\PembelianSupplierExport;
@@ -32,6 +32,8 @@ use App\Exports\ReturSupplierExport;
 use App\Exports\StockExport;
 use App\Exports\StockOpnameExport;
 use App\Models\DeliveryOrder;
+use App\Models\Account;
+use App\Models\Journal;
 use App\Models\Outlet;
 use App\Models\Pembelian;
 use App\Models\Penjualan;
@@ -75,6 +77,11 @@ class LaporanController extends Controller
             'documentTemplates' => $documentTemplates,
             'templateVariables' => $this->templateManager->variableGroups(),
             'canManageTemplates' => auth()->user()?->hasPermission('reports.manage') ?? false,
+            'accountingAccounts' => Account::with('parent')->orderBy('code')->get(),
+            'accountingParents' => Account::where('is_header', true)->orderBy('code')->get(),
+            'accountingTypes' => Account::query()->select('type_code')->distinct()->orderBy('type_code')->pluck('type_code'),
+            'accountingJournalCount' => Journal::count(),
+            'activeReportTab' => request('tab', 'regular') === 'accounting' ? 'accounting' : 'regular',
         ]);
     }
 
@@ -441,9 +448,12 @@ class LaporanController extends Controller
         return Excel::download(new PengeluaranExport, 'laporan-pengeluaran.xlsx');
     }
 
-    public function exportLabaRugi()
+    public function exportLabaRugi(Request $request)
     {
-        return Excel::download(new LabaRugiExport, 'laporan-laba-rugi.xlsx');
+        $start = $request->input('date_from', now()->startOfMonth()->toDateString());
+        $end = $request->input('date_to', now()->toDateString());
+
+        return Excel::download(new ProfitLossExport($start, $end), 'laporan-laba-rugi.xlsx');
     }
 
     public function exportReturSupplier(Request $request)
