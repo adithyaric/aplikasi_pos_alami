@@ -49,16 +49,17 @@ class WarehousePenjualanSeeder extends Seeder
             return;
         }
 
-        $monthYear = now()->format('m.y');
+        $demoBase = now()->startOfMonth()->addDay();
+        $monthYear = $demoBase->format('m.y');
         $sales = [
             [
                 'code' => '0001.'.$monthYear,
                 'buyer_type' => 'agent',
                 'buyer_id' => $agent->id,
-                'sale_date' => now()->subDays(3)->toDateString(),
+                'sale_date' => $demoBase->copy()->addDays(1)->toDateString(),
                 'payment_type' => 'termin',
                 'payment_status' => 'unpaid',
-                'due_date' => now()->addDays(11)->toDateString(),
+                'due_date' => $demoBase->copy()->addDays(12)->toDateString(),
                 'discount' => 15000,
                 'notes' => 'Seeder penjualan agen untuk cek flow termin.',
                 'items' => [
@@ -80,7 +81,7 @@ class WarehousePenjualanSeeder extends Seeder
                 'code' => '0002.'.$monthYear,
                 'buyer_type' => 'canvas',
                 'buyer_id' => $canvas->id,
-                'sale_date' => now()->subDays(2)->toDateString(),
+                'sale_date' => $demoBase->copy()->addDays(2)->toDateString(),
                 'payment_type' => 'cash',
                 'payment_status' => 'paid',
                 'due_date' => null,
@@ -99,10 +100,10 @@ class WarehousePenjualanSeeder extends Seeder
                 'code' => '0003.'.$monthYear,
                 'buyer_type' => 'outlet',
                 'buyer_id' => $branch->id,
-                'sale_date' => now()->subDay()->toDateString(),
+                'sale_date' => $demoBase->copy()->addDays(3)->toDateString(),
                 'payment_type' => 'termin',
                 'payment_status' => 'unpaid',
-                'due_date' => now()->addDays(6)->toDateString(),
+                'due_date' => $demoBase->copy()->addDays(10)->toDateString(),
                 'discount' => 10000,
                 'notes' => 'Seeder penjualan cabang untuk cek owner stock.',
                 'items' => [
@@ -124,10 +125,10 @@ class WarehousePenjualanSeeder extends Seeder
                 'code' => '0004.'.$monthYear,
                 'buyer_type' => 'agent',
                 'buyer_id' => Agent::where('code', 'AGN-002')->value('id'),
-                'sale_date' => now()->subDays(9)->toDateString(),
+                'sale_date' => $demoBase->copy()->addDays(4)->toDateString(),
                 'payment_type' => 'termin',
                 'payment_status' => 'unpaid',
-                'due_date' => now()->addDays(5)->toDateString(),
+                'due_date' => $demoBase->copy()->addDays(11)->toDateString(),
                 'discount' => 0,
                 'notes' => 'Seeder penjualan tambahan produk supplier S00001.',
                 'items' => [
@@ -143,10 +144,10 @@ class WarehousePenjualanSeeder extends Seeder
                 'code' => '0005.'.$monthYear,
                 'buyer_type' => 'canvas',
                 'buyer_id' => Canvas::where('code', 'CVS-002')->value('id'),
-                'sale_date' => now()->subDays(7)->toDateString(),
+                'sale_date' => $demoBase->copy()->addDays(5)->toDateString(),
                 'payment_type' => 'termin',
                 'payment_status' => 'unpaid',
-                'due_date' => now()->addDays(4)->toDateString(),
+                'due_date' => $demoBase->copy()->addDays(10)->toDateString(),
                 'discount' => 0,
                 'notes' => 'Seeder penjualan tambahan produk supplier S00002.',
                 'items' => [
@@ -162,7 +163,7 @@ class WarehousePenjualanSeeder extends Seeder
                 'code' => '0006.'.$monthYear,
                 'buyer_type' => 'toko',
                 'buyer_id' => $shop->id,
-                'sale_date' => now()->subDays(5)->toDateString(),
+                'sale_date' => $demoBase->copy()->addDays(6)->toDateString(),
                 'payment_type' => 'cash',
                 'payment_status' => 'paid',
                 'due_date' => null,
@@ -189,14 +190,14 @@ class WarehousePenjualanSeeder extends Seeder
             $manager->create($sale, (int) $operator->id);
         }
 
-        $this->seedAdditionalSalesReturns($products, (int) $operator->id);
+        $this->seedAdditionalSalesReturns($products, (int) $operator->id, $demoBase);
 
-        $this->seedBranchSale($branch, $products);
+        $this->seedBranchSale($branch, $products, $demoBase);
     }
 
-    private function seedAdditionalSalesReturns($products, int $operatorId): void
+    private function seedAdditionalSalesReturns($products, int $operatorId, $demoBase): void
     {
-        $monthYear = now()->format('m.y');
+        $monthYear = $demoBase->format('m.y');
         $returnDefinitions = [
             [
                 'sale_code' => '0004.'.$monthYear,
@@ -230,7 +231,7 @@ class WarehousePenjualanSeeder extends Seeder
 
             app(SalesReturnManager::class)->create([
                 'code' => $definition['return_code'],
-                'tanggal' => now()->subDays(2)->toDateString(),
+                'tanggal' => $demoBase->copy()->addDays(7)->toDateString(),
                 'return_scope' => SalesReturnManager::SCOPE_WAREHOUSE_AFFILIATE,
                 'buyer_type' => $definition['buyer_type'],
                 'buyer_id' => (int) $definition['buyer_id'],
@@ -250,7 +251,7 @@ class WarehousePenjualanSeeder extends Seeder
         }
     }
 
-    private function seedBranchSale(Outlet $branch, $products): void
+    private function seedBranchSale(Outlet $branch, $products, $demoBase): void
     {
         $product = $products->get('ALM-BLD-20');
         $shop = Outlet::shops()->orderBy('id')->first();
@@ -271,9 +272,10 @@ class WarehousePenjualanSeeder extends Seeder
                     $nextNumber = max($nextNumber, (int) $matches[1] + 1);
                 }
             });
-        $saleCode = sprintf('CBG.%04d.%s', $nextNumber, now()->format('m.y'));
+        $saleDate = $demoBase->copy()->addDays(8);
+        $saleCode = sprintf('CBG.%04d.%s', $nextNumber, $demoBase->format('m.y'));
 
-        if (! $product || ! $shop || ! $salesman?->user || Penjualan::where('sale_channel', 'branch')->whereDate('sale_date', now()->toDateString())->exists()) {
+        if (! $product || ! $shop || ! $salesman?->user || Penjualan::where('sale_channel', 'branch')->whereDate('sale_date', $saleDate->toDateString())->exists()) {
             return;
         }
 
@@ -288,7 +290,7 @@ class WarehousePenjualanSeeder extends Seeder
         app(BranchPenjualanManager::class)->create([
             'code' => $saleCode,
             'buyer_id' => $shop->id,
-            'sale_date' => now()->toDateString(),
+            'sale_date' => $saleDate->toDateString(),
             'payment_type' => 'termin',
             'payment_status' => 'unpaid',
             'discount' => 0,

@@ -237,7 +237,8 @@ class CurrentDistributionFlowSeeder extends Seeder
             ->get()
             ->keyBy('code');
         $converter = app(ProductUnitConverter::class);
-        $warehouseOrderCode = $supplier->previewPoCode(now(), null, 1);
+        $demoBase = now()->startOfMonth()->addDay();
+        $warehouseOrderCode = $supplier->previewPoCode($demoBase, null, 1);
 
         $warehouseOrder = Pembelian::updateOrCreate(
             ['code' => $warehouseOrderCode],
@@ -250,9 +251,9 @@ class CurrentDistributionFlowSeeder extends Seeder
                 'is_published' => true,
                 'owner_approval_status' => 'approved',
                 'owner_approved_by' => null,
-                'owner_approved_at' => now(),
+                'owner_approved_at' => $demoBase,
                 'owner_approval_note' => 'Seeder baseline stock',
-                'receipt_date' => now(),
+                'receipt_date' => $demoBase,
                 'receipt_pic' => 'Gudang Utama',
                 'receipt_status' => 'completed',
                 'receipt_photo' => null,
@@ -339,18 +340,18 @@ class CurrentDistributionFlowSeeder extends Seeder
 
         $seedUserId = (int) (User::where('email', 'superadmin@mailinator.com')->value('id')
             ?: User::where('email', 'admin-gudang@alami.test')->value('id'));
-        $this->seedAdditionalSupplierTransactions($products, $converter, $seedUserId);
+        $this->seedAdditionalSupplierTransactions($products, $converter, $seedUserId, $demoBase);
 
         $this->call(WarehousePenjualanSeeder::class);
     }
 
-    private function seedAdditionalSupplierTransactions($products, ProductUnitConverter $converter, int $operatorId): void
+    private function seedAdditionalSupplierTransactions($products, ProductUnitConverter $converter, int $operatorId, $demoBase): void
     {
         $purchaseDefinitions = [
             [
                 'supplier_code' => 'S00001',
                 'sequence' => 2,
-                'days_ago' => 18,
+                'days_offset' => 2,
                 'products' => [
                     'ALM-REG-12' => ['qty' => 2, 'unit' => 'Ball'],
                     'ALM-MTH-12' => ['qty' => 1, 'unit' => 'Ball'],
@@ -359,7 +360,7 @@ class CurrentDistributionFlowSeeder extends Seeder
             [
                 'supplier_code' => 'S00002',
                 'sequence' => 1,
-                'days_ago' => 10,
+                'days_offset' => 4,
                 'products' => [
                     'ALM-SLM-16' => ['qty' => 2, 'unit' => 'Ball'],
                     'ALM-BLD-20' => ['qty' => 1, 'unit' => 'Ball'],
@@ -369,7 +370,7 @@ class CurrentDistributionFlowSeeder extends Seeder
 
         foreach ($purchaseDefinitions as $definition) {
             $supplier = Supplier::where('kode_supplier', $definition['supplier_code'])->firstOrFail();
-            $purchaseDate = now()->subDays($definition['days_ago']);
+            $purchaseDate = $demoBase->copy()->addDays($definition['days_offset']);
             $purchaseCode = $supplier->previewPoCode($purchaseDate, null, $definition['sequence']);
             $goodsReceiptCode = 'GR-SEED-'.$definition['supplier_code'].'-'.$definition['sequence'];
 
@@ -482,7 +483,7 @@ class CurrentDistributionFlowSeeder extends Seeder
             }
 
             $supplier = Supplier::where('kode_supplier', $definition['supplier_code'])->firstOrFail();
-            $purchaseDate = now()->subDays($definition['supplier_code'] === 'S00001' ? 18 : 10);
+            $purchaseDate = $demoBase->copy()->addDays($definition['supplier_code'] === 'S00001' ? 2 : 4);
             $purchaseCode = $supplier->previewPoCode($purchaseDate, null, $definition['sequence']);
             $purchase = Pembelian::where('code', $purchaseCode)->firstOrFail();
             $product = $products->get($definition['product_code']);
@@ -493,7 +494,7 @@ class CurrentDistributionFlowSeeder extends Seeder
 
             $refund = RefundPembelian::create([
                 'code' => $definition['code'],
-                'tanggal' => now()->subDays(3),
+                'tanggal' => $demoBase->copy()->addDays(6),
                 'type' => 'gudang_ke_supplier',
                 'return_mode' => 'cash_refund',
                 'status' => 'retur',

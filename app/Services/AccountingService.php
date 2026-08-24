@@ -67,20 +67,37 @@ class AccountingService
         }
 
         return DB::transaction(function () use ($date, $refType, $refId, $description, $normalized, $sourceKey, $isManual) {
-            if ($sourceKey) {
-                Journal::where('source_key', $sourceKey)->delete();
-            }
-
             $dateValue = $date ?: now()->toDateString();
-            $journal = Journal::create([
-                'journal_number' => $this->nextJournalNumber($dateValue),
-                'transaction_date' => $dateValue,
-                'ref_type' => $refType,
-                'ref_id' => $refId,
-                'source_key' => $sourceKey,
-                'description' => $description,
-                'is_manual' => $isManual,
-            ]);
+            $journal = $sourceKey
+                ? Journal::where('source_key', $sourceKey)->lockForUpdate()->first()
+                : null;
+
+            if ($journal) {
+                $prefix = 'JRN/'.date('Y/m', strtotime((string) $dateValue)).'/';
+                $journalNumber = str_starts_with($journal->journal_number, $prefix)
+                    ? $journal->journal_number
+                    : $this->nextJournalNumber($dateValue, $journal->id);
+
+                $journal->update([
+                    'journal_number' => $journalNumber,
+                    'transaction_date' => $dateValue,
+                    'ref_type' => $refType,
+                    'ref_id' => $refId,
+                    'description' => $description,
+                    'is_manual' => $isManual,
+                ]);
+                $journal->details()->delete();
+            } else {
+                $journal = Journal::create([
+                    'journal_number' => $this->nextJournalNumber($dateValue),
+                    'transaction_date' => $dateValue,
+                    'ref_type' => $refType,
+                    'ref_id' => $refId,
+                    'source_key' => $sourceKey,
+                    'description' => $description,
+                    'is_manual' => $isManual,
+                ]);
+            }
 
             $journal->details()->createMany($normalized->all());
 
@@ -126,11 +143,15 @@ class AccountingService
             'paymentTransaction',
         ]);
 
-        $this->deleteSourceFamily('SALES:'.$sale->id, 'SALES_PAYMENT:'.$sale->id.':%');
-
         if (! $sale->isWarehouseSale() && ! $sale->isBranchSale()) {
+            $this->deleteSourceFamily('SALES:'.$sale->id, 'SALES_PAYMENT:'.$sale->id.':%');
             return;
         }
+
+        // Payment lines can disappear when a transaction is changed from paid
+        // to unpaid. Remove only those stale child journals; the source journal
+        // itself is updated in-place by createJournal().
+        $this->deletePaymentJournals('SALES_PAYMENT:'.$sale->id.':%');
 
         $total = round((float) ($sale->total ?? 0), 2);
         if ($total <= 0) {
@@ -179,11 +200,12 @@ class AccountingService
     public function syncPurchase(Pembelian $purchase): void
     {
         $purchase->loadMissing(['pembelianProducts', 'stocks', 'pembelianTransaction']);
-        $this->deleteSourceFamily('PURCHASE:'.$purchase->id, 'PURCHASE_PAYMENT:'.$purchase->id.':%');
-
         if (! $purchase->is_published && $purchase->receipt_status !== 'completed') {
+            $this->deleteSourceFamily('PURCHASE:'.$purchase->id, 'PURCHASE_PAYMENT:'.$purchase->id.':%');
             return;
         }
+
+        $this->deletePaymentJournals('PURCHASE_PAYMENT:'.$purchase->id.':%');
 
         $value = round((float) $purchase->stocks->sum('subtotal'), 2);
         if ($value <= 0) {
@@ -236,9 +258,9 @@ class AccountingService
 
     public function syncExpense(Pengeluaran $expense): void
     {
-        $this->deleteSourceFamily('EXPENSE:'.$expense->id);
         $amount = round((float) ($expense->jumlah ?? 0), 2);
         if ($amount <= 0) {
+            $this->deleteSourceFamily('EXPENSE:'.$expense->id);
             return;
         }
 
@@ -333,13 +355,15 @@ class AccountingService
         return $normalized;
     }
 
-    private function nextJournalNumber($date): string
+    private function nextJournalNumber($date, ?int $exceptId = null): string
     {
         $date = is_string($date) ? $date : $date->toDateString();
         $prefix = 'JRN/'.date('Y/m', strtotime($date)).'/';
-        $last = Journal::where('journal_number', 'like', $prefix.'%')
-            ->orderByDesc('id')
-            ->value('journal_number');
+        $query = Journal::where('journal_number', 'like', $prefix.'%');
+        if ($exceptId) {
+            $query->whereKeyNot($exceptId);
+        }
+        $last = $query->orderByDesc('id')->value('journal_number');
         $sequence = $last && preg_match('/(\d+)$/', $last, $matches) ? ((int) $matches[1]) + 1 : 1;
 
         return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
@@ -349,8 +373,13 @@ class AccountingService
     {
         Journal::where('source_key', $sourceKey)->delete();
         if ($paymentPattern) {
-            Journal::where('source_key', 'like', $paymentPattern)->delete();
+            $this->deletePaymentJournals($paymentPattern);
         }
+    }
+
+    private function deletePaymentJournals(string $paymentPattern): void
+    {
+        Journal::where('source_key', 'like', $paymentPattern)->delete();
     }
 
     private function syncPaymentHistory(

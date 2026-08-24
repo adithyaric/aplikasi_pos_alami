@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\Journal;
+use App\Models\Pembelian;
+use App\Models\Penjualan;
 use App\Models\User;
 use App\Services\AccountingService;
 use App\Services\FinancialReportService;
@@ -41,13 +43,18 @@ class AccountingTest extends TestCase
             ['account_id' => $sales->id, 'debit' => 0, 'credit' => 1250],
         ];
 
-        $service->createJournal('2026-08-24', 'SALES', 7, 'Penjualan test', $details, 'SALES:7');
-        $service->createJournal('2026-08-24', 'SALES', 7, 'Penjualan test diperbarui', $details, 'SALES:7');
+        $first = $service->createJournal('2026-08-24', 'SALES', 7, 'Penjualan test', $details, 'SALES:7');
+        $updatedDetails = [
+            ['account_id' => $cash->id, 'debit' => 1500, 'credit' => 0],
+            ['account_id' => $sales->id, 'debit' => 0, 'credit' => 1500],
+        ];
+        $second = $service->createJournal('2026-08-24', 'SALES', 7, 'Penjualan test diperbarui', $updatedDetails, 'SALES:7');
 
         $this->assertSame(1, Journal::where('source_key', 'SALES:7')->count());
+        $this->assertSame($first->id, $second->id);
         $report = app(FinancialReportService::class)->profitLoss('2026-08-01', '2026-08-31');
-        $this->assertSame(1250.0, $report['income']);
-        $this->assertSame(1250.0, $report['net_income']);
+        $this->assertSame(1500.0, $report['income']);
+        $this->assertSame(1500.0, $report['net_income']);
     }
 
     public function test_accounting_is_available_as_the_second_laporan_tab(): void
@@ -84,5 +91,45 @@ class AccountingTest extends TestCase
         ])->assertRedirect(route('accounting.journals.index'));
 
         $this->assertDatabaseHas('journals', ['description' => 'Jurnal manual uji', 'is_manual' => 1]);
+    }
+
+    public function test_sync_action_can_be_run_repeatedly_without_duplicating_journals(): void
+    {
+        $user = User::factory()->create(['role' => 'superadmin']);
+
+        $this->actingAs($user)
+            ->post(route('accounting.sync'))
+            ->assertRedirect()
+            ->assertSessionHas('toast_success');
+        $firstCount = Journal::count();
+
+        $this->actingAs($user)
+            ->post(route('accounting.sync'))
+            ->assertRedirect()
+            ->assertSessionHas('toast_success');
+
+        $this->assertSame($firstCount, Journal::count());
+    }
+
+    public function test_fresh_seed_contains_demo_coa_and_journals_for_operational_records(): void
+    {
+        $this->seed();
+
+        $expenseHeader = Account::where('code', '6900')->firstOrFail();
+        $expenseAccount = Account::where('code', '690001')->firstOrFail();
+
+        $this->assertSame($expenseHeader->id, $expenseAccount->parent_id);
+        $this->assertGreaterThan(0, Penjualan::count());
+        $this->assertGreaterThan(0, Pembelian::count());
+        $this->assertGreaterThan(0, Journal::where('ref_type', 'SALES')->count());
+        $this->assertGreaterThan(0, Journal::where('ref_type', 'PURCHASE')->count());
+        $this->assertDatabaseHas('journals', [
+            'source_key' => 'SEED:OPENING_BALANCE:DEMO',
+            'is_manual' => 1,
+        ]);
+
+        $journalCount = Journal::count();
+        $this->seed(\Database\Seeders\AccountingDemoSeeder::class);
+        $this->assertSame($journalCount, Journal::count());
     }
 }

@@ -28,6 +28,7 @@ class DatabaseSeeder extends Seeder
             AccountingSeeder::class,
             CurrentDistributionFlowSeeder::class,
             MasterDataSeeder::class,
+            AccountingDemoSeeder::class,
         ]);
     }
 }
