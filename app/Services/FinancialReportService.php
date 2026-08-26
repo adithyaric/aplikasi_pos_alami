@@ -5,19 +5,33 @@ namespace App\Services;
 use App\Models\Account;
 use App\Models\Journal;
 use App\Models\JournalDetail;
+use App\Models\Pengeluaran;
+use App\Models\Penjualan;
 use Carbon\Carbon;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 class FinancialReportService
 {
     public function generalJournal(?string $startDate = null, ?string $endDate = null): Collection
     {
-        return Journal::with('details.account')
+        return Journal::excludeReturns()->with('details.account')
             ->when($startDate, fn ($query) => $query->whereDate('transaction_date', '>=', $startDate))
             ->when($endDate, fn ($query) => $query->whereDate('transaction_date', '<=', $endDate))
             ->orderBy('transaction_date')
             ->orderBy('id')
             ->get();
+    }
+
+    public function generalJournalPage(?string $startDate = null, ?string $endDate = null, int $perPage = 25): LengthAwarePaginator
+    {
+        return Journal::excludeReturns()->with('details.account')
+            ->when($startDate, fn ($query) => $query->whereDate('transaction_date', '>=', $startDate))
+            ->when($endDate, fn ($query) => $query->whereDate('transaction_date', '<=', $endDate))
+            ->orderBy('transaction_date')
+            ->orderBy('id')
+            ->paginate($perPage)
+            ->withQueryString();
     }
 
     public function ledger(int $accountId, ?string $startDate = null, ?string $endDate = null): array
@@ -26,7 +40,8 @@ class FinancialReportService
         $details = JournalDetail::with('journal')
             ->where('account_id', $accountId)
             ->whereHas('journal', function ($query) use ($startDate, $endDate) {
-                $query->when($startDate, fn ($builder) => $builder->whereDate('transaction_date', '>=', $startDate))
+                $query->excludeReturns()
+                    ->when($startDate, fn ($builder) => $builder->whereDate('transaction_date', '>=', $startDate))
                     ->when($endDate, fn ($builder) => $builder->whereDate('transaction_date', '<=', $endDate));
             })
             ->get()
@@ -36,7 +51,7 @@ class FinancialReportService
         $opening = 0;
         if ($startDate) {
             $openingDetails = JournalDetail::where('account_id', $accountId)
-                ->whereHas('journal', fn ($query) => $query->whereDate('transaction_date', '<', $startDate))
+                ->whereHas('journal', fn ($query) => $query->excludeReturns()->whereDate('transaction_date', '<', $startDate))
                 ->selectRaw('COALESCE(SUM(debit), 0) as debit_total, COALESCE(SUM(credit), 0) as credit_total')
                 ->first();
             $opening = $this->signedBalance($account, (float) $openingDetails->debit_total, (float) $openingDetails->credit_total);
@@ -61,6 +76,21 @@ class FinancialReportService
         return compact('account', 'opening', 'rows');
     }
 
+    public function ledgerPage(int $accountId, ?string $startDate = null, ?string $endDate = null, int $perPage = 25): LengthAwarePaginator
+    {
+        $ledger = $this->ledger($accountId, $startDate, $endDate);
+        $page = LengthAwarePaginator::resolveCurrentPage('page');
+        $rows = $ledger['rows'];
+
+        return new LengthAwarePaginator(
+            $rows->forPage($page, $perPage)->values(),
+            $rows->count(),
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()]
+        );
+    }
+
     public function profitLoss(?string $startDate = null, ?string $endDate = null): array
     {
         $accounts = Account::posting()
@@ -68,6 +98,8 @@ class FinancialReportService
             ->orderBy('code')
             ->get();
         $aggregates = $this->aggregates($accounts, $startDate, $endDate);
+        $this->applyPaidSalesRevenue($aggregates, $accounts, $startDate, $endDate);
+        $this->includeUnsyncedExpenses($aggregates, $accounts, $startDate, $endDate);
 
         $rows = $accounts->map(function (Account $account) use ($aggregates) {
             $aggregate = $aggregates->get($account->id, ['debit' => 0, 'credit' => 0]);
@@ -157,7 +189,8 @@ class FinancialReportService
 
         return JournalDetail::whereIn('account_id', $accounts->pluck('id'))
             ->whereHas('journal', function ($query) use ($startDate, $endDate) {
-                $query->when($startDate, fn ($builder) => $builder->whereDate('transaction_date', '>=', $startDate))
+                $query->excludeReturns()
+                    ->when($startDate, fn ($builder) => $builder->whereDate('transaction_date', '>=', $startDate))
                     ->when($endDate, fn ($builder) => $builder->whereDate('transaction_date', '<=', $endDate));
             })
             ->selectRaw('account_id, COALESCE(SUM(debit), 0) as debit_total, COALESCE(SUM(credit), 0) as credit_total')
@@ -167,6 +200,91 @@ class FinancialReportService
                 'debit' => (float) $row->debit_total,
                 'credit' => (float) $row->credit_total,
             ]]);
+    }
+
+    private function applyPaidSalesRevenue(Collection $aggregates, Collection $accounts, ?string $startDate, ?string $endDate): void
+    {
+        $revenueAccountIds = $accounts
+            ->whereIn('type_code', ['REVE', 'OINC'])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        if ($revenueAccountIds->isEmpty()) {
+            return;
+        }
+
+        $salesJournals = Journal::excludeReturns()
+            ->where('ref_type', 'SALES')
+            ->when($startDate, fn ($query) => $query->whereDate('transaction_date', '>=', $startDate))
+            ->when($endDate, fn ($query) => $query->whereDate('transaction_date', '<=', $endDate))
+            ->with('details')
+            ->get();
+        $sales = Penjualan::with('paymentTransaction')
+            ->whereIn('id', $salesJournals->pluck('ref_id')->filter()->unique())
+            ->get()
+            ->keyBy('id');
+
+        foreach ($salesJournals as $journal) {
+            $sale = $sales->get($journal->ref_id);
+            $total = round((float) ($sale?->total ?? 0), 2);
+            if ($total <= 0) {
+                continue;
+            }
+
+            $paid = $sale?->payment_type === 'cash'
+                ? $total
+                : min($total, max(0, (float) ($sale?->paymentTransaction?->amount ?? 0)));
+            $ratio = $paid / $total;
+
+            foreach ($journal->details as $detail) {
+                if (! $revenueAccountIds->contains((int) $detail->account_id)) {
+                    continue;
+                }
+
+                $aggregate = $aggregates->get($detail->account_id, ['debit' => 0, 'credit' => 0]);
+                $aggregate['debit'] += ((float) $detail->debit * $ratio) - (float) $detail->debit;
+                $aggregate['credit'] += ((float) $detail->credit * $ratio) - (float) $detail->credit;
+                $aggregates->put($detail->account_id, $aggregate);
+            }
+        }
+    }
+
+    private function includeUnsyncedExpenses(Collection $aggregates, Collection $accounts, ?string $startDate, ?string $endDate): void
+    {
+        $expenses = Pengeluaran::with('category')
+            ->when($startDate, fn ($query) => $query->whereDate('tanggal', '>=', $startDate))
+            ->when($endDate, fn ($query) => $query->whereDate('tanggal', '<=', $endDate))
+            ->whereNotExists(fn ($query) => $query->selectRaw('1')
+                ->from('journals')
+                ->where('journals.ref_type', 'EXPENSE')
+                ->whereColumn('journals.ref_id', 'pengeluarans.id'))
+            ->get();
+
+        foreach ($expenses as $expense) {
+            $account = $accounts->first(function (Account $candidate) use ($expense) {
+                return $expense->category?->name
+                    && strcasecmp(trim($candidate->name), trim($expense->category->name)) === 0
+                    && in_array($candidate->type_code, ['EXPS', 'OEXP', 'COGS'], true);
+            });
+
+            if (! $account) {
+                try {
+                    $fallback = app(AccountingService::class)->settingAccount('DEFAULT_ACC_EXPENSE');
+                    $account = $accounts->firstWhere('id', $fallback->id);
+                } catch (\Throwable) {
+                    $account = null;
+                }
+            }
+
+            if (! $account) {
+                continue;
+            }
+
+            $aggregate = $aggregates->get($account->id, ['debit' => 0, 'credit' => 0]);
+            $aggregate['debit'] += (float) $expense->jumlah;
+            $aggregates->put($account->id, $aggregate);
+        }
     }
 
     private function signedBalance(Account $account, float $debit, float $credit): float

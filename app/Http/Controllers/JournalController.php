@@ -16,7 +16,7 @@ class JournalController extends Controller
 
     public function index(Request $request)
     {
-        $journals = Journal::with('details.account')
+        $journals = Journal::excludeReturns()->with('details.account')
             ->when($request->filled('date_from'), fn ($query) => $query->whereDate('transaction_date', '>=', $request->date_from))
             ->when($request->filled('date_to'), fn ($query) => $query->whereDate('transaction_date', '<=', $request->date_to))
             ->when($request->filled('search'), function ($query) use ($request) {

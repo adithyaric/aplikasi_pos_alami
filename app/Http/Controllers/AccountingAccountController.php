@@ -17,7 +17,8 @@ class AccountingAccountController extends Controller
             })
             ->when($request->filled('type_code'), fn ($query) => $query->where('type_code', $request->input('type_code')))
             ->orderBy('code')
-            ->get();
+            ->paginate(25)
+            ->withQueryString();
 
         return view('accounting.accounts.index', [
             'accounts' => $accounts,

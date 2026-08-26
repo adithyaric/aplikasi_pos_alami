@@ -71,9 +71,12 @@
                                 <tbody>
                                     @foreach ($pembelian->pembelianProducts as $item)
                                         @php
-                                            $existingStock = $pembelian->stocks()
-                                                ->where('product_id', $item->product_id)
-                                                ->first();
+                                            $existingStock = $pembelian->stocks->firstWhere('product_id', $item->product_id);
+                                            $inputUnit = $item->unit ?: ($item->product->satuan ?? 'PCS');
+                                            $inputFactor = app(\App\Support\ProductUnitConverter::class)->factorForUnit($item->product, $inputUnit);
+                                            $qtyPoInput = $inputFactor > 1 ? $item->qty / $inputFactor : $item->qty;
+                                            $qtyReceivedBase = $existingStock->qty ?? 0;
+                                            $qtyReceivedInput = $inputFactor > 1 ? $qtyReceivedBase / $inputFactor : $qtyReceivedBase;
                                         @endphp
                                         <tr>
                                             <td class="text-center text-muted">
@@ -89,41 +92,30 @@
                                                         value="{{ $item->product_id }}">
                                                 @endif
                                             </td>
-                                            <td>{{ $item->product->satuan ?? '-' }}</td>
+                                            <td>{{ $inputUnit }}</td>
                                             <td>
-                                                @php
-                                                    $qtyPOSatuanBesar = $item->product->konversi_qty
-                                                        ? (int)($item->qty / $item->product->konversi_qty)
-                                                        : $item->qty;
-                                                @endphp
-                                                {{ $qtyPOSatuanBesar }} {{ $item->product->satuan_besar ?? $item->product->satuan }}
+                                                {{ $qtyPoInput }} {{ $inputUnit }}
                                                 <br><small class="text-muted">= {{ $item->qty }} {{ $item->product->satuan }}</small>
                                             </td>
                                             <td>
                                             @if($isLocked)
-                                                @php
-                                                    $qtyDiterimaSatuanBesar = $item->product->konversi_qty && $existingStock
-                                                        ? (int)($existingStock->qty / $item->product->konversi_qty)
-                                                        : ($existingStock->qty ?? 0);
-                                                @endphp
-                                                <span class="label label-success">{{ $qtyDiterimaSatuanBesar }} {{ $item->product->satuan_besar ?? $item->product->satuan }}</span>
-                                                <br><small class="text-muted">= {{ $existingStock->qty ?? 0 }} {{ $item->product->satuan }}</small>
+                                                <span class="label label-success">{{ $qtyReceivedInput }} {{ $inputUnit }}</span>
+                                                <br><small class="text-muted">= {{ $qtyReceivedBase }} {{ $item->product->satuan }}</small>
                                             @else
-                                                @php
-                                                    $defaultQtySatuanBesar = $item->product->konversi_qty
-                                                        ? (int)(($existingStock->qty ?? $item->qty) / $item->product->konversi_qty)
-                                                        : ($existingStock->qty ?? $item->qty);
-                                                @endphp
+                                                <input type="hidden"
+                                                    name="items[{{ $loop->index }}][unit]"
+                                                    value="{{ $inputUnit }}">
                                                 <input type="number"
                                                     name="items[{{ $loop->index }}][qty_diterima]"
                                                     class="form-control input-sm text-center"
                                                     min="1"
-                                                    max="{{ $qtyPOSatuanBesar }}"
-                                                    value="{{ old('items.' . $loop->index . '.qty_diterima', $defaultQtySatuanBesar) }}"
-                                                    data-konversi-qty="{{ $item->product->konversi_qty ?? 1 }}"
+                                                    max="{{ $qtyPoInput }}"
+                                                    value="{{ old('items.' . $loop->index . '.qty_diterima', $qtyPoInput) }}"
+                                                    data-konversi-qty="{{ $inputFactor }}"
+                                                    data-base-unit="{{ $item->product->satuan }}"
                                                     required>
                                                 <small class="text-muted qty-kecil-display">
-                                                    = {{ ($defaultQtySatuanBesar) * ($item->product->konversi_qty ?? 1) }} {{ $item->product->satuan }}
+                                                    = {{ old('items.' . $loop->index . '.qty_diterima', $qtyPoInput) * $inputFactor }} {{ $item->product->satuan }}
                                                 </small>
                                             @endif
                                         </td>
@@ -246,7 +238,8 @@
         let konversiQty = parseInt($(this).data('konversi-qty')) || 1;
         let qtySatuanBesar = parseInt($(this).val()) || 0;
         let qtySatuanKecil = qtySatuanBesar * konversiQty;
-        $(this).siblings('.qty-kecil-display').text('= ' + qtySatuanKecil.toLocaleString('id-ID') + ' {{ isset($item) ? $item->product->satuan : "PCS" }}');
+        let baseUnit = $(this).data('base-unit') || 'PCS';
+        $(this).siblings('.qty-kecil-display').text('= ' + qtySatuanKecil.toLocaleString('id-ID') + ' ' + baseUnit);
     });
 </script>
 @endsection

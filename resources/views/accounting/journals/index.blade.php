@@ -7,6 +7,7 @@
 <section class="content">
     <div class="box box-primary">
         <div class="box-header with-border">
+            <a href="{{ route('accounting.index') }}" class="btn btn-default">Kembali ke Akuntansi</a>
             <a href="{{ route('accounting.journals.create') }}" class="btn btn-primary"><i class="fa fa-plus"></i> Input Jurnal Manual</a>
             <a href="{{ route('accounting.general-journal.export', request()->query()) }}" class="btn btn-success"><i class="fa fa-file-excel-o"></i> Export XLSX</a>
             <a href="{{ route('accounting.general-journal') }}" class="btn btn-default">Laporan Jurnal</a>

@@ -252,7 +252,8 @@ class AccountingService
             $purchase->id,
             'PURCHASE_PAYMENT',
             fn (array $history) => $history['payment_date'] ?? $purchase->receipt_date ?? $purchase->created_at,
-            'Pembayaran pembelian '.$purchase->code
+            'Pembayaran pembelian '.$purchase->code,
+            true
         );
     }
 
@@ -345,6 +346,9 @@ class AccountingService
         if (abs((float) $normalized->sum('debit') - (float) $normalized->sum('credit')) > 0.01) {
             throw new InvalidArgumentException('Jurnal tidak balance.');
         }
+        if ($normalized->isEmpty()) {
+            throw new InvalidArgumentException('Jurnal harus memiliki minimal satu baris nominal.');
+        }
 
         $accountIds = $normalized->pluck('account_id')->unique()->filter();
         $valid = Account::active()->posting()->whereIn('id', $accountIds)->count();
@@ -390,7 +394,8 @@ class AccountingService
         int $referenceId,
         string $refType,
         callable $dateResolver,
-        string $description
+        string $description,
+        bool $creditPaymentAccount = false
     ): void {
         foreach (array_values($history) as $index => $payment) {
             $amount = round((float) ($payment['amount'] ?? 0), 2);
@@ -400,15 +405,22 @@ class AccountingService
 
             $account = $this->paymentAccount(isset($payment['account_id']) ? (int) $payment['account_id'] : $transaction?->account_id)
                 ?: $defaultCashAccount;
+            $details = $creditPaymentAccount
+                ? [
+                    ['account_id' => $creditAccount->id, 'debit' => $amount, 'credit' => 0],
+                    ['account_id' => $account->id, 'debit' => 0, 'credit' => $amount],
+                ]
+                : [
+                    ['account_id' => $account->id, 'debit' => $amount, 'credit' => 0],
+                    ['account_id' => $creditAccount->id, 'debit' => 0, 'credit' => $amount],
+                ];
+
             $this->createJournal(
                 $dateResolver($payment),
                 $refType,
                 $referenceId,
                 $description.' #'.($index + 1),
-                [
-                    ['account_id' => $account->id, 'debit' => $amount, 'credit' => 0],
-                    ['account_id' => $creditAccount->id, 'debit' => 0, 'credit' => $amount],
-                ],
+                $details,
                 $refType.':'.$referenceId.':'.$index
             );
         }

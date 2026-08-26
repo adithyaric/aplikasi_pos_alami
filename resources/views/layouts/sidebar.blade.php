@@ -30,6 +30,7 @@
         $canSeePurchaseReturn = $user->hasPermission('refund.purchase');
         $canSeeSalesReturn = $user->hasPermission('refund.sales');
         $canSeeReports = $user->hasAnyPermission(['reports.all', 'reports.branch']);
+        $canSeeAccounting = $user->hasPermission('reports.all');
         $canSeeAffiliate = $user->hasPermission('affiliate.manage');
         $currentPenjualan = request()->route('penjualan');
         $currentRefund = request()->route('refund');
@@ -220,6 +221,19 @@
         @if ($canSeeReports)
         <li class="{{ in_array(Route::currentRouteName(), ['laporan.index']) ? 'active' : '' }}">
             <a href="/laporan"><i class="fa fa-file-excel-o"></i><span>Laporan</span></a>
+        </li>
+        @endif
+
+        @if ($canSeeAccounting)
+        <li class="treeview {{ request()->is('akuntansi*') ? 'active' : '' }}">
+            <a href="#"><i class="fa fa-book"></i><span>Akuntansi</span><i class="fa fa-angle-left pull-right"></i></a>
+            <ul class="treeview-menu">
+                <li class="{{ request()->routeIs('accounting.accounts.*') ? 'active' : '' }}"><a href="{{ route('accounting.accounts.index') }}"><i class="fa fa-list"></i><span>Akun</span></a></li>
+                <li class="{{ request()->routeIs('accounting.journals.*') || request()->routeIs('accounting.general-journal') ? 'active' : '' }}"><a href="{{ route('accounting.journals.index') }}"><i class="fa fa-book"></i><span>Jurnal Umum</span></a></li>
+                <li class="{{ request()->routeIs('accounting.ledger*') ? 'active' : '' }}"><a href="{{ route('accounting.ledger') }}"><i class="fa fa-table"></i><span>Buku Besar</span></a></li>
+                <li class="{{ request()->routeIs('accounting.profit-loss*') ? 'active' : '' }}"><a href="{{ route('accounting.profit-loss') }}"><i class="fa fa-line-chart"></i><span>Laba Rugi</span></a></li>
+                <li class="{{ request()->routeIs('accounting.balance-sheet*') ? 'active' : '' }}"><a href="{{ route('accounting.balance-sheet') }}"><i class="fa fa-balance-scale"></i><span>Neraca</span></a></li>
+            </ul>
         </li>
         @endif
 

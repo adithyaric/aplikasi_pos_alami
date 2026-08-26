@@ -127,10 +127,13 @@
                                         {{-- Ambil data product terlebih dahulu di sini agar kode di bawah lebih rapi --}}
                                         @php
                                             $prod = $stock->product;
+                                            $selectedUnit = old("product.$key.unit", $stock->unit ?: ($prod->satuan ?? 'PCS'));
+                                            $selectedFactor = app(\App\Support\ProductUnitConverter::class)->factorForUnit($prod, $selectedUnit);
+                                            $displayQty = old("product.$key.qty", $selectedFactor > 1 ? $stock->qty / $selectedFactor : $stock->qty);
                                         @endphp
 
                                         <select class="form-control unit" name="product[{{ $key }}][unit]" required
-                                            data-selected-unit="{{ old("product.$key.unit", '') }}">
+                                            data-selected-unit="{{ $selectedUnit }}">
                                             <option value="">Pilih satuan</option>
                                         </select>
                                         <span class="konversi-display text-muted" style="font-size:11px;">
@@ -140,7 +143,7 @@
                                     <td>
                                         <input type="number" class="form-control qty"
                                             name="product[{{ $key }}][qty]" required
-                                            value="{{ $prod->konversi_qty ? (int)($stock->qty / $prod->konversi_qty) : $stock->qty }}"
+                                            value="{{ $displayQty }}"
                                             min="1" step="1">
                                     </td>
                                     <td>

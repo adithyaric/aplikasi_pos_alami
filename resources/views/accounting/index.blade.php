@@ -21,5 +21,6 @@
             <form method="POST" action="{{ route('accounting.sync') }}">@csrf<button class="btn btn-primary"><i class="fa fa-refresh"></i> Sinkronkan Sekarang</button></form>
         </div>
     </div>
+
 </section>
 @endsection

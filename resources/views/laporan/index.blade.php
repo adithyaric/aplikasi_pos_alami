@@ -9,7 +9,7 @@
 <ul class="nav nav-tabs" style="margin-bottom:15px">
     <li class="{{ ($activeReportTab ?? 'regular') === 'regular' ? 'active' : '' }}"><a href="{{ route('laporan.index', ['tab' => 'regular']) }}"><i class="fa fa-files-o"></i> Laporan Reguler</a></li>
     @if (auth()->user()->hasPermission('reports.all'))
-        <li class="{{ ($activeReportTab ?? 'regular') === 'accounting' ? 'active' : '' }}"><a href="{{ route('laporan.index', ['tab' => 'accounting']) }}"><i class="fa fa-book"></i> Akun &amp; Jurnal Umum</a></li>
+        <li><a href="{{ route('accounting.index') }}"><i class="fa fa-book"></i> Akun &amp; Jurnal Umum</a></li>
     @endif
 </ul>
 

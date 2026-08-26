@@ -244,7 +244,7 @@ class PembelianController extends Controller
             PembelianTransaction::create([
                 'pembelian_id' => $pembelian->id,
                 'payment_date' => null,
-                'payment_method' => 'bank_transfer',
+                'payment_method' => 'cash',
                 'payment_reference' => (($supplier->bank_no_rek ?? null) && ($supplier->bank_nama ?? null))
                     ? $supplier->bank_no_rek.'-'.$supplier->bank_nama
                     : 'TRX-'.now()->format('YmdHis'),
@@ -403,15 +403,15 @@ class PembelianController extends Controller
             ]);
 
             foreach ($request->items as $itemData) {
-                $product = Product::find($itemData['product_id']);
-                $unit = $itemData['unit'] ?? $converter->defaultInputUnit($product, 'supplier');
-                $qtyDiterima = $converter->normalize($product, $itemData['qty_diterima'], $unit);
-
                 $pembelianProduct = $pembelian->pembelianProducts()
                     ->where('product_id', $itemData['product_id'])
                     ->first();
 
                 if (! $pembelianProduct) { continue; }
+
+                $product = Product::find($itemData['product_id']);
+                $unit = $itemData['unit'] ?? $pembelianProduct->unit ?? $converter->defaultInputUnit($product, 'supplier');
+                $qtyDiterima = $converter->normalize($product, $itemData['qty_diterima'], $unit);
 
                 $pembelianProduct->update(['qty_diterima' => $qtyDiterima]);
 
@@ -586,6 +586,7 @@ class PembelianController extends Controller
                 PembelianProduct::class,
                 ['pembelian_id' => $pembelian->id, 'product_id' => $productData['product_id']],
                 [
+                    'unit' => $productData['unit'] ?? $product->satuan,
                     'harga_beli' => $hargaBeli,
                     'qty' => $qty,
                     'subtotal' => $subtotal,
@@ -754,9 +755,10 @@ class PembelianController extends Controller
         $currentAmount = $pembelian->pembelianTransaction?->amount ?? 0;
         $maxAmount = $pembelian->total - $currentAmount;
 
+        $request->merge(['payment_method' => 'cash']);
         $request->validate([
             'payment_date'      => 'required|date',
-            'payment_method'    => 'required|in:cash,bank_transfer,giro_cek,lainnya',
+            'payment_method'    => 'required|in:cash',
             'account_id'        => 'nullable|integer|exists:accounts,id',
             'payment_reference' => 'nullable|string',
             'amount'            => 'required|numeric|min:0|max:'.$maxAmount,
@@ -766,8 +768,8 @@ class PembelianController extends Controller
         ], [
             'payment_date.required' => 'Tanggal pembayaran harus diisi.',
             'payment_date.date' => 'Tanggal pembayaran harus berupa tanggal yang valid.',
-            'payment_method.required' => 'Metode pembayaran harus dipilih.',
-            'payment_method.in' => 'Metode pembayaran harus dipilih antara cash, bank transfer, giro/cek, atau lainnya.',
+            'payment_method.required' => 'Pembayaran pembelian menggunakan Kas.',
+            'payment_method.in' => 'Pembayaran pembelian menggunakan Kas.',
             'payment_reference.string' => 'Referensi pembayaran harus berupa teks.',
             'amount.required' => 'Jumlah pembayaran harus diisi.',
             'amount.numeric' => 'Jumlah pembayaran harus berupa angka.',

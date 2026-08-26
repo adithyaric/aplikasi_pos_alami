@@ -18,6 +18,7 @@ class Account extends Model
     ];
 
     protected $casts = [
+        'parent_id' => 'integer',
         'is_header' => 'boolean',
         'is_active' => 'boolean',
     ];

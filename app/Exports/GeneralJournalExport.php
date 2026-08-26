@@ -7,9 +7,13 @@ use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithColumnWidths;
+use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
+use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class GeneralJournalExport implements FromCollection, WithHeadings, WithMapping, WithTitle
+class GeneralJournalExport implements FromCollection, WithHeadings, WithMapping, WithTitle, WithStyles, WithColumnWidths
 {
     public function __construct(private readonly ?string $startDate = null, private readonly ?string $endDate = null)
     {
@@ -18,7 +22,10 @@ class GeneralJournalExport implements FromCollection, WithHeadings, WithMapping,
     public function collection(): Collection
     {
         return app(FinancialReportService::class)->generalJournal($this->startDate, $this->endDate)
-            ->flatMap(fn ($journal) => $journal->details->map(fn ($detail) => compact('journal', 'detail')))
+            ->flatMap(fn ($journal) => $journal->details->map(fn ($detail) => [
+                'journal' => $journal,
+                'detail' => $detail,
+            ]))
             ->values();
     }
 
@@ -44,5 +51,21 @@ class GeneralJournalExport implements FromCollection, WithHeadings, WithMapping,
     public function title(): string
     {
         return 'Jurnal Umum';
+    }
+
+    public function styles(Worksheet $sheet): array
+    {
+        $sheet->getStyle('A1:H1')->getFont()->setBold(true);
+        $sheet->freezePane('A2');
+        $lastRow = max(2, $sheet->getHighestRow());
+        $sheet->getStyle('G2:H'.$lastRow)->getNumberFormat()->setFormatCode('#,##0.00');
+        $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)->setFitToWidth(1);
+
+        return [];
+    }
+
+    public function columnWidths(): array
+    {
+        return ['A' => 13, 'B' => 18, 'C' => 18, 'D' => 35, 'E' => 14, 'F' => 28, 'G' => 16, 'H' => 16];
     }
 }

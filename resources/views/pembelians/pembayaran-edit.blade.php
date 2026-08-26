@@ -112,7 +112,7 @@
                                         <tr>
                                             <th>Tanggal</th>
                                             <th class="text-right">Jumlah</th>
-                                            <th>Metode</th>
+                                            <th>Kas</th>
                                             <th>Referensi</th>
                                             {{--  <th class="text-center">Bukti</th>  --}}
                                         </tr>
@@ -122,7 +122,7 @@
                                             <tr>
                                                 <td>{{ \Carbon\Carbon::parse($history['payment_date'])->format('d/m/Y H:i') }}</td>
                                                 <td class="text-right">Rp {{ number_format($history['amount'], 0, ',', '.') }}</td>
-                                                <td>{{ strtoupper(ucfirst(str_replace('_', ' ', $history['payment_method']))) }}</td>
+                                                <td>Kas</td>
                                                 <td>{{ $history['payment_reference'] ?? '-' }}</td>
                                                 {{--  <td class="text-center">
                                                     @if (!empty($history['bukti_transfer']))
@@ -194,31 +194,16 @@
                             </div>
 
                             <div class="form-group">
-                                <label class="control-label">Metode Pembayaran</label>
-                                <select name="payment_method" class="form-control" id="paymentMethod" required
+                                <label class="control-label">Kas</label>
+                                <select id="paymentAccount" name="account_id" class="form-control select2"
+                                    data-placeholder="Pilih Kas" style="width:100%"
                                     @if ($pembelian->pembelianTransaction?->status === 'paid') disabled @endif>
-                                    <option value="">Pilih Metode Pembayaran</option>
-                                    <option value="cash"
-                                        {{ $pembelian->pembelianTransaction?->payment_method == 'cash' ? 'selected' : '' }}>
-                                        Cash</option>
-                                    <option value="bank_transfer"
-                                        {{ $pembelian->pembelianTransaction?->payment_method == 'bank_transfer' ? 'selected' : '' }}>
-                                        Bank Transfer</option>
-                                    <option value="giro_cek"
-                                        {{ $pembelian->pembelianTransaction?->payment_method == 'giro_cek' ? 'selected' : '' }}>
-                                        Giro/Cek</option>
-                                    <option value="lainnya"
-                                        {{ $pembelian->pembelianTransaction?->payment_method == 'lainnya' ? 'selected' : '' }}>
-                                        Lainnya</option>
-                                </select>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="control-label">Akun Kas / Bank</label>
-                                <select name="account_id" class="form-control" @if ($pembelian->pembelianTransaction?->status === 'paid') disabled @endif>
-                                    <option value="">Gunakan Kas Default</option>
+                                    <option value=""></option>
                                     @foreach ($paymentAccounts as $account)
-                                        <option value="{{ $account->id }}" @selected((int) ($pembelian->pembelianTransaction?->account_id ?? 0) === $account->id)>{{ $account->code }} - {{ $account->name }}</option>
+                                        <option value="{{ $account->id }}"
+                                            @selected((int) ($pembelian->pembelianTransaction?->account_id ?? 0) === $account->id)>
+                                            {{ $account->code }} - {{ $account->name }}
+                                        </option>
                                     @endforeach
                                 </select>
                                 <p class="help-block">Akun yang dikredit saat pembayaran pembelian dilakukan.</p>

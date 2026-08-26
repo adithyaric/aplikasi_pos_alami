@@ -7,9 +7,13 @@ use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithColumnWidths;
+use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
+use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class BalanceSheetExport implements FromCollection, WithHeadings, WithMapping, WithTitle
+class BalanceSheetExport implements FromCollection, WithHeadings, WithMapping, WithTitle, WithStyles, WithColumnWidths
 {
     private array $report;
 
@@ -54,5 +58,21 @@ class BalanceSheetExport implements FromCollection, WithHeadings, WithMapping, W
     public function title(): string
     {
         return 'Neraca';
+    }
+
+    public function styles(Worksheet $sheet): array
+    {
+        $sheet->getStyle('A1:E1')->getFont()->setBold(true);
+        $sheet->freezePane('A2');
+        $lastRow = max(2, $sheet->getHighestRow());
+        $sheet->getStyle('E2:E'.$lastRow)->getNumberFormat()->setFormatCode('#,##0.00');
+        $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)->setFitToWidth(1);
+
+        return [];
+    }
+
+    public function columnWidths(): array
+    {
+        return ['A' => 24, 'B' => 14, 'C' => 14, 'D' => 32, 'E' => 18];
     }
 }

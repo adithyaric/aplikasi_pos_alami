@@ -30,7 +30,7 @@ class FinancialReportController extends Controller
 
     public function generalJournal(Request $request)
     {
-        $journals = $this->reports->generalJournal($request->date_from, $request->date_to);
+        $journals = $this->reports->generalJournalPage($request->date_from, $request->date_to);
 
         return view('accounting.reports.general-journal', compact('journals'));
     }
@@ -38,10 +38,11 @@ class FinancialReportController extends Controller
     public function ledger(Request $request)
     {
         $accounts = Account::active()->posting()->orderBy('code')->get();
-        $accountId = $request->integer('account_id') ?: $accounts->first()?->id;
+        $accountId = $request->filled('account_id') ? $request->integer('account_id') : null;
         $ledger = $accountId ? $this->reports->ledger($accountId, $request->date_from, $request->date_to) : null;
+        $ledgerPage = $accountId ? $this->reports->ledgerPage($accountId, $request->date_from, $request->date_to) : null;
 
-        return view('accounting.reports.ledger', compact('accounts', 'ledger'));
+        return view('accounting.reports.ledger', compact('accounts', 'ledger', 'ledgerPage'));
     }
 
     public function profitLoss(Request $request)
@@ -75,7 +76,10 @@ class FinancialReportController extends Controller
 
     public function exportLedger(Request $request)
     {
-        abort_unless($request->integer('account_id'), 422, 'Akun buku besar wajib dipilih.');
+        if (! $request->filled('account_id') || ! $request->integer('account_id')) {
+            return redirect()->route('accounting.ledger', $request->query())
+                ->with('toast_error', 'Pilih akun buku besar terlebih dahulu sebelum mencetak.');
+        }
 
         return Excel::download(new GeneralLedgerExport($request->integer('account_id'), $request->date_from, $request->date_to), 'buku-besar.xlsx');
     }

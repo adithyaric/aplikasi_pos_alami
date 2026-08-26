@@ -15,6 +15,7 @@ class PembelianProduct extends Model
     protected $fillable = [
         'pembelian_id',
         'product_id',
+        'unit',
         'harga_beli',
         'qty',
         'qty_diterima',
