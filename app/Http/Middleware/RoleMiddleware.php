@@ -232,30 +232,34 @@ class RoleMiddleware
             'customer-penjualan.options',
         ];
 
-        if (in_array($role, ['leader-cabang', 'sales'], true)) {
-            return in_array($route, array_merge($commonRoutes, [
+        $penjualanRoutes = [
                 'penjualan.create',
                 'penjualan.store',
                 'penjualan.edit',
                 'penjualan.update',
+        ];
+
+        if (in_array($role, ['leader-cabang', 'sales'], true)) {
+            return in_array($route, array_merge($commonRoutes, $penjualanRoutes), true);
+        }
+
+        if ($role === 'admin-cabang') {
+            return in_array($route, array_merge($commonRoutes, $penjualanRoutes, [
+                'customer.index',
+                'customer.create',
+                'customer.store',
+                'customer.edit',
+                'customer.update',
+                'customer.destroy',
+                'salesman.index',
+                'salesman.create',
+                'salesman.store',
+                'salesman.edit',
+                'salesman.update',
+                'salesman.destroy',
             ]), true);
         }
 
-        $adminCabangRoutes = [
-            'customer.index',
-            'customer.create',
-            'customer.store',
-            'customer.edit',
-            'customer.update',
-            'customer.destroy',
-            'salesman.index',
-            'salesman.create',
-            'salesman.store',
-            'salesman.edit',
-            'salesman.update',
-            'salesman.destroy',
-        ];
-
-        return in_array($route, array_merge($commonRoutes, $adminCabangRoutes), true);
+        return false;
     }
 }

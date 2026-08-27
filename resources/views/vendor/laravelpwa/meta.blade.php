@@ -42,15 +42,31 @@
 
         $offlineWarmUrls = [route('dashboard')];
 
-        if (in_array(auth()->user()->role, ['sales'], true)) {
+        if (in_array(auth()->user()->role, ['admin-cabang', 'leader-cabang', 'sales'], true)) {
             // Keep the redirect alias cached as well: the generic controller
             // route redirects branch-scoped users to the branch index online.
             $offlineWarmUrls[] = route('penjualan.index');
             $offlineWarmUrls[] = route('penjualan.branch-index');
             $offlineWarmUrls[] = route('penjualan.create');
-        } elseif (auth()->user()->role === 'admin-cabang') {
-            $offlineWarmUrls[] = route('penjualan.index');
-            $offlineWarmUrls[] = route('penjualan.branch-index');
+
+            // Cache the edit forms that are visible in the branch sales list,
+            // so an edit remains available if the connection drops after
+            // login but before the user opens the list.
+            $offlineEditableSales = \App\Models\Penjualan::branchSales()
+                ->where('outlet_id', auth()->user()->branchId())
+                ->where('payment_status', '!=', 'paid');
+
+            if (auth()->user()->role === 'sales') {
+                $offlineSalesmanId = \App\Models\Salesman::where('user_id', auth()->id())->value('id');
+                $offlineEditableSales->where(function ($query) use ($offlineSalesmanId) {
+                    $query->where('user_id', auth()->id())
+                        ->when($offlineSalesmanId, fn ($salesQuery) => $salesQuery->orWhere('salesman_id', $offlineSalesmanId));
+                });
+            }
+
+            foreach ($offlineEditableSales->latest('id')->limit(40)->pluck('id') as $offlineSaleId) {
+                $offlineWarmUrls[] = route('penjualan.edit', $offlineSaleId);
+            }
         } elseif (in_array(auth()->user()->role, ['superadmin', 'admin-gudang', 'owner'], true)) {
             $offlineWarmUrls[] = route('penjualan.index');
             $offlineWarmUrls[] = route('penjualan.create');
@@ -76,7 +92,8 @@
                         if (url.origin !== window.location.origin
                             || url.protocol !== window.location.protocol
                             || url.hash
-                            || pathParts.length > 2
+                            || (pathParts.length > 2
+                                && !/^\/penjualan\/\d+\/edit$/.test(url.pathname))
                             || urls.indexOf(url.href) !== -1) {
                             return;
                         }
@@ -137,7 +154,7 @@
     if ('serviceWorker' in navigator) {
         // The query string forces browsers that still have the old package
         // worker registered to fetch this worker again after deployment.
-        navigator.serviceWorker.register('/serviceworker.js?v=offline-pages-v3', {
+        navigator.serviceWorker.register('/serviceworker.js?v=offline-pages-v4', {
             scope: '/'
         }).then(function (registration) {
             // Registration was successful

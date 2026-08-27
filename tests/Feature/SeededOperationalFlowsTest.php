@@ -56,7 +56,8 @@ class SeededOperationalFlowsTest extends TestCase
 
         $this->actingAs($adminCabang)
             ->get(route('penjualan.create'))
-            ->assertRedirect(route('dashboard'));
+            ->assertOk()
+            ->assertSee('data-branch-sale="true"', false);
 
         $this->actingAs($sales)
             ->get(route('refundPembelian.create', ['type' => 'outlet_ke_gudang']))

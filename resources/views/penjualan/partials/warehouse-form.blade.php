@@ -32,7 +32,11 @@
                 <form action="{{ $formAction }}" method="POST" id="warehouse-sale-form"
                     data-penjualan-id="{{ $penjualan?->id ?? '' }}"
                     data-branch-sale="{{ $isBranchSaleMode ? 'true' : 'false' }}"
-                    @if (! $penjualan)
+                    @if ($penjualan)
+                        data-offline-queue="penjualan-update"
+                        data-offline-title="Perubahan Penjualan"
+                        data-offline-redirect="{{ $isBranchSaleMode ? route('penjualan.branch-index') : route('penjualan.index') }}"
+                    @else
                         data-offline-queue="penjualan-create"
                         data-offline-title="Penjualan"
                         data-offline-redirect="{{ $isBranchSaleMode ? route('penjualan.branch-index') : route('penjualan.index') }}"
@@ -234,12 +238,16 @@
                                 </div>
                                 <div class="form-group">
                                     <label>Tunggakan Lama (Rp)</label>
+                                    <div class="well well-sm" id="old-debt-auto-display" style="margin-bottom:8px;">
+                                        Tunggakan pelanggan sebelumnya:
+                                        <strong>Rp {{ number_format((float) ($calculatedOldDebt ?? 0), 0, ',', '.') }}</strong>
+                                    </div>
                                     <input type="text" class="form-control numeral-mask" name="old_debt_override"
                                         id="old_debt_override"
                                         value="{{ $oldDebtOverride === null || $oldDebtOverride === '' ? '' : number_format((float) $oldDebtOverride, 0, ',', '.') }}"
                                         data-auto-value="{{ number_format((float) ($calculatedOldDebt ?? 0), 0, ',', '.') }}"
-                                        placeholder="Otomatis">
-                                    <div class="text-muted small">Kosongkan untuk menghitung dari invoice pelanggan yang belum lunas.</div>
+                                        placeholder="Override (kosongkan untuk nilai otomatis)">
+                                    <div class="text-muted small">Nilai di atas dihitung dari invoice pelanggan sebelumnya yang belum lunas. Isi kolom bila perlu menimpa nilai otomatis.</div>
                                     @error('old_debt_override')
                                         <div class="text-danger">{{ $message }}</div>
                                     @enderror

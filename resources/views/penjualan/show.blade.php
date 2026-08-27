@@ -130,7 +130,7 @@
                     </div>
                     <div class="box-footer">
                         <a href="{{ $backRoute ?? route('penjualan.index') }}" class="btn btn-default">Kembali</a>
-                        @if ($penjualan->payment_status != 'paid' && ($penjualan->isWarehouseSale() || in_array(auth()->user()?->role, ['leader-cabang', 'sales'], true)))
+                        @if ($penjualan->payment_status != 'paid' && ($penjualan->isWarehouseSale() || in_array(auth()->user()?->role, ['admin-cabang', 'leader-cabang', 'sales'], true)))
                         <a href="{{ route('penjualan.edit', $penjualan) }}" class="btn btn-primary">
                             <i class="fa fa-pencil"></i> Edit
                         </a>

@@ -1,12 +1,14 @@
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.mask/1.14.16/jquery.mask.min.js"></script>
 <script>
     var products = @json($products);
     var oldItems = @json($initialItems);
+    var oldDebtByBuyer = @json($oldDebtByBuyer ?? []);
     var rowIndex = 0;
     var productChecklistTable = null;
 
     function moneyMask() {
-        $('.numeral-mask').mask('#,##0', { reverse: true });
+        if ($.fn.mask) {
+            $('.numeral-mask').mask('#,##0', { reverse: true });
+        }
     }
 
     function parseMoney(value) {
@@ -32,6 +34,16 @@
         }
 
         $('#new_debt_display').val(formatMoney(Math.max(0, oldDebt + shippingCost + total - payment)));
+    }
+
+    function setOldDebtPreview(value) {
+        var formatted = formatMoney(value);
+
+        $('#old_debt_override').data('auto-value', formatted);
+        $('#old-debt-auto-display').html(
+            'Tunggakan pelanggan sebelumnya: <strong>Rp ' + escapeHtml(formatted) + '</strong>'
+        );
+        recalcDebtPreview();
     }
 
     function escapeHtml(value) {
@@ -142,12 +154,13 @@
 
     function selectedBuyerPayload() {
         var buyerType = $('#buyer_type').val();
+        var isBranchSale = $('#warehouse-sale-form').attr('data-branch-sale') === 'true';
         var buyerId = buyerType === 'agent'
             ? $('#agent_id').val()
             : buyerType === 'canvas'
                 ? $('#canvas_id').val()
                 : buyerType === 'toko'
-                    ? $('#toko_id').val()
+                    ? (isBranchSale ? $('#outlet_target_id').val() : $('#toko_id').val())
                     : $('#outlet_target_id').val();
 
         return {
@@ -156,14 +169,22 @@
         };
     }
 
+    function buyerDebtKey(buyer) {
+        return String(buyer.buyer_type || '') + ':' + String(buyer.buyer_id || '');
+    }
+
     function refreshOldDebtPreview() {
         var buyer = selectedBuyerPayload();
         var $oldDebt = $('#old_debt_override');
 
         if (!buyer.buyer_type || !buyer.buyer_id) {
-            $oldDebt.data('auto-value', '0');
-            recalcDebtPreview();
+            setOldDebtPreview(0);
             return;
+        }
+
+        var cachedDebt = oldDebtByBuyer[buyerDebtKey(buyer)];
+        if (cachedDebt !== undefined) {
+            setOldDebtPreview(cachedDebt);
         }
 
         $.get('{{ route('penjualan.old-debt') }}', {
@@ -172,8 +193,14 @@
             sale_date: $('input[name="sale_date"]').val(),
             exclude_id: $('#warehouse-sale-form').data('penjualan-id') || null,
         }).done(function(response) {
-            $oldDebt.data('auto-value', formatMoney(response.old_debt || 0));
-            recalcDebtPreview();
+            oldDebtByBuyer[buyerDebtKey(buyer)] = response.old_debt || 0;
+            setOldDebtPreview(response.old_debt || 0);
+        }).fail(function() {
+            // The form carries a server-calculated snapshot so selecting a
+            // different customer still shows a useful value offline.
+            if (cachedDebt === undefined) {
+                setOldDebtPreview(0);
+            }
         });
     }
 
@@ -389,6 +416,18 @@
         } else {
             recalcTotals();
         }
+    });
+
+    // Keep currency inputs usable when the optional third-party mask is not
+    // available in an offline browser. The server-side submit normalizer
+    // still receives plain digits.
+    $(document).on('input', '.numeral-mask', function() {
+        if ($.fn.mask) {
+            return;
+        }
+
+        var digits = String($(this).val() || '').replace(/[^\d]/g, '');
+        $(this).val(digits ? formatMoney(digits) : '');
     });
 
     $(document).on('input change', '#old_debt_override, #shipping_cost', recalcDebtPreview);

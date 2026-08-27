@@ -181,7 +181,7 @@ class PenjualanController extends Controller
                 ->orderBy('name')
                 ->get(),
             'summary' => $summary,
-            'canCreatePenjualan' => in_array($user?->role, ['leader-cabang', 'sales'], true),
+            'canCreatePenjualan' => in_array($user?->role, ['admin-cabang', 'leader-cabang', 'sales'], true),
         ]);
     }
 
@@ -313,6 +313,7 @@ class PenjualanController extends Controller
     {
         $this->ensurePenjualanAccess();
         $this->ensureSaleCanBeManaged($penjualan);
+        $offlineClientId = trim((string) $request->input('offline_client_id', '')) ?: null;
 
         try {
             if ($penjualan->isBranchSale()) {
@@ -359,6 +360,13 @@ class PenjualanController extends Controller
             return redirect()->route('penjualan.show', $penjualan)
                 ->with('toast_success', 'Penjualan berhasil diperbarui.');
         } catch (\Exception $exception) {
+            if ($offlineClientId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal memperbarui penjualan: '.$exception->getMessage(),
+                ], 500);
+            }
+
             return redirect()->back()
                 ->withInput()
                 ->with('toast_error', 'Gagal: '.$exception->getMessage());
@@ -581,7 +589,7 @@ class PenjualanController extends Controller
 
     private function ensureBranchSaleCreateAccess(): void
     {
-        abort_unless(in_array(auth()->user()?->role, ['leader-cabang', 'sales'], true), 403);
+        abort_unless(in_array(auth()->user()?->role, ['admin-cabang', 'leader-cabang', 'sales'], true), 403);
     }
 
     private function ensurePenjualanAccess(): void
@@ -591,7 +599,8 @@ class PenjualanController extends Controller
 
     private function isBranchMode(): bool
     {
-        return auth()->user()?->isBranchScoped() && in_array(auth()->user()?->role, ['leader-cabang', 'sales'], true);
+        return auth()->user()?->isBranchScoped()
+            && in_array(auth()->user()?->role, ['admin-cabang', 'leader-cabang', 'sales'], true);
     }
 
     private function ensureSaleCanBeManaged(Penjualan $penjualan): void
@@ -636,6 +645,10 @@ class PenjualanController extends Controller
     {
         $converter = app(ProductUnitConverter::class);
         $unitChannel = $this->warehouseSaleUnitChannel();
+        $agents = Agent::where('is_active', true)->orderBy('name')->get();
+        $canvases = Canvas::where('is_active', true)->orderBy('name')->get();
+        $outlets = Outlet::branches()->orderBy('name')->get();
+        $shops = Outlet::shops()->orderBy('name')->get();
         $products = Product::with(['stocks' => function ($query) {
             $query->where('status', 'available')
                 ->where('qty', '>', 0)
@@ -680,10 +693,10 @@ class PenjualanController extends Controller
             'branchName' => null,
             'code' => $penjualan?->code ?? $this->generateWarehouseSaleCode(),
             'saleDate' => ($penjualan?->sale_date ?? now())->format('Y-m-d'),
-            'agents' => Agent::where('is_active', true)->orderBy('name')->get(),
-            'canvases' => Canvas::where('is_active', true)->orderBy('name')->get(),
-            'outlets' => Outlet::branches()->orderBy('name')->get(),
-            'shops' => Outlet::shops()->orderBy('name')->get(),
+            'agents' => $agents,
+            'canvases' => $canvases,
+            'outlets' => $outlets,
+            'shops' => $shops,
             'products' => $products,
             'initialItems' => old('items')
                 ?: ($penjualan
@@ -697,7 +710,33 @@ class PenjualanController extends Controller
                     ])->values()->all()
                     : []),
             'calculatedOldDebt' => $penjualan ? $this->balanceService->calculatedOldDebt($penjualan) : 0,
+            'oldDebtByBuyer' => $this->oldDebtByBuyer([
+                ['type' => 'agent', 'models' => $agents],
+                ['type' => 'canvas', 'models' => $canvases],
+                ['type' => 'outlet', 'models' => $outlets],
+                ['type' => 'toko', 'models' => $shops],
+            ], $penjualan),
         ];
+    }
+
+    private function oldDebtByBuyer(array $buyerGroups, ?Penjualan $penjualan = null): array
+    {
+        $saleDate = $penjualan?->sale_date ?? now();
+        $oldDebtByBuyer = [];
+
+        foreach ($buyerGroups as $group) {
+            foreach ($group['models'] as $buyer) {
+                $oldDebtByBuyer[$group['type'].':'.$buyer->id] = $this->balanceService->calculateOldDebt(
+                    $group['type'],
+                    (int) $buyer->id,
+                    null,
+                    $saleDate,
+                    $penjualan?->id,
+                );
+            }
+        }
+
+        return $oldDebtByBuyer;
     }
 
     private function branchSaleFormData(?Penjualan $penjualan = null): array
@@ -750,6 +789,19 @@ class PenjualanController extends Controller
             ->filter(fn (array $product) => $product['available_stock_qty'] > 0)
             ->values();
 
+        $outlets = Outlet::shops()->orderBy('name')->get();
+        $oldDebtByBuyer = $outlets->mapWithKeys(function (Outlet $outlet) use ($penjualan) {
+            return [
+                'toko:'.$outlet->id => $this->balanceService->calculateOldDebt(
+                    'toko',
+                    (int) $outlet->id,
+                    null,
+                    $penjualan?->sale_date ?? now(),
+                    $penjualan?->id,
+                ),
+            ];
+        })->all();
+
         return [
             'penjualan' => $penjualan,
             'saleMode' => 'branch',
@@ -758,7 +810,8 @@ class PenjualanController extends Controller
             'saleDate' => ($penjualan?->sale_date ?? now())->format('Y-m-d'),
             'agents' => collect(),
             'canvases' => collect(),
-            'outlets' => Outlet::shops()->orderBy('name')->get(),
+            'outlets' => $outlets,
+            'oldDebtByBuyer' => $oldDebtByBuyer,
             'products' => $products,
             'initialItems' => old('items')
                 ?: ($penjualan

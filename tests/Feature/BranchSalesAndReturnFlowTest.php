@@ -134,7 +134,7 @@ class BranchSalesAndReturnFlowTest extends TestCase
         $this->assertSame(1, OwnerStockMovement::where('reference_type', Refund::class)->where('reference_id', $refund->id)->where('type', 'return_in')->count());
     }
 
-    public function test_branch_admin_can_view_branch_sales_index_but_cannot_create_branch_sale(): void
+    public function test_branch_admin_can_view_create_and_edit_branch_sales(): void
     {
         $branch = Outlet::create([
             'name' => 'Cabang Admin Test',
@@ -183,9 +183,10 @@ class BranchSalesAndReturnFlowTest extends TestCase
 
         $this->actingAs($adminCabang)
             ->get(route('penjualan.create'))
-            ->assertRedirect(route('dashboard'));
+            ->assertOk()
+            ->assertSee('data-branch-sale="true"', false);
 
-        $this->actingAs($adminCabang)
+        $response = $this->actingAs($adminCabang)
             ->post(route('penjualan.store'), [
                 'sale_date' => now()->toDateString(),
                 'buyer_type' => 'toko',
@@ -202,7 +203,36 @@ class BranchSalesAndReturnFlowTest extends TestCase
                     ],
                 ],
             ])
-            ->assertRedirect(route('dashboard'));
+            ->assertRedirect();
+
+        $sale = Penjualan::firstOrFail();
+        $response->assertRedirect(route('penjualan.show', $sale));
+
+        $secondResponse = $this->actingAs($adminCabang)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post(route('penjualan.store'), [
+                'offline_client_id' => 'offline-admin-branch-sale-002',
+                'sale_date' => now()->toDateString(),
+                'buyer_type' => 'toko',
+                'outlet_target_id' => $shop->id,
+                'payment_type' => 'termin',
+                'payment_status' => 'unpaid',
+                'discount' => 0,
+                'items' => [[
+                    'product_id' => $product->id,
+                    'qty' => 1,
+                    'unit' => 'Pack',
+                    'price' => '10.000',
+                ]],
+            ]);
+
+        $secondResponse->assertCreated()->assertJson(['success' => true]);
+        $this->assertDatabaseCount('penjualans', 2);
+
+        $this->actingAs($adminCabang)
+            ->get(route('penjualan.edit', $sale))
+            ->assertOk()
+            ->assertSee('data-offline-queue="penjualan-update"', false);
     }
 
     public function test_branch_sale_can_be_viewed_and_paid_in_installments(): void

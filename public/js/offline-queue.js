@@ -142,7 +142,9 @@
 
         return allRequests().then(function (items) {
             items = currentUserRequests(items);
-            var pending = items.filter(function (item) { return item.status === 'pending'; }).length;
+            var pending = items.filter(function (item) {
+                return item.status === 'pending' || item.status === 'syncing';
+            }).length;
             var failed = items.filter(function (item) { return item.status === 'failed'; }).length;
             var offline = !navigator.onLine;
 
@@ -544,9 +546,31 @@
 
     function queueItem(item, message) {
         return putRequest(item).then(function () {
+            return registerBackgroundSync();
+        }).then(function () {
             notify('warning', message || 'Koneksi terputus. Data disimpan di perangkat dan akan dikirim saat online.');
+            window.dispatchEvent(new CustomEvent('alami-offline-queue-changed'));
             updateIndicator();
             return item;
+        });
+    }
+
+    function registerBackgroundSync() {
+        if (!navigator.serviceWorker) {
+            return Promise.resolve();
+        }
+
+        return navigator.serviceWorker.ready.then(function (registration) {
+            if (!registration.sync || typeof registration.sync.register !== 'function') {
+                return;
+            }
+
+            return registration.sync.register('alami-offline-sync').catch(function () {
+                // The online event/page-load synchronizer remains the fallback
+                // for browsers without Background Sync support.
+            });
+        }).catch(function () {
+            // Service worker registration is optional for the form queue.
         });
     }
 
@@ -622,7 +646,7 @@
         return allRequests().then(function (items) {
             items = currentUserRequests(items);
             return items.filter(function (item) {
-                return item.status === 'pending';
+                return item.status === 'pending' || item.status === 'syncing';
             }).sort(function (a, b) {
                 return a.createdAt - b.createdAt;
             });
@@ -633,16 +657,22 @@
                         return false;
                     }
 
-                    return requestJson(item).then(function () {
+                    item.status = 'syncing';
+                    item.attempts = (item.attempts || 0) + 1;
+
+                    return putRequest(item).then(function () {
+                        return requestJson(item);
+                    }).then(function () {
                         return deleteRequest(item.id).then(function () {
                             notify('success', item.title + ' berhasil disinkronkan.');
+                            window.dispatchEvent(new CustomEvent('alami-offline-queue-changed'));
                             return true;
                         });
                     }).catch(function (error) {
-                        item.attempts = (item.attempts || 0) + 1;
                         item.lastError = firstServerError(error);
 
                         if (!error.status) {
+                            item.status = 'pending';
                             return putRequest(item).then(function () { return false; });
                         }
 
@@ -670,7 +700,9 @@
                 item.lastError = null;
                 return putRequest(item);
             }));
-        }).then(syncQueue);
+        }).then(function () {
+            return registerBackgroundSync().then(syncQueue);
+        });
     }
 
     function discardFailed() {
@@ -782,7 +814,7 @@
 
     function clearRuntimeCaches() {
         var scope = currentUserScope();
-        var cacheName = scope ? 'alami-admin-pwa-user-v2-' + scope : null;
+        var cacheName = scope ? 'alami-admin-pwa-user-v3-' + scope : null;
 
         if (navigator.serviceWorker && navigator.serviceWorker.controller && cacheName) {
             navigator.serviceWorker.controller.postMessage({
@@ -874,6 +906,7 @@
         }
 
         installAjaxBridge();
+        registerBackgroundSync();
         updateIndicator();
         syncQueue();
     });
@@ -884,6 +917,14 @@
     });
 
     window.addEventListener('offline', updateIndicator);
+
+    if (navigator.serviceWorker) {
+        navigator.serviceWorker.addEventListener('message', function (event) {
+            if (event.data && event.data.type === 'alami-offline-queue-changed') {
+                updateIndicator();
+            }
+        });
+    }
 
     window.AlamiOfflineQueue = {
         sync: syncQueue,

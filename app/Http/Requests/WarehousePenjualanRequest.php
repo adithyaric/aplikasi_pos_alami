@@ -52,7 +52,7 @@ class WarehousePenjualanRequest extends FormRequest
     public function rules(): array
     {
         $isBranchSale = $this->user()?->isBranchScoped()
-            && in_array($this->user()?->role, ['leader-cabang', 'sales'], true);
+            && in_array($this->user()?->role, ['admin-cabang', 'leader-cabang', 'sales'], true);
 
         return [
             'offline_client_id' => 'nullable|string|max:100',

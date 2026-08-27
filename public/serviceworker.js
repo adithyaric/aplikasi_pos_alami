@@ -1,7 +1,7 @@
-var staticCacheName = 'alami-admin-pwa-static-v5';
+var staticCacheName = 'alami-admin-pwa-static-v6';
 // Bump this when the cached HTML contract changes so stale forms cannot be
 // opened offline after a deployment.
-var userCachePrefix = 'alami-admin-pwa-user-v2-';
+var userCachePrefix = 'alami-admin-pwa-user-v3-';
 var filesToCache = [
     '/img/logo.png'
 ];
@@ -11,6 +11,10 @@ var stateDbStore = 'state';
 var stateDbKey = 'active-user-cache';
 var activeUserCacheName = null;
 var activeUserCachePromise = null;
+var queueDbName = 'alami-pwa';
+var queueDbVersion = 2;
+var queueStoreName = 'requests';
+var backgroundSyncTag = 'alami-offline-sync';
 
 self.addEventListener('install', function (event) {
     event.waitUntil(
@@ -49,6 +53,14 @@ self.addEventListener('activate', function (event) {
             return self.clients.claim();
         })
     );
+});
+
+self.addEventListener('sync', function (event) {
+    if (event.tag !== backgroundSyncTag) {
+        return;
+    }
+
+    event.waitUntil(syncQueuedRequests());
 });
 
 self.addEventListener('message', function (event) {
@@ -173,6 +185,284 @@ function clearPersistedUserCache(expectedCacheName) {
             };
         });
     });
+}
+
+function openQueueDb() {
+    if (!self.indexedDB) {
+        return Promise.reject(new Error('IndexedDB is unavailable'));
+    }
+
+    return new Promise(function (resolve, reject) {
+        var request = indexedDB.open(queueDbName, queueDbVersion);
+
+        request.onupgradeneeded = function () {
+            if (!request.result.objectStoreNames.contains(queueStoreName)) {
+                request.result.createObjectStore(queueStoreName, { keyPath: 'id' });
+            }
+        };
+        request.onsuccess = function () { resolve(request.result); };
+        request.onerror = function () { reject(request.error || new Error('Unable to open offline queue')); };
+    });
+}
+
+function queueTransaction(mode, callback) {
+    return openQueueDb().then(function (database) {
+        return new Promise(function (resolve, reject) {
+            var transaction;
+
+            try {
+                transaction = database.transaction(queueStoreName, mode);
+            } catch (error) {
+                database.close();
+                reject(error);
+                return;
+            }
+
+            var store = transaction.objectStore(queueStoreName);
+            var result;
+
+            try {
+                result = callback(store);
+            } catch (error) {
+                database.close();
+                reject(error);
+                return;
+            }
+
+            transaction.oncomplete = function () {
+                database.close();
+                resolve(result);
+            };
+            transaction.onerror = function () {
+                database.close();
+                reject(transaction.error || new Error('Unable to update offline queue'));
+            };
+            transaction.onabort = function () {
+                database.close();
+                reject(transaction.error || new Error('Offline queue transaction aborted'));
+            };
+        });
+    });
+}
+
+function queuedItems() {
+    return queueTransaction('readonly', function (store) {
+        var request = store.getAll();
+
+        return new Promise(function (resolve, reject) {
+            request.onsuccess = function () { resolve(request.result || []); };
+            request.onerror = function () {
+                reject(request.error || new Error('Unable to read offline queue'));
+            };
+        });
+    });
+}
+
+function putQueuedItem(item) {
+    return queueTransaction('readwrite', function (store) {
+        store.put(item);
+    });
+}
+
+function deleteQueuedItem(id) {
+    return queueTransaction('readwrite', function (store) {
+        store.delete(id);
+    });
+}
+
+function queueUserScope(cacheName) {
+    return validCacheName(cacheName) ? cacheName.slice(userCachePrefix.length) : null;
+}
+
+function queuedCsrfToken() {
+    return fetch(new URL('/offline/csrf-token?refresh=' + Date.now(), self.location.origin), {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    }).then(function (response) {
+        return response.text().then(function (text) {
+            var payload = null;
+
+            try {
+                payload = text ? JSON.parse(text) : null;
+            } catch (error) {
+                payload = null;
+            }
+
+            if (response.redirected && new URL(response.url).pathname === '/login') {
+                var loginError = new Error('Sesi login tidak tersedia.');
+                loginError.retryable = false;
+                throw loginError;
+            }
+
+            if (!response.ok || !payload || !payload.token) {
+                var error = new Error('Sesi login tidak tersedia.');
+                error.retryable = false;
+                throw error;
+            }
+
+            return payload.token;
+        });
+    }).catch(function (error) {
+        if (error && error.retryable === false) {
+            throw error;
+        }
+
+        var networkError = new Error('Koneksi belum tersedia.');
+        networkError.retryable = true;
+        throw networkError;
+    });
+}
+
+function replaceQueuedCsrfToken(item, token) {
+    if (!item.body || !item.contentType) {
+        return;
+    }
+
+    if (item.contentType.indexOf('application/json') !== -1) {
+        var json = JSON.parse(item.body);
+        json._token = token;
+        item.body = JSON.stringify(json);
+        return;
+    }
+
+    var params = new URLSearchParams(item.body);
+    params.set('_token', token);
+    item.body = params.toString();
+}
+
+function replayQueuedItem(item, token) {
+    replaceQueuedCsrfToken(item, token);
+
+    var headers = {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': token
+    };
+
+    if (item.contentType) {
+        headers['Content-Type'] = item.contentType;
+    }
+
+    return fetch(item.url, {
+        method: item.method,
+        headers: headers,
+        credentials: 'include',
+        redirect: 'follow',
+        body: item.body
+    }).then(function (response) {
+        return response.text().then(function (text) {
+            var payload = null;
+
+            try {
+                payload = text ? JSON.parse(text) : null;
+            } catch (error) {
+                payload = null;
+            }
+
+            if (!response.ok) {
+                var responseError = new Error(payload && payload.message
+                    ? payload.message
+                    : 'Server menolak data offline.');
+                responseError.status = response.status;
+                responseError.retryable = response.status >= 500 || response.status === 408 || response.status === 429;
+                throw responseError;
+            }
+
+            if (response.redirected && new URL(response.url).pathname === '/login') {
+                var loginError = new Error('Sesi login tidak tersedia.');
+                loginError.retryable = false;
+                throw loginError;
+            }
+
+            if (payload && payload.success === false) {
+                var rejectedError = new Error(payload.message || 'Server menolak perubahan data.');
+                rejectedError.retryable = false;
+                throw rejectedError;
+            }
+
+            if (!payload && (response.headers.get('Content-Type') || '').indexOf('text/html') !== -1) {
+                var htmlError = new Error('Respons server tidak valid.');
+                htmlError.retryable = false;
+                throw htmlError;
+            }
+
+            return payload;
+        });
+    }).catch(function (error) {
+        if (error && (error.retryable === false || error.status)) {
+            throw error;
+        }
+
+        var networkError = new Error('Koneksi terputus saat sinkronisasi.');
+        networkError.retryable = true;
+        throw networkError;
+    });
+}
+
+function queuedErrorMessage(error) {
+    return error && error.message ? error.message : 'Gagal menyinkronkan data offline.';
+}
+
+function notifyQueueClients() {
+    return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clients) {
+        clients.forEach(function (client) {
+            client.postMessage({ type: 'alami-offline-queue-changed' });
+        });
+    });
+}
+
+function syncQueuedRequests() {
+    return Promise.resolve(activeUserCacheName || readPersistedUserCache())
+        .then(function (cacheName) {
+            var scope = queueUserScope(cacheName);
+
+            if (!scope) {
+                return;
+            }
+
+            return queuedItems().then(function (items) {
+                return items.filter(function (item) {
+                    return (item.status === 'pending' || item.status === 'syncing')
+                        && item.userScope === scope;
+                }).sort(function (a, b) {
+                    return a.createdAt - b.createdAt;
+                });
+            }).then(function (items) {
+                if (!items.length) {
+                    return;
+                }
+
+                return queuedCsrfToken().then(function (token) {
+                    return items.reduce(function (chain, item) {
+                        return chain.then(function () {
+                            item.status = 'syncing';
+                            item.attempts = (item.attempts || 0) + 1;
+
+                            return putQueuedItem(item)
+                                .then(function () { return replayQueuedItem(item, token); })
+                                .then(function () { return deleteQueuedItem(item.id); })
+                                .then(notifyQueueClients)
+                                .catch(function (error) {
+                                    item.lastError = queuedErrorMessage(error);
+
+                                    if (error && error.retryable) {
+                                        item.status = 'pending';
+                                        return putQueuedItem(item).then(function () { throw error; });
+                                    }
+
+                                    item.status = 'failed';
+                                    return putQueuedItem(item).then(notifyQueueClients);
+                                });
+                        });
+                    }, Promise.resolve());
+                });
+            });
+        });
 }
 
 function validUserKey(key) {

@@ -7,12 +7,13 @@ use App\Models\Journal;
 use App\Models\JournalDetail;
 use App\Models\Pengeluaran;
 use App\Models\Penjualan;
-use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 class FinancialReportService
 {
+    private const RETAINED_EARNINGS_ACCOUNT_CODE = '300002';
+
     public function generalJournal(?string $startDate = null, ?string $endDate = null): Collection
     {
         return Journal::excludeReturns()->with('details.account')
@@ -98,7 +99,7 @@ class FinancialReportService
             ->orderBy('code')
             ->get();
         $aggregates = $this->aggregates($accounts, $startDate, $endDate);
-        $this->applyPaidSalesRevenue($aggregates, $accounts, $startDate, $endDate);
+        $unpaidSalesRevenue = $this->applyPaidSalesRevenue($aggregates, $accounts, $startDate, $endDate);
         $this->includeUnsyncedExpenses($aggregates, $accounts, $startDate, $endDate);
 
         $rows = $accounts->map(function (Account $account) use ($aggregates) {
@@ -125,6 +126,7 @@ class FinancialReportService
             'income' => $income,
             'expense' => $expense,
             'net_income' => round($income - $expense, 2),
+            'unpaid_sales_revenue' => $unpaidSalesRevenue,
             'start_date' => $startDate,
             'end_date' => $endDate,
         ];
@@ -137,6 +139,8 @@ class FinancialReportService
             ->orderBy('code')
             ->get();
         $aggregates = $this->aggregates($accounts, null, $asOfDate);
+        $profitLoss = $this->profitLoss(null, $asOfDate);
+        $unpaidSalesRevenue = $profitLoss['unpaid_sales_revenue'];
         $rows = $accounts->map(function (Account $account) use ($aggregates) {
             $aggregate = $aggregates->get($account->id, ['debit' => 0, 'credit' => 0]);
 
@@ -146,9 +150,18 @@ class FinancialReportService
                 'credit' => round($aggregate['credit'], 2),
                 'balance' => round($this->signedBalance($account, $aggregate['debit'], $aggregate['credit']), 2),
             ];
+        })->map(function (array $row) use ($unpaidSalesRevenue) {
+            // Sales are currently recognized in profit/loss based on collected
+            // payments. Keep the unpaid portion in retained earnings so the
+            // balance sheet reflects the AR side without creating a journal.
+            if ($row['account']->code === self::RETAINED_EARNINGS_ACCOUNT_CODE) {
+                $row['credit'] = round($row['credit'] + $unpaidSalesRevenue, 2);
+                $row['balance'] = round($row['balance'] + $unpaidSalesRevenue, 2);
+            }
+
+            return $row;
         })->filter(fn (array $row) => abs($row['balance']) > 0.0001)->values();
 
-        $profitLoss = $this->profitLoss(null, $asOfDate);
         $assets = $rows->filter(fn (array $row) => in_array($row['account']->type_code, ['BANK', 'AREC', 'INTR', 'OCAS', 'FASS', 'OASS', 'DEPR'], true));
         $liabilities = $rows->filter(fn (array $row) => in_array($row['account']->type_code, ['APAY', 'OCLY', 'LTLY'], true));
         $equity = $rows->where('account.type_code', 'EQTY');
@@ -202,7 +215,7 @@ class FinancialReportService
             ]]);
     }
 
-    private function applyPaidSalesRevenue(Collection $aggregates, Collection $accounts, ?string $startDate, ?string $endDate): void
+    private function applyPaidSalesRevenue(Collection $aggregates, Collection $accounts, ?string $startDate, ?string $endDate): float
     {
         $revenueAccountIds = $accounts
             ->whereIn('type_code', ['REVE', 'OINC'])
@@ -211,8 +224,10 @@ class FinancialReportService
             ->values();
 
         if ($revenueAccountIds->isEmpty()) {
-            return;
+            return 0;
         }
+
+        $unpaidSalesRevenue = 0;
 
         $salesJournals = Journal::excludeReturns()
             ->where('ref_type', 'SALES')
@@ -242,12 +257,16 @@ class FinancialReportService
                     continue;
                 }
 
+                $unpaidSalesRevenue += (((float) $detail->credit - (float) $detail->debit) * (1 - $ratio));
+
                 $aggregate = $aggregates->get($detail->account_id, ['debit' => 0, 'credit' => 0]);
                 $aggregate['debit'] += ((float) $detail->debit * $ratio) - (float) $detail->debit;
                 $aggregate['credit'] += ((float) $detail->credit * $ratio) - (float) $detail->credit;
                 $aggregates->put($detail->account_id, $aggregate);
             }
         }
+
+        return round(max(0, $unpaidSalesRevenue), 2);
     }
 
     private function includeUnsyncedExpenses(Collection $aggregates, Collection $accounts, ?string $startDate, ?string $endDate): void

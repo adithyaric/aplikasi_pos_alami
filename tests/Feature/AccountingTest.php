@@ -57,6 +57,31 @@ class AccountingTest extends TestCase
         $this->assertSame(1500.0, $report['net_income']);
     }
 
+    public function test_unpaid_sales_are_presented_as_retained_earnings_on_balance_sheet(): void
+    {
+        $sale = Penjualan::create([
+            'code' => 'PNJ-UNPAID-001',
+            'sale_channel' => 'warehouse',
+            'buyer_type' => 'agent',
+            'buyer_id' => 1,
+            'sale_date' => '2026-08-24',
+            'payment_type' => 'termin',
+            'payment_status' => 'unpaid',
+            'total' => 1000,
+        ]);
+
+        app(AccountingService::class)->syncSale($sale);
+
+        $report = app(FinancialReportService::class)->balanceSheet('2026-08-24');
+        $retainedEarnings = $report['equity']->firstWhere('account.code', '300002');
+
+        $this->assertNotNull($retainedEarnings);
+        $this->assertSame(1000.0, $retainedEarnings['balance']);
+        $this->assertSame(1000.0, $report['total_assets']);
+        $this->assertSame(1000.0, $report['total_liabilities'] + $report['total_equity']);
+        $this->assertSame(0.0, $report['total_assets'] - ($report['total_liabilities'] + $report['total_equity']));
+    }
+
     public function test_accounting_is_available_as_the_second_laporan_tab(): void
     {
         $user = User::factory()->create(['role' => 'superadmin']);

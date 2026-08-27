@@ -153,7 +153,7 @@
                                             <a class="btn btn-default btn-xs" href="{{ route('penjualan.show', $penjualan) }}">
                                                 <i class="fa fa-eye"></i> Show
                                             </a>
-                                            @if (in_array(auth()->user()?->role, ['leader-cabang', 'sales'], true) && $penjualan->payment_status != 'paid')
+                                            @if (in_array(auth()->user()?->role, ['admin-cabang', 'leader-cabang', 'sales'], true) && $penjualan->payment_status != 'paid')
                                                 <a class="btn btn-primary btn-xs" href="{{ route('penjualan.edit', $penjualan) }}">
                                                     <i class="fa fa-pencil"></i> Edit
                                                 </a>
