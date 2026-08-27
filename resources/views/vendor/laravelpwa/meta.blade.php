@@ -154,7 +154,7 @@
     if ('serviceWorker' in navigator) {
         // The query string forces browsers that still have the old package
         // worker registered to fetch this worker again after deployment.
-        navigator.serviceWorker.register('/serviceworker.js?v=offline-pages-v4', {
+        navigator.serviceWorker.register('/serviceworker.js?v=offline-pages-v5', {
             scope: '/'
         }).then(function (registration) {
             // Registration was successful

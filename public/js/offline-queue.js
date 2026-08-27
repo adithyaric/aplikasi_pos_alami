@@ -2,7 +2,7 @@
     'use strict';
 
     var DB_NAME = 'alami-pwa';
-    var DB_VERSION = 2;
+    var DB_VERSION = 3;
     var STORE_NAME = 'requests';
     var REQUEST_TIMEOUT = 15000;
     var databasePromise = null;
@@ -193,24 +193,69 @@
         });
     }
 
+    function isMultipartItem(item) {
+        return item && item.bodyType === 'form-data' && Array.isArray(item.body);
+    }
+
+    function multipartBody(item) {
+        var formData = new FormData();
+
+        (item.body || []).forEach(function (entry) {
+            if (!entry || !entry.key) {
+                return;
+            }
+
+            if (entry.file) {
+                formData.append(entry.key, entry.value, entry.filename || 'upload');
+            } else {
+                formData.append(entry.key, String(entry.value ?? ''));
+            }
+        });
+
+        return formData;
+    }
+
     function serializeForm(form, id) {
         var formData = new FormData(form);
         var params = new URLSearchParams();
+        var entries = [];
+        var hasFile = false;
 
         formData.forEach(function (value, key) {
             if (typeof value === 'string') {
                 params.append(key, value);
+                entries.push({ key: key, value: value, file: false });
                 return;
             }
 
             if (value && typeof value.name === 'string' && value.name !== '') {
-                throw new Error('Form offline tidak mendukung upload file. Kirim form ini saat online.');
+                hasFile = true;
+                entries.push({
+                    key: key,
+                    value: value,
+                    filename: value.name,
+                    file: true
+                });
             }
         });
 
+        if (hasFile) {
+            entries.push({ key: 'offline_client_id', value: id, file: false });
+
+            return {
+                body: entries,
+                bodyType: 'form-data',
+                contentType: null
+            };
+        }
+
         params.set('offline_client_id', id);
 
-        return params.toString();
+        return {
+            body: params.toString(),
+            bodyType: 'url-encoded',
+            contentType: 'application/x-www-form-urlencoded; charset=UTF-8'
+        };
     }
 
     function pathOf(url) {
@@ -240,14 +285,15 @@
             && !isExcludedPath(form.action);
     }
 
-    function hasSelectedFile(form) {
-        return Array.prototype.some.call(form.querySelectorAll('input[type="file"]'), function (input) {
-            return input.files && input.files.length > 0;
-        });
-    }
-
     function replaceCsrfToken(item, token) {
         if (!item.body || !item.contentType) {
+            if (isMultipartItem(item)) {
+                item.body = item.body.filter(function (entry) {
+                    return entry.key !== '_token';
+                });
+                item.body.push({ key: '_token', value: token, file: false });
+            }
+
             return;
         }
 
@@ -324,7 +370,7 @@
                 headers: headers,
                 credentials: 'same-origin',
                 redirect: 'follow',
-                body: item.body,
+                body: isMultipartItem(item) ? multipartBody(item) : item.body,
                 signal: controller ? controller.signal : undefined
             });
         }).then(function (response) {
@@ -474,13 +520,15 @@
 
     function buildFormRequest(form) {
         var id = makeId();
+        var serialized = serializeForm(form, id);
 
         return {
             id: id,
             url: form.action,
             method: (form.method || 'POST').toUpperCase(),
-            body: serializeForm(form, id),
-            contentType: 'application/x-www-form-urlencoded; charset=UTF-8',
+            body: serialized.body,
+            bodyType: serialized.bodyType,
+            contentType: serialized.contentType,
             csrfToken: csrfToken(),
             allowNonJson: !form.hasAttribute('data-offline-queue'),
             title: form.getAttribute('data-offline-title') || 'Perubahan data',
@@ -495,21 +543,50 @@
 
     function serialiseAjaxData(data, contentType, id) {
         if (data instanceof FormData) {
-            var formData = new URLSearchParams();
+            var entries = [];
+            var hasFile = false;
+
             data.forEach(function (value, key) {
-                if (typeof value !== 'string') {
-                    throw new Error('Permintaan offline dengan upload file harus dikirim saat online.');
+                if (typeof value === 'string') {
+                    entries.push({ key: key, value: value, file: false });
+                    return;
                 }
-                formData.append(key, value);
+
+                if (value && typeof value.name === 'string' && value.name !== '') {
+                    hasFile = true;
+                    entries.push({ key: key, value: value, filename: value.name, file: true });
+                }
             });
+
+            if (hasFile) {
+                entries.push({ key: 'offline_client_id', value: id, file: false });
+
+                return {
+                    body: entries,
+                    bodyType: 'form-data',
+                    contentType: null
+                };
+            }
+
+            var formData = new URLSearchParams();
+            entries.forEach(function (entry) { formData.append(entry.key, entry.value); });
             formData.set('offline_client_id', id);
-            return formData.toString();
+
+            return {
+                body: formData.toString(),
+                bodyType: 'url-encoded',
+                contentType: contentType || 'application/x-www-form-urlencoded; charset=UTF-8'
+            };
         }
 
         if (contentType && contentType.indexOf('application/json') !== -1) {
             var json = typeof data === 'string' && data !== '' ? JSON.parse(data) : (data || {});
             json.offline_client_id = id;
-            return JSON.stringify(json);
+            return {
+                body: JSON.stringify(json),
+                bodyType: 'json',
+                contentType: contentType
+            };
         }
 
         var encoded = typeof data === 'string'
@@ -518,19 +595,25 @@
         var params = new URLSearchParams(encoded);
         params.set('offline_client_id', id);
 
-        return params.toString();
+        return {
+            body: params.toString(),
+            bodyType: 'url-encoded',
+            contentType: contentType || 'application/x-www-form-urlencoded; charset=UTF-8'
+        };
     }
 
     function buildAjaxRequest(options) {
         var id = makeId();
         var contentType = typeof options.contentType === 'string' ? options.contentType : '';
+        var serialized = serialiseAjaxData(options.data, contentType, id);
 
         return {
             id: id,
             url: new URL(options.url, window.location.href).href,
             method: String(options.method || options.type || 'GET').toUpperCase(),
-            body: serialiseAjaxData(options.data, contentType, id),
-            contentType: contentType || 'application/x-www-form-urlencoded; charset=UTF-8',
+            body: serialized.body,
+            bodyType: serialized.bodyType,
+            contentType: serialized.contentType,
             csrfToken: options.headers && (options.headers['X-CSRF-TOKEN'] || options.headers['x-csrf-token'])
                 || csrfToken(),
             allowNonJson: true,
@@ -721,10 +804,6 @@
         normaliseFormValues(form);
         validateOfflineForm(form);
 
-        if (hasSelectedFile(form)) {
-            return Promise.reject(new Error('Form dengan file harus dikirim saat online.'));
-        }
-
         var item = buildFormRequest(form);
         if (title) {
             item.title = title;
@@ -858,16 +937,6 @@
         // Let page-level validators and submit handlers prepare the form first.
         // Custom AJAX handlers already have their own offline bridge.
         if (!explicit && event.defaultPrevented) {
-            return;
-        }
-
-        if (hasSelectedFile(form)) {
-            if (!navigator.onLine) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                notify('warning', 'Form dengan file harus dikirim saat online.');
-            }
-
             return;
         }
 

@@ -12,7 +12,7 @@ var stateDbKey = 'active-user-cache';
 var activeUserCacheName = null;
 var activeUserCachePromise = null;
 var queueDbName = 'alami-pwa';
-var queueDbVersion = 2;
+var queueDbVersion = 3;
 var queueStoreName = 'requests';
 var backgroundSyncTag = 'alami-offline-sync';
 
@@ -319,6 +319,14 @@ function queuedCsrfToken() {
 }
 
 function replaceQueuedCsrfToken(item, token) {
+    if (item.bodyType === 'form-data' && Array.isArray(item.body)) {
+        item.body = item.body.filter(function (entry) {
+            return entry.key !== '_token';
+        });
+        item.body.push({ key: '_token', value: token, file: false });
+        return;
+    }
+
     if (!item.body || !item.contentType) {
         return;
     }
@@ -348,12 +356,28 @@ function replayQueuedItem(item, token) {
         headers['Content-Type'] = item.contentType;
     }
 
+    var requestBody = item.body;
+    if (item.bodyType === 'form-data' && Array.isArray(item.body)) {
+        requestBody = new FormData();
+        item.body.forEach(function (entry) {
+            if (!entry || !entry.key) {
+                return;
+            }
+
+            if (entry.file) {
+                requestBody.append(entry.key, entry.value, entry.filename || 'upload');
+            } else {
+                requestBody.append(entry.key, String(entry.value || ''));
+            }
+        });
+    }
+
     return fetch(item.url, {
         method: item.method,
         headers: headers,
         credentials: 'include',
         redirect: 'follow',
-        body: item.body
+        body: requestBody
     }).then(function (response) {
         return response.text().then(function (text) {
             var payload = null;

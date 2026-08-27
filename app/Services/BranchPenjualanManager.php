@@ -6,20 +6,18 @@ use App\Models\Outlet;
 use App\Models\OwnerStock;
 use App\Models\OwnerStockMovement;
 use App\Models\Penjualan;
-use App\Models\PenjualanItem;
-use App\Models\PenjualanPayment;
 use App\Models\Product;
 use App\Support\ProductUnitConverter;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class BranchPenjualanManager
 {
     public function __construct(
         private readonly ProductUnitConverter $converter,
         private readonly AccountingService $accounting
-    ) {
-    }
+    ) {}
 
     public function create(array $payload, int $operatorId, int $branchId, ?int $salesmanId = null): Penjualan
     {
@@ -45,6 +43,10 @@ class BranchPenjualanManager
                 'notes' => $payload['notes'] ?? null,
                 'shipping_cost' => (int) ($payload['shipping_cost'] ?? 0),
                 'old_debt_override' => $payload['old_debt_override'] ?? null,
+                'latitude' => $payload['latitude'] ?? null,
+                'longitude' => $payload['longitude'] ?? null,
+                'location_accuracy' => $payload['location_accuracy'] ?? null,
+                'location_captured_at' => $payload['location_captured_at'] ?? null,
                 // New sales keep discounts on each item. This parent field remains only for legacy records.
                 'discount' => 0,
                 'total' => 0,
@@ -53,6 +55,7 @@ class BranchPenjualanManager
             $this->syncItems($penjualan, $items, $operatorId);
             $this->syncPaymentTransaction($penjualan);
             $this->accounting->syncSale($penjualan->fresh(['items.product', 'items.stock', 'items.allocations.stock', 'paymentTransaction']));
+            $this->storePhotos($penjualan, $payload['sales_photos'] ?? []);
 
             return $penjualan->fresh([
                 'items.product',
@@ -100,6 +103,10 @@ class BranchPenjualanManager
                 'notes' => $payload['notes'] ?? null,
                 'shipping_cost' => (int) ($payload['shipping_cost'] ?? 0),
                 'old_debt_override' => $payload['old_debt_override'] ?? null,
+                'latitude' => $payload['latitude'] ?? null,
+                'longitude' => $payload['longitude'] ?? null,
+                'location_accuracy' => $payload['location_accuracy'] ?? null,
+                'location_captured_at' => $payload['location_captured_at'] ?? null,
                 'discount' => 0,
                 'total' => 0,
             ]);
@@ -107,6 +114,7 @@ class BranchPenjualanManager
             $this->syncItems($penjualan, $items, $operatorId);
             $this->syncPaymentTransaction($penjualan);
             $this->accounting->syncSale($penjualan->fresh(['items.product', 'items.stock', 'items.allocations.stock', 'paymentTransaction']));
+            $this->storePhotos($penjualan, $payload['sales_photos'] ?? []);
 
             return $penjualan->fresh([
                 'items.product',
@@ -129,6 +137,35 @@ class BranchPenjualanManager
             : ($payload['payment_status'] ?: 'unpaid');
 
         return [$saleDate, $paymentStatus];
+    }
+
+    private function storePhotos(Penjualan $penjualan, array $photos): void
+    {
+        $storedPaths = [];
+
+        try {
+            foreach ($photos as $photo) {
+                if (! $photo) {
+                    continue;
+                }
+
+                $path = $photo->store('penjualan-photos', 'public');
+                $storedPaths[] = $path;
+
+                $penjualan->photos()->create([
+                    'path' => $path,
+                    'original_name' => $photo->getClientOriginalName(),
+                    'mime_type' => $photo->getMimeType(),
+                    'size' => $photo->getSize(),
+                ]);
+            }
+        } catch (\Throwable $exception) {
+            foreach ($storedPaths as $path) {
+                Storage::disk('public')->delete($path);
+            }
+
+            throw $exception;
+        }
     }
 
     private function syncItems(Penjualan $penjualan, array $items, int $operatorId): void

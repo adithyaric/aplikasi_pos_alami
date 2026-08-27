@@ -3,6 +3,29 @@
 @section('title', 'Detail Penjualan')
 
 @section('container')
+    @php
+        $hasSalesLocation = $penjualan->isBranchSale()
+            && is_numeric($penjualan->latitude)
+            && is_numeric($penjualan->longitude);
+        $salesLatitude = $hasSalesLocation ? (float) $penjualan->latitude : null;
+        $salesLongitude = $hasSalesLocation ? (float) $penjualan->longitude : null;
+        $salesMapPadding = 0.005;
+        $salesOsmEmbedUrl = $hasSalesLocation
+            ? 'https://www.openstreetmap.org/export/embed.html?bbox='
+                .rawurlencode(implode(',', [
+                    $salesLongitude - $salesMapPadding,
+                    $salesLatitude - $salesMapPadding,
+                    $salesLongitude + $salesMapPadding,
+                    $salesLatitude + $salesMapPadding,
+                ]))
+                .'&layer=mapnik&marker='.rawurlencode($salesLatitude.','.$salesLongitude)
+            : null;
+        $salesOsmUrl = $hasSalesLocation
+            ? 'https://www.openstreetmap.org/?mlat='.rawurlencode((string) $salesLatitude)
+                .'&mlon='.rawurlencode((string) $salesLongitude)
+                .'#map=17/'.rawurlencode((string) $salesLatitude).'/'.rawurlencode((string) $salesLongitude)
+            : null;
+    @endphp
     <section class="content-header">
         <h1>Detail Penjualan</h1>
     </section>
@@ -58,6 +81,45 @@
                         </table>
                     </div>
                 </div>
+
+                @if ($penjualan->isBranchSale() && ($penjualan->photos->isNotEmpty() || $hasSalesLocation))
+                    <div class="box box-info">
+                        <div class="box-header with-border">
+                            <h3 class="box-title"><i class="fa fa-camera"></i> Dokumentasi Penjualan</h3>
+                        </div>
+                        <div class="box-body">
+                            @if ($penjualan->photos->isNotEmpty())
+                                <div class="sales-photo-preview">
+                                    @foreach ($penjualan->photos as $photo)
+                                        <a href="{{ asset('storage/'.$photo->path) }}" target="_blank" rel="noopener" class="sales-photo-thumb">
+                                            <img src="{{ asset('storage/'.$photo->path) }}" alt="{{ $photo->original_name ?: 'Foto penjualan' }}">
+                                        </a>
+                                    @endforeach
+                                </div>
+                            @else
+                                <p class="text-muted">Tidak ada foto penjualan.</p>
+                            @endif
+
+                            @if ($hasSalesLocation)
+                                <hr>
+                                <p>
+                                    <i class="fa fa-map-marker"></i>
+                                    Lokasi: <strong>{{ number_format($salesLatitude, 7, '.', '') }}, {{ number_format($salesLongitude, 7, '.', '') }}</strong>
+                                    @if ($penjualan->location_accuracy)
+                                        <small class="text-muted">(akurasi ±{{ number_format((float) $penjualan->location_accuracy, 0, ',', '.') }} m)</small>
+                                    @endif
+                                </p>
+                                <iframe title="Peta OpenStreetMap lokasi penjualan" loading="lazy" src="{{ $salesOsmEmbedUrl }}"
+                                    style="width:100%;height:220px;border:1px solid #ddd;border-radius:4px;"></iframe>
+                                <span class="small text-muted">© OpenStreetMap contributors · </span>
+                                <a href="{{ $salesOsmUrl }}" target="_blank" rel="noopener" class="small">Buka di OpenStreetMap</a>
+                                @if ($penjualan->location_captured_at)
+                                    <p class="text-muted small" style="margin:6px 0 0;">Diambil {{ $penjualan->location_captured_at->format('d/m/Y H:i') }}</p>
+                                @endif
+                            @endif
+                        </div>
+                    </div>
+                @endif
             </div>
 
             <div class="col-md-8">

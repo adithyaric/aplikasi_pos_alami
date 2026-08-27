@@ -2,6 +2,7 @@
     var products = @json($products);
     var oldItems = @json($initialItems);
     var oldDebtByBuyer = @json($oldDebtByBuyer ?? []);
+    var existingSalesPhotos = @json($existingSalesPhotos ?? []);
     var rowIndex = 0;
     var productChecklistTable = null;
 
@@ -48,6 +49,91 @@
 
     function escapeHtml(value) {
         return $('<div>').text(value || '').html();
+    }
+
+    function osmLocationUrls(latitude, longitude) {
+        if (String(latitude || '').trim() === '' || String(longitude || '').trim() === '') {
+            return null;
+        }
+
+        var latitudeNumber = Number(latitude);
+        var longitudeNumber = Number(longitude);
+
+        if (!Number.isFinite(latitudeNumber) || !Number.isFinite(longitudeNumber)) {
+            return null;
+        }
+
+        var padding = 0.005;
+        var bbox = [
+            longitudeNumber - padding,
+            latitudeNumber - padding,
+            longitudeNumber + padding,
+            latitudeNumber + padding
+        ].join(',');
+        var marker = latitudeNumber + ',' + longitudeNumber;
+
+        return {
+            embed: 'https://www.openstreetmap.org/export/embed.html?bbox=' + encodeURIComponent(bbox)
+                + '&layer=mapnik&marker=' + encodeURIComponent(marker),
+            link: 'https://www.openstreetmap.org/?mlat=' + encodeURIComponent(latitudeNumber)
+                + '&mlon=' + encodeURIComponent(longitudeNumber)
+                + '#map=17/' + encodeURIComponent(latitudeNumber) + '/' + encodeURIComponent(longitudeNumber)
+        };
+    }
+
+    function updateSalesLocationPreview() {
+        var latitude = $('#latitude').val();
+        var longitude = $('#longitude').val();
+        var accuracy = $('#location_accuracy').val();
+        var $status = $('#sales-location-status');
+        var $clear = $('#clear-sales-location');
+        var $map = $('#sales-osm-map-preview');
+        var urls = osmLocationUrls(latitude, longitude);
+
+        if (!urls) {
+            $clear.hide();
+            $map.hide().empty();
+            $status.text('Lokasi hanya disimpan jika Anda mengizinkan akses lokasi perangkat.');
+            return;
+        }
+
+        $clear.show();
+        $status.html(
+            'Lokasi tersimpan: <strong>' + escapeHtml(Number(latitude).toFixed(7) + ', ' + Number(longitude).toFixed(7))
+            + (accuracy ? ' · akurasi ±' + escapeHtml(Number(accuracy).toFixed(0)) + ' m' : '')
+            + '</strong>'
+        );
+        $map.html(
+            '<iframe title="Peta OpenStreetMap lokasi penjualan" loading="lazy" src="' + escapeHtml(urls.embed)
+            + '" style="width:100%;height:180px;border:1px solid #ddd;border-radius:4px;"></iframe>'
+            + '<span class="small text-muted">© OpenStreetMap contributors · </span>'
+            + '<a href="' + escapeHtml(urls.link) + '" target="_blank" rel="noopener" class="small">Buka di OpenStreetMap</a>'
+        ).show();
+    }
+
+    function renderSalesPhotoPreview() {
+        var input = document.getElementById('sales_photos');
+        var preview = document.getElementById('sales-photo-preview');
+
+        if (!input || !preview) {
+            return;
+        }
+
+        var files = Array.prototype.slice.call(input.files || []);
+        var html = '';
+
+        existingSalesPhotos.forEach(function(photo) {
+            html += '<a href="' + escapeHtml(photo.url) + '" target="_blank" rel="noopener" class="sales-photo-thumb">'
+                + '<img src="' + escapeHtml(photo.url) + '" alt="' + escapeHtml(photo.name || 'Foto penjualan tersimpan') + '">'
+                + '</a>';
+        });
+
+        files.forEach(function(file) {
+            var objectUrl = URL.createObjectURL(file);
+            html += '<span class="sales-photo-thumb"><img src="' + objectUrl + '" alt="Foto penjualan baru"></span>';
+        });
+
+        preview.innerHTML = html;
     }
 
     function findProduct(productId) {
@@ -432,6 +518,47 @@
 
     $(document).on('input change', '#old_debt_override, #shipping_cost', recalcDebtPreview);
 
+    $(document).on('change', '#sales_photos', renderSalesPhotoPreview);
+
+    $(document).on('click', '#capture-sales-location', function() {
+        var $button = $(this);
+
+        if (!navigator.geolocation) {
+            $('#sales-location-status').text('Perangkat/browser ini tidak mendukung pengambilan lokasi.');
+            return;
+        }
+
+        $button.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Mengambil lokasi...');
+        $('#sales-location-status').text('Meminta lokasi perangkat...');
+
+        navigator.geolocation.getCurrentPosition(function(position) {
+            $('#latitude').val(Number(position.coords.latitude).toFixed(7));
+            $('#longitude').val(Number(position.coords.longitude).toFixed(7));
+            $('#location_accuracy').val(position.coords.accuracy !== null && position.coords.accuracy !== undefined
+                ? Number(position.coords.accuracy).toFixed(2)
+                : '');
+            $('#location_captured_at').val(new Date().toISOString());
+            updateSalesLocationPreview();
+            $button.prop('disabled', false).html('<i class="fa fa-map-marker"></i> Perbarui Lokasi');
+        }, function(error) {
+            var message = error.code === 1
+                ? 'Akses lokasi ditolak. Anda tetap dapat menyimpan penjualan tanpa lokasi.'
+                : 'Lokasi belum dapat diambil. Pastikan GPS aktif lalu coba lagi.';
+
+            $('#sales-location-status').text(message);
+            $button.prop('disabled', false).html('<i class="fa fa-map-marker"></i> Ambil Lokasi Saat Ini');
+        }, {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+        });
+    });
+
+    $(document).on('click', '#clear-sales-location', function() {
+        $('#latitude, #longitude, #location_accuracy, #location_captured_at').val('');
+        updateSalesLocationPreview();
+    });
+
     $(document).on('click', '.btn-remove-row', function() {
         if ($('#items-body tr').length === 1) {
             return;
@@ -470,22 +597,22 @@
                 type: 'number',
                 min: 1,
                 value: 1,
-                class: 'form-control input-sm cek-qty-penjualan',
+                class: 'form-control product-picker-qty cek-qty-penjualan',
                 disabled: alreadySelected
-            }).css('width', '70px');
+            });
             var $statusBadge = $('<span>')
                 .addClass('label ' + (alreadySelected ? 'label-default' : 'label-success'))
                 .text(alreadySelected ? 'Sudah dipilih' : 'Siap dipilih');
 
             $row.append(
-                $('<td>').addClass('text-center').append($checkbox),
-                $('<td>').text(product.code || '-'),
-                $('<td>').text(product.name || '-'),
-                $('<td>').text(product.stock_summary || '-'),
-                $('<td>').text(defaultUnitLabel(product)),
-                $('<td>').html(formatMoney(product.harga_jual || 0) + ' / ' + escapeHtml(baseUnitLabel(product))),
-                $('<td>').addClass('text-center').append($statusBadge),
-                $('<td>').append($qtyInput)
+                $('<td>').attr('data-label', 'Pilih').addClass('text-center').append($checkbox),
+                $('<td>').attr('data-label', 'Kode').text(product.code || '-'),
+                $('<td>').attr('data-label', 'Nama Produk').text(product.name || '-'),
+                $('<td>').attr('data-label', 'Stok Tersedia').text(product.stock_summary || '-'),
+                $('<td>').attr('data-label', 'Satuan Input').text(defaultUnitLabel(product)),
+                $('<td>').attr('data-label', 'Harga / Satuan Dasar').html(formatMoney(product.harga_jual || 0) + ' / ' + escapeHtml(baseUnitLabel(product))),
+                $('<td>').attr('data-label', 'Status').addClass('text-center').append($statusBadge),
+                $('<td>').attr('data-label', 'Qty').append($qtyInput)
             );
 
             $tbody.append($row);
@@ -600,6 +727,8 @@
         moneyMask();
         updateBuyerFields();
         refreshOldDebtPreview();
+        renderSalesPhotoPreview();
+        updateSalesLocationPreview();
 
         if (oldItems.length) {
             oldItems.forEach(function(item) {

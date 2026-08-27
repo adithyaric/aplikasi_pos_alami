@@ -425,3 +425,187 @@
 .main-footer {
     border-top: 0;
 }
+
+/* Product picker tables are intentionally scrollable on narrow screens so
+   every column remains usable without forcing the modal wider than the viewport. */
+.product-picker-dialog {
+    width: calc(100% - 30px);
+    max-width: 1000px;
+}
+
+.product-picker-modal-body {
+    overflow-x: hidden;
+}
+
+.product-picker-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+.product-picker-table {
+    min-width: 760px;
+    margin-bottom: 0;
+}
+
+.product-picker-table th,
+.product-picker-table td {
+    vertical-align: middle !important;
+}
+
+.product-picker-table th {
+    white-space: nowrap;
+}
+
+.product-picker-table td:nth-child(3) {
+    min-width: 180px;
+}
+
+.product-picker-qty {
+    width: 96px !important;
+    min-width: 96px;
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 16px;
+}
+
+.product-picker-table input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    vertical-align: middle;
+}
+
+.product-picker-scroll-hint {
+    margin-bottom: 8px;
+}
+
+@media (max-width: 767px) {
+    .product-picker-dialog {
+        width: auto;
+        margin: 10px;
+    }
+
+    .product-picker-modal .modal-content {
+        max-height: calc(100vh - 20px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .product-picker-modal .modal-header {
+        padding: 14px 12px;
+    }
+
+    .product-picker-modal .modal-title {
+        padding-right: 24px;
+        line-height: 1.35;
+    }
+
+    .product-picker-modal-body {
+        padding: 12px;
+        overflow-y: auto;
+    }
+
+    .product-picker-modal .dataTables_wrapper {
+        width: 100%;
+    }
+
+    .product-picker-modal .dataTables_length,
+    .product-picker-modal .dataTables_filter {
+        float: none;
+        width: 100%;
+        margin-bottom: 10px;
+        text-align: left;
+    }
+
+    .product-picker-modal .dataTables_filter label,
+    .product-picker-modal .dataTables_filter input {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .product-picker-modal .dataTables_filter input,
+    .product-picker-modal .dataTables_length select {
+        min-height: 44px;
+        font-size: 16px;
+    }
+
+    .product-picker-modal .dataTables_info,
+    .product-picker-modal .dataTables_paginate {
+        float: none;
+        display: block;
+        text-align: left;
+        margin-top: 10px;
+    }
+
+    .product-picker-modal .dataTables_paginate .pagination {
+        margin: 0;
+    }
+
+    .product-picker-modal .modal-footer {
+        display: flex;
+        flex-direction: column;
+        padding: 10px 12px;
+    }
+
+    .product-picker-modal .modal-footer .btn {
+        width: 100%;
+        min-height: 44px;
+        margin: 4px 0 0 !important;
+    }
+
+    #warehouse-sale-form #items-body .item-unit,
+    #warehouse-sale-form #items-body .item-qty,
+    #warehouse-sale-form #items-body .item-discount,
+    #warehouse-sale-form #items-body .item-price,
+    #product-repeater .unit,
+    #product-repeater .qty,
+    #product-repeater .harga_beli {
+        min-height: 44px;
+        font-size: 16px;
+    }
+
+    #warehouse-sale-form #items-body .select2-container,
+    #product-repeater .select2-container {
+        min-height: 44px;
+    }
+
+    #warehouse-sale-form #items-body .select2-selection--single,
+    #product-repeater .select2-selection--single {
+        min-height: 44px;
+        padding: 7px 10px;
+        font-size: 16px;
+    }
+
+    #warehouse-sale-form #items-body .select2-selection__rendered,
+    #product-repeater .select2-selection__rendered {
+        line-height: 28px;
+    }
+}
+.sales-photo-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.sales-photo-thumb {
+    display: inline-block;
+    width: 82px;
+    height: 82px;
+    overflow: hidden;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #f7f7f7;
+}
+
+.sales-photo-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.sales-osm-map-preview {
+    margin-top: 8px;
+}

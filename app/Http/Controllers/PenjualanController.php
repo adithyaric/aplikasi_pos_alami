@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\WarehousePenjualanRequest;
-use App\Models\Agent;
 use App\Models\Account;
+use App\Models\Agent;
 use App\Models\Canvas;
 use App\Models\Outlet;
 use App\Models\OwnerStock;
@@ -13,8 +13,8 @@ use App\Models\PenjualanItem;
 use App\Models\Product;
 use App\Models\Salesman;
 use App\Models\Stock;
-use App\Services\BranchPenjualanManager;
 use App\Services\AccountingService;
+use App\Services\BranchPenjualanManager;
 use App\Services\PenjualanBalanceService;
 use App\Services\WarehousePenjualanManager;
 use App\Support\ProductUnitConverter;
@@ -29,8 +29,7 @@ class PenjualanController extends Controller
         private readonly BranchPenjualanManager $branchPenjualanManager,
         private readonly PenjualanBalanceService $balanceService,
         private readonly AccountingService $accounting
-    ) {
-    }
+    ) {}
 
     public function getPenjualan($outlet_id)
     {
@@ -203,7 +202,7 @@ class PenjualanController extends Controller
         $this->ensurePenjualanAccess();
         $this->ensureSaleCanBeManaged($penjualan);
 
-        $penjualan->load(['items.product', 'paymentTransaction']);
+        $penjualan->load(['items.product', 'paymentTransaction', 'photos']);
 
         return view('penjualan.edit', $penjualan->isBranchSale()
             ? $this->branchSaleFormData($penjualan)
@@ -241,6 +240,11 @@ class PenjualanController extends Controller
                     'old_debt_override' => $request->old_debt_override,
                     'discount' => (int) ($request->discount ?? 0),
                     'notes' => $request->notes,
+                    'latitude' => $request->latitude,
+                    'longitude' => $request->longitude,
+                    'location_accuracy' => $request->location_accuracy,
+                    'location_captured_at' => $request->location_captured_at,
+                    'sales_photos' => $request->file('sales_photos', []),
                     'items' => collect($request->items)->map(fn ($item) => [
                         'product_id' => (int) $item['product_id'],
                         'qty' => (float) $item['qty'],
@@ -269,6 +273,12 @@ class PenjualanController extends Controller
                 'shipping_cost' => (int) ($request->shipping_cost ?? 0),
                 'old_debt_override' => $request->old_debt_override,
                 'discount' => (int) ($request->discount ?? 0),
+                'notes' => $request->notes,
+                'latitude' => $request->latitude,
+                'longitude' => $request->longitude,
+                'location_accuracy' => $request->location_accuracy,
+                'location_captured_at' => $request->location_captured_at,
+                'sales_photos' => $request->file('sales_photos', []),
                 'items' => collect($request->items)->map(fn ($item) => [
                     'product_id' => (int) $item['product_id'],
                     'qty' => (float) $item['qty'],
@@ -326,6 +336,11 @@ class PenjualanController extends Controller
                     'old_debt_override' => $request->old_debt_override,
                     'discount' => (int) ($request->discount ?? 0),
                     'notes' => $request->notes,
+                    'latitude' => $request->latitude,
+                    'longitude' => $request->longitude,
+                    'location_accuracy' => $request->location_accuracy,
+                    'location_captured_at' => $request->location_captured_at,
+                    'sales_photos' => $request->file('sales_photos', []),
                     'items' => collect($request->items)->map(fn ($item) => [
                         'product_id' => (int) $item['product_id'],
                         'qty' => (float) $item['qty'],
@@ -348,6 +363,12 @@ class PenjualanController extends Controller
                 'shipping_cost' => (int) ($request->shipping_cost ?? 0),
                 'old_debt_override' => $request->old_debt_override,
                 'discount' => (int) ($request->discount ?? 0),
+                'notes' => $request->notes,
+                'latitude' => $request->latitude,
+                'longitude' => $request->longitude,
+                'location_accuracy' => $request->location_accuracy,
+                'location_captured_at' => $request->location_captured_at,
+                'sales_photos' => $request->file('sales_photos', []),
                 'items' => collect($request->items)->map(fn ($item) => [
                     'product_id' => (int) $item['product_id'],
                     'qty' => (float) $item['qty'],
@@ -532,6 +553,7 @@ class PenjualanController extends Controller
             'transaction.payment',
             'paymentTransaction',
             'totalAdjustments.refund',
+            'photos',
         ]);
 
         return view('penjualan.show', [

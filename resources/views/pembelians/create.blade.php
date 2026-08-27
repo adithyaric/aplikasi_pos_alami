@@ -167,8 +167,8 @@
                         </div>
 
                         <!-- Modal Cek Barang -->
-                        <div class="modal fade" id="modalCekBarang" tabindex="-1" role="dialog" aria-labelledby="modalCekBarangLabel">
-                            <div class="modal-dialog modal-lg" role="document">
+                        <div class="modal fade product-picker-modal" id="modalCekBarang" tabindex="-1" role="dialog" aria-labelledby="modalCekBarangLabel">
+                            <div class="modal-dialog modal-lg product-picker-dialog" role="document">
                                 <div class="modal-content">
                                     <div class="modal-header">
                                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -179,22 +179,27 @@
                                             <small class="text-warning">— diurutkan dari stok paling kritis</small>
                                         </h4>
                                     </div>
-                                    <div class="modal-body">
-                                        <table id="tableCekBarang" class="table table-bordered table-striped table-hover" style="width:100%">
-                                            <thead>
-                                                <tr>
-                                                    <th width="30"><input type="checkbox" id="checkAll"></th>
-                                                    <th>Kode</th>
-                                                    <th>Nama Produk</th>
-                                                    <th>Stok Saat Ini</th>
-                                                    <th>Min Stok</th>
-                                                    <th>Konversi</th>
-                                                    <th>Status</th>
-                                                    <th width="90">Qty Order</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="cekBarangBody"></tbody>
-                                        </table>
+                                    <div class="modal-body product-picker-modal-body">
+                                        <p class="product-picker-scroll-hint text-muted visible-xs">
+                                            Geser tabel ke samping untuk melihat kolom lainnya.
+                                        </p>
+                                        <div class="product-picker-table-wrap">
+                                            <table id="tableCekBarang" class="table table-bordered table-striped table-hover product-picker-table" style="width:100%">
+                                                <thead>
+                                                    <tr>
+                                                        <th width="30"><input type="checkbox" id="checkAll"></th>
+                                                        <th>Kode</th>
+                                                        <th>Nama Produk</th>
+                                                        <th>Stok Saat Ini</th>
+                                                        <th>Min Stok</th>
+                                                        <th>Konversi</th>
+                                                        <th>Status</th>
+                                                        <th width="90">Qty Order</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="cekBarangBody"></tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                     <div class="modal-footer">
                                         <button type="button" class="btn btn-default" data-dismiss="modal">Tutup</button>
@@ -986,18 +991,18 @@
                 const $statusBadge = $('<span>').addClass('label')
                     .addClass(isUnder ? 'label-danger' : 'label-success')
                     .text(isUnder ? 'OUT OF STOCK' : 'Normal');
-                const $qtyInput = $('<input>').attr({ type: 'number', class: 'form-control input-sm cek-qty', min: 1 })
-                    .css('width', '70px').val(isUnder ? suggestedQty : 1);
+                const $qtyInput = $('<input>').attr({ type: 'number', class: 'form-control product-picker-qty cek-qty', min: 1 })
+                    .val(isUnder ? suggestedQty : 1);
 
                 $tr.append(
-                    $checkTd,
-                    $('<td>').text(p.code),
-                    $('<td>').text(p.name),
-                    $('<td>').addClass('text-center').html(fmtQtyK(p.stock_count || 0, p)),
-                    $('<td>').addClass('text-center').html(fmtQtyK(p.effective_min || p.min_stock || 0, p)),
-                    $('<td>').addClass('text-center').html(fmtKonversiRatio(p)),
-                    $('<td>').addClass('text-center').append($statusBadge),
-                    $('<td>').append($qtyInput)
+                    $checkTd.attr('data-label', 'Pilih'),
+                    $('<td>').attr('data-label', 'Kode').text(p.code),
+                    $('<td>').attr('data-label', 'Nama Produk').text(p.name),
+                    $('<td>').attr('data-label', 'Stok Saat Ini').addClass('text-center').html(fmtQtyK(p.stock_count || 0, p)),
+                    $('<td>').attr('data-label', 'Min Stok').addClass('text-center').html(fmtQtyK(p.effective_min || p.min_stock || 0, p)),
+                    $('<td>').attr('data-label', 'Konversi').addClass('text-center').html(fmtKonversiRatio(p)),
+                    $('<td>').attr('data-label', 'Status').addClass('text-center').append($statusBadge),
+                    $('<td>').attr('data-label', 'Qty Order').append($qtyInput)
                 );
 
                 tbody.append($tr);

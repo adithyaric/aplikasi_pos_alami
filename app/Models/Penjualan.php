@@ -32,6 +32,10 @@ class Penjualan extends Model
         'total',
         'shipping_cost',
         'old_debt_override',
+        'latitude',
+        'longitude',
+        'location_accuracy',
+        'location_captured_at',
     ];
 
     protected $casts = [
@@ -40,6 +44,10 @@ class Penjualan extends Model
         'due_date' => 'date',
         'shipping_cost' => 'integer',
         'old_debt_override' => 'integer',
+        'latitude' => 'decimal:7',
+        'longitude' => 'decimal:7',
+        'location_accuracy' => 'decimal:2',
+        'location_captured_at' => 'datetime',
     ];
 
     public function customer()
@@ -105,6 +113,11 @@ class Penjualan extends Model
     public function paymentTransaction()
     {
         return $this->hasOne(PenjualanPayment::class);
+    }
+
+    public function photos()
+    {
+        return $this->hasMany(PenjualanPhoto::class);
     }
 
     public function totalAdjustments()

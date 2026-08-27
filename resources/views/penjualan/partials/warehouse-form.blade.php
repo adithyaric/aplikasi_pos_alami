@@ -15,6 +15,14 @@
         ? (float) ($calculatedOldDebt ?? 0)
         : (float) $oldDebtOverride;
     $newDebtPreview = max(0, $oldDebtPreview + (float) $shippingCost + (float) ($penjualan?->total ?? 0) - $paidAmount);
+    $salesLatitude = old('latitude', $penjualan?->latitude);
+    $salesLongitude = old('longitude', $penjualan?->longitude);
+    $salesLocationAccuracy = old('location_accuracy', $penjualan?->location_accuracy);
+    $salesLocationCapturedAt = old('location_captured_at', $penjualan?->location_captured_at?->toIso8601String());
+    $existingSalesPhotos = $penjualan?->photos?->map(fn ($photo) => [
+        'url' => asset('storage/'.$photo->path),
+        'name' => $photo->original_name,
+    ])->values() ?? collect();
 @endphp
 
 <section class="content-header">
@@ -29,7 +37,7 @@
                     <h3 class="box-title">{{ $boxTitle }}</h3>
                 </div>
 
-                <form action="{{ $formAction }}" method="POST" id="warehouse-sale-form"
+                <form action="{{ $formAction }}" method="POST" enctype="multipart/form-data" id="warehouse-sale-form"
                     data-penjualan-id="{{ $penjualan?->id ?? '' }}"
                     data-branch-sale="{{ $isBranchSaleMode ? 'true' : 'false' }}"
                     @if ($penjualan)
@@ -191,6 +199,55 @@
                             @endif
                         </div>
 
+                        @if ($isBranchSaleMode)
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Foto Penjualan <small class="text-muted">(opsional)</small></label>
+                                        <input type="file" class="form-control" id="sales_photos" name="sales_photos[]"
+                                            accept="image/jpeg,image/png,image/webp" capture="environment" multiple>
+                                        <p class="help-block">
+                                            <i class="fa fa-info-circle"></i> Bisa memilih lebih dari satu foto. JPG, PNG, atau WEBP, maksimal 10 foto per penyimpanan dan 5MB per foto.
+                                        </p>
+                                        <div id="sales-photo-preview" class="sales-photo-preview" aria-live="polite"></div>
+                                        @error('sales_photos')
+                                            <div class="text-danger">{{ $message }}</div>
+                                        @enderror
+                                        @error('sales_photos.*')
+                                            <div class="text-danger">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Lokasi Penjualan <small class="text-muted">(opsional)</small></label>
+                                        <div>
+                                            <button type="button" class="btn btn-info btn-sm" id="capture-sales-location">
+                                                <i class="fa fa-map-marker"></i> Ambil Lokasi Saat Ini
+                                            </button>
+                                            <button type="button" class="btn btn-default btn-sm" id="clear-sales-location" style="display:none;">
+                                                Hapus Lokasi
+                                            </button>
+                                        </div>
+                                        <p id="sales-location-status" class="help-block" aria-live="polite">
+                                            Lokasi hanya disimpan jika Anda mengizinkan akses lokasi perangkat.
+                                        </p>
+                                        <input type="hidden" name="latitude" id="latitude" value="{{ $salesLatitude }}">
+                                        <input type="hidden" name="longitude" id="longitude" value="{{ $salesLongitude }}">
+                                        <input type="hidden" name="location_accuracy" id="location_accuracy" value="{{ $salesLocationAccuracy }}">
+                                        <input type="hidden" name="location_captured_at" id="location_captured_at" value="{{ $salesLocationCapturedAt }}">
+                                        <div id="sales-osm-map-preview" class="sales-osm-map-preview" style="display:none;"></div>
+                                        @error('latitude')
+                                            <div class="text-danger">{{ $message }}</div>
+                                        @enderror
+                                        @error('longitude')
+                                            <div class="text-danger">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
                         <div class="table-responsive">
                             <table class="table table-bordered" id="items-table">
                                 <thead>
@@ -283,8 +340,8 @@
                         </button>
                     </div>
 
-                    <div class="modal fade" id="modalCekBarangPenjualan" tabindex="-1" role="dialog" aria-labelledby="modalCekBarangPenjualanLabel">
-                        <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal fade product-picker-modal" id="modalCekBarangPenjualan" tabindex="-1" role="dialog" aria-labelledby="modalCekBarangPenjualanLabel">
+                        <div class="modal-dialog modal-lg product-picker-dialog" role="document">
                             <div class="modal-content">
                                 <div class="modal-header">
                                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -294,25 +351,30 @@
                                         <i class="fa fa-search"></i> Pilih Produk Penjualan
                                     </h4>
                                 </div>
-                                <div class="modal-body">
+                                <div class="modal-body product-picker-modal-body">
                                     <p class="text-muted">
                                         Checklist produk yang ingin ditambahkan. Produk yang sudah ada di tabel akan otomatis dikunci.
                                     </p>
-                                    <table id="tableCekBarangPenjualan" class="table table-bordered table-striped table-hover" style="width:100%">
-                                        <thead>
-                                            <tr>
-                                                <th width="30"><input type="checkbox" id="checkAllPenjualan"></th>
-                                                <th>Kode</th>
-                                                <th>Nama Produk</th>
-                                                <th>Stok Tersedia</th>
-                                                <th>Satuan Input</th>
-                                                <th>Harga / Satuan Dasar</th>
-                                                <th>Status</th>
-                                                <th width="90">Qty</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="cekBarangPenjualanBody"></tbody>
-                                    </table>
+                                    <p class="product-picker-scroll-hint text-muted visible-xs">
+                                        Geser tabel ke samping untuk melihat kolom lainnya.
+                                    </p>
+                                    <div class="product-picker-table-wrap">
+                                        <table id="tableCekBarangPenjualan" class="table table-bordered table-striped table-hover product-picker-table" style="width:100%">
+                                            <thead>
+                                                <tr>
+                                                    <th width="30"><input type="checkbox" id="checkAllPenjualan"></th>
+                                                    <th>Kode</th>
+                                                    <th>Nama Produk</th>
+                                                    <th>Stok Tersedia</th>
+                                                    <th>Satuan Input</th>
+                                                    <th>Harga / Satuan Dasar</th>
+                                                    <th>Status</th>
+                                                    <th width="90">Qty</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="cekBarangPenjualanBody"></tbody>
+                                        </table>
+                                    </div>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-default" data-dismiss="modal">Tutup</button>

@@ -71,6 +71,12 @@ class WarehousePenjualanRequest extends FormRequest
             'shipping_cost' => 'nullable|numeric|min:0',
             'old_debt_override' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
+            'latitude' => $isBranchSale ? 'nullable|numeric|between:-90,90' : 'prohibited',
+            'longitude' => $isBranchSale ? 'nullable|numeric|between:-180,180' : 'prohibited',
+            'location_accuracy' => $isBranchSale ? 'nullable|numeric|min:0|max:100000' : 'prohibited',
+            'location_captured_at' => $isBranchSale ? 'nullable|date' : 'prohibited',
+            'sales_photos' => $isBranchSale ? 'nullable|array|max:10' : 'prohibited',
+            'sales_photos.*' => $isBranchSale ? 'image|mimes:jpg,jpeg,png,webp|max:5120' : 'prohibited',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id|distinct',
             'items.*.qty' => 'required|numeric|min:1',
@@ -102,6 +108,13 @@ class WarehousePenjualanRequest extends FormRequest
             'items.*.price.required' => 'Harga jual wajib diisi.',
             'items.*.price.min' => 'Harga jual tidak boleh negatif.',
             'items.*.discount.min' => 'Diskon item tidak boleh negatif.',
+            'latitude.between' => 'Latitude lokasi tidak valid.',
+            'longitude.between' => 'Longitude lokasi tidak valid.',
+            'sales_photos.array' => 'Foto penjualan tidak valid.',
+            'sales_photos.max' => 'Maksimal 10 foto penjualan per penyimpanan.',
+            'sales_photos.*.image' => 'Foto penjualan harus berupa gambar.',
+            'sales_photos.*.mimes' => 'Foto penjualan harus JPG, PNG, atau WEBP.',
+            'sales_photos.*.max' => 'Ukuran setiap foto penjualan maksimal 5MB.',
         ];
     }
 
