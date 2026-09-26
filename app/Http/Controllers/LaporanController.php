@@ -14,6 +14,7 @@ use App\Exports\LaporanPergerakanExport;
 use App\Exports\LaporanPickingPackingExport;
 use App\Exports\LaporanPOExport;
 use App\Exports\LaporanPRExport;
+use App\Exports\LaporanPenjualanPusatCabangExport;
 use App\Exports\ProfitLossExport;
 use App\Exports\PembelianExport;
 use App\Exports\PembelianBulkExport;
@@ -360,6 +361,55 @@ class LaporanController extends Controller
     public function exportPenjualan(Request $request)
     {
         return Excel::download(new PenjualanExport($request), 'laporan-penjualan.xlsx');
+    }
+
+    public function exportPenjualanPusatCabang(Request $request)
+    {
+        $request->validate([
+            'tanggal_mulai' => 'required|date',
+            'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
+            'scope' => 'nullable|in:pusat,cabang,semua',
+            'outlet_id' => 'nullable|integer|exists:outlets,id',
+        ]);
+
+        $user = auth()->user();
+        $scope = $request->input('scope', LaporanPenjualanPusatCabangExport::SCOPE_SEMUA);
+        $outletId = $request->integer('outlet_id') ?: null;
+        $userId = null;
+
+        if ($user?->isBranchScoped()) {
+            abort_unless($scope === LaporanPenjualanPusatCabangExport::SCOPE_CABANG, 403);
+            $scope = LaporanPenjualanPusatCabangExport::SCOPE_CABANG;
+            $outletId = $user->branchId();
+            $userId = $user->role === 'sales' ? (int) $user->id : null;
+        } else {
+            abort_unless($user?->hasPermission('reports.all'), 403);
+
+            if ($scope === LaporanPenjualanPusatCabangExport::SCOPE_PUSAT) {
+                $outletId = null;
+            }
+        }
+
+        $dateFrom = $request->date('tanggal_mulai')->toDateString();
+        $dateTo = $request->date('tanggal_selesai')->toDateString();
+        $outputPath = tempnam(sys_get_temp_dir(), 'laporan-penjualan-');
+        abort_unless($outputPath !== false, 500, 'File sementara laporan penjualan tidak dapat dibuat.');
+
+        (new LaporanPenjualanPusatCabangExport(
+            $dateFrom,
+            $dateTo,
+            $scope,
+            $outletId,
+            $userId,
+        ))->store($outputPath);
+
+        $filename = match ($scope) {
+            LaporanPenjualanPusatCabangExport::SCOPE_PUSAT => 'laporan-penjualan-pusat.xlsx',
+            LaporanPenjualanPusatCabangExport::SCOPE_CABANG => 'laporan-penjualan-cabang.xlsx',
+            default => 'laporan-penjualan-pusat-dan-cabang.xlsx',
+        };
+
+        return response()->download($outputPath, $filename)->deleteFileAfterSend(true);
     }
 
     public function exportPiutang(Request $request)

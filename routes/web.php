@@ -192,6 +192,7 @@ Route::middleware(['role:po|finance|leader-cabang|admin-gudang|admin-cabang|staf
 
     Route::get('/laporan/pembelian-supplier', [LaporanController::class, 'exportPembelianSupplier'])->name('laporan.pembelian-supplier');
     Route::get('/laporan/penjualan', [LaporanController::class, 'exportPenjualan'])->name('laporan.penjualan');
+    Route::get('/laporan/penjualan-pusat-cabang', [LaporanController::class, 'exportPenjualanPusatCabang'])->name('laporan.penjualan.pusat-cabang');
     Route::get('/laporan/piutang', [LaporanController::class, 'exportPiutang'])->name('laporan.piutang');
     Route::get('/laporan/pembayaran', [LaporanController::class, 'exportPembayaran'])->name('laporan.pembayaran');
     Route::get('/laporan/penjualan-kasir', [LaporanController::class, 'exportPenjualanKasir'])->name('laporan.penjualan-kasir');

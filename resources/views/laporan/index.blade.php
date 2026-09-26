@@ -307,6 +307,51 @@
 </div>
 @endif
 
+@if ($user->hasPermission('reports.all') || $user->hasPermission('reports.branch'))
+<div class="row">
+    <div class="col-md-12">
+        <div class="box box-success">
+            <div class="box-header with-border">
+                <h3 class="box-title"><i class="fa fa-table"></i> Laporan Penjualan Multi-Sheet</h3>
+            </div>
+            <div class="box-body">
+                <p class="text-muted small" style="margin-top:0">
+                    Membuat tab dinamis untuk setiap produk, lalu menghubungkannya ke tab Agen, Jumlah Penjualan, dan Piutang.
+                </p>
+                <form method="GET" action="{{ route('laporan.penjualan.pusat-cabang') }}" class="form-inline">
+                    <div class="form-group">
+                        <label for="multi_report_start">Dari</label>
+                        <input type="date" id="multi_report_start" name="tanggal_mulai" class="form-control"
+                            value="{{ now()->startOfMonth()->format('Y-m-d') }}" required>
+                    </div>
+                    <div class="form-group" style="margin-left:8px">
+                        <label for="multi_report_end">Sampai</label>
+                        <input type="date" id="multi_report_end" name="tanggal_selesai" class="form-control"
+                            value="{{ now()->format('Y-m-d') }}" required>
+                    </div>
+                    <span class="text-muted small" style="margin-left:8px;margin-right:4px">Export:</span>
+                    @if ($user->hasPermission('reports.all'))
+                        <button type="submit" name="scope" value="pusat" class="btn btn-primary">
+                            <i class="fa fa-building"></i> Pusat
+                        </button>
+                        <button type="submit" name="scope" value="cabang" class="btn btn-info">
+                            <i class="fa fa-sitemap"></i> Cabang
+                        </button>
+                        <button type="submit" name="scope" value="semua" class="btn btn-success">
+                            <i class="fa fa-files-o"></i> Pusat &amp; Cabang
+                        </button>
+                    @else
+                        <button type="submit" name="scope" value="cabang" class="btn btn-info">
+                            <i class="fa fa-file-excel-o"></i> Cabang
+                        </button>
+                    @endif
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- ============ MODALS ============ --}}
 
 @php
