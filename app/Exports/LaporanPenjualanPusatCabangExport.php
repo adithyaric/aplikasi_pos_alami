@@ -4,9 +4,12 @@ namespace App\Exports;
 
 use App\Models\OwnerStock;
 use App\Models\OwnerStockMovement;
+use App\Models\Agent;
+use App\Models\Canvas;
 use App\Models\Outlet;
 use App\Models\Penjualan;
 use App\Models\Product;
+use App\Models\Salesman;
 use App\Models\Stock;
 use App\Models\StockMovement;
 use Carbon\Carbon;
@@ -44,12 +47,21 @@ class LaporanPenjualanPusatCabangExport
 
     private ?int $userId;
 
+    private ?string $filterType;
+
+    private ?int $targetId;
+
+    private ?int $salesmanId;
+
     public function __construct(
         string $dateFrom,
         string $dateTo,
         string $scope = self::SCOPE_SEMUA,
         ?int $outletId = null,
         ?int $userId = null,
+        ?string $filterType = null,
+        ?int $targetId = null,
+        ?int $salesmanId = null,
     ) {
         $this->dateFrom = Carbon::parse($dateFrom)->startOfDay();
         $this->dateTo = Carbon::parse($dateTo)->startOfDay();
@@ -58,6 +70,9 @@ class LaporanPenjualanPusatCabangExport
             : self::SCOPE_SEMUA;
         $this->outletId = $outletId;
         $this->userId = $userId;
+        $this->filterType = $this->normalizeFilterType($filterType);
+        $this->targetId = $targetId;
+        $this->salesmanId = $salesmanId;
     }
 
     public function store(string $outputPath): string
@@ -78,9 +93,11 @@ class LaporanPenjualanPusatCabangExport
         }
         unset($productData);
 
-        $agentSheet = $workbook->createSheet();
-        $agentSheet->setTitle('AGEN');
-        $this->writeAgentSheet($agentSheet, $data);
+        if ($data['includeAgentSheet']) {
+            $agentSheet = $workbook->createSheet();
+            $agentSheet->setTitle('AGEN');
+            $this->writeAgentSheet($agentSheet, $data);
+        }
 
         $salesSheet = $workbook->createSheet();
         $salesSheet->setTitle('JUMLAH PENJUALAN');
@@ -108,7 +125,6 @@ class LaporanPenjualanPusatCabangExport
         }
 
         $products = Product::withTrashed()->orderBy('name')->orderBy('id')->get();
-        $sales = $this->salesQuery(false)->get();
         $debtSales = $this->salesQuery(true)->get();
 
         // Historical sales can still point to a soft-deleted product. Keep
@@ -123,7 +139,7 @@ class LaporanPenjualanPusatCabangExport
         });
         $products = $productsById->sortBy(fn (Product $product) => [mb_strtolower((string) $product->name), $product->id])->values();
 
-        $contributors = [];
+        $contributors = array_fill_keys($this->availableContributorNames(), true);
         $qtyByDate = [];
         $nominalByDate = [];
         $qtyByContributor = [];
@@ -242,7 +258,8 @@ class LaporanPenjualanPusatCabangExport
             'paymentByDate' => $paymentByDate,
             'stockOpening' => $stockData['opening'],
             'loadingByDate' => $stockData['loading'],
-            'scopeLabel' => $this->scopeLabel(),
+            'scopeLabel' => $this->scopeLabel($contributors),
+            'includeAgentSheet' => $this->scope === self::SCOPE_PUSAT && $this->filterType === 'agen',
         ];
     }
 
@@ -252,6 +269,8 @@ class LaporanPenjualanPusatCabangExport
             'items.product',
             'paymentTransaction',
             'outlet',
+            'operator',
+            'salesman' => fn ($query) => $query->withTrashed(),
             'agent',
             'canvasBuyer',
             'outletBuyer',
@@ -289,7 +308,22 @@ class LaporanPenjualanPusatCabangExport
             $query->where('outlet_id', $this->outletId);
         }
 
-        if ($this->userId !== null) {
+        if ($this->scope === self::SCOPE_PUSAT && $this->warehouseBuyerType() !== null) {
+            $query->where('buyer_type', $this->warehouseBuyerType());
+
+            if ($this->targetId !== null) {
+                $query->where('buyer_id', $this->targetId);
+            }
+        }
+
+        if ($this->salesmanId !== null && $this->userId !== null) {
+            $query->where(function ($builder): void {
+                $builder->where('salesman_id', $this->salesmanId)
+                    ->orWhere('user_id', $this->userId);
+            });
+        } elseif ($this->salesmanId !== null) {
+            $query->where('salesman_id', $this->salesmanId);
+        } elseif ($this->userId !== null) {
             $query->where('user_id', $this->userId);
         }
 
@@ -365,16 +399,81 @@ class LaporanPenjualanPusatCabangExport
 
     private function contributorName(Penjualan $sale): ?string
     {
-        $name = $sale->isWarehouseSale()
-            ? trim((string) $sale->buyerDisplayName)
-            : trim((string) ($sale->outlet?->name ?? ''));
-        $name = $name !== '' && $name !== '-' ? $name : ($sale->isWarehouseSale() ? 'Tanpa Pembeli' : 'Tanpa Cabang');
+        if ($sale->isWarehouseSale()) {
+            $name = trim((string) ($sale->buyerEntity()?->name ?? $sale->buyerDisplayName));
+            $fallback = 'Tanpa Pembeli';
+        } else {
+            $name = trim((string) ($sale->salesman?->name ?? $sale->operator?->name ?? ''));
+            $fallback = 'Tanpa Sales';
+        }
+        $name = $name !== '' && $name !== '-' ? $name : $fallback;
 
         if ($this->scope === self::SCOPE_SEMUA) {
             $name = ($sale->isWarehouseSale() ? 'Pusat: ' : 'Cabang: ').$name;
         }
 
         return $name;
+    }
+
+    private function availableContributorNames(): array
+    {
+        if ($this->scope === self::SCOPE_PUSAT && $this->warehouseBuyerType() !== null) {
+            $query = match ($this->filterType) {
+                'agen' => Agent::query()->where('is_active', true),
+                'canvas' => Canvas::query()->where('is_active', true),
+                'cabang' => Outlet::branches(),
+                default => null,
+            };
+
+            if ($query === null) {
+                return [];
+            }
+
+            if ($this->targetId !== null) {
+                $query->whereKey($this->targetId);
+            }
+
+            return $query->orderBy('name')
+                ->pluck('name')
+                ->filter(fn ($name) => trim((string) $name) !== '')
+                ->map(fn ($name) => trim((string) $name))
+                ->values()
+                ->all();
+        }
+
+        if ($this->scope === self::SCOPE_CABANG) {
+            $query = Salesman::withTrashed()->whereNotNull('outlet_id');
+            if ($this->outletId !== null) {
+                $query->where('outlet_id', $this->outletId);
+            }
+            if ($this->salesmanId !== null) {
+                $query->whereKey($this->salesmanId);
+            }
+
+            return $query->orderBy('name')
+                ->pluck('name')
+                ->filter(fn ($name) => trim((string) $name) !== '')
+                ->map(fn ($name) => trim((string) $name))
+                ->values()
+                ->all();
+        }
+
+        return [];
+    }
+
+    private function warehouseBuyerType(): ?string
+    {
+        return match ($this->filterType) {
+            'agen' => 'agent',
+            'canvas' => 'canvas',
+            'cabang' => 'outlet',
+            default => null,
+        };
+    }
+
+    private function normalizeFilterType(?string $filterType): ?string
+    {
+        return in_array($filterType, ['cabang', 'agen', 'canvas'], true) ? $filterType : null;
     }
 
     private function buildStockData(Collection $products, Collection $dates, array $qtyByDate): array
@@ -852,13 +951,33 @@ class LaporanPenjualanPusatCabangExport
         return Coordinate::stringFromColumnIndex($columnIndex).$row;
     }
 
-    private function scopeLabel(): string
+    private function scopeLabel(array $contributors = []): string
     {
-        return match ($this->scope) {
+        $label = match ($this->scope) {
             self::SCOPE_PUSAT => 'PENJUALAN PUSAT',
             self::SCOPE_CABANG => 'PENJUALAN CABANG',
             default => 'PENJUALAN PUSAT & CABANG',
         };
+
+        if ($this->scope === self::SCOPE_PUSAT && $this->filterType !== null) {
+            $typeLabel = ucfirst($this->filterType);
+            $targetLabel = $this->targetId !== null && isset($contributors[0])
+                ? ' - '.$contributors[0]
+                : ' - Semua '.$typeLabel;
+
+            return $label.' - '.$typeLabel.$targetLabel;
+        }
+
+        if ($this->scope === self::SCOPE_CABANG && $this->outletId !== null) {
+            $branchName = Outlet::withTrashed()->whereKey($this->outletId)->value('name') ?: 'Cabang';
+            $salesmanLabel = $this->salesmanId !== null && isset($contributors[0])
+                ? ' - Sales: '.$contributors[0]
+                : ' - Semua Sales';
+
+            return $label.' - '.$branchName.$salesmanLabel;
+        }
+
+        return $label;
     }
 
     private function styleSheet($sheet, string $range, string $lastColumn, int $dataStartRow, int $totalRow, bool $productSheet): void

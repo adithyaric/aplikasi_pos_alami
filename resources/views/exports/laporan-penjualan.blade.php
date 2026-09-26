@@ -17,9 +17,9 @@
             @endphp
             <tr>
                 <td>{{ $penjualan->code }}</td>
-                <td>{{ $penjualan->customer->name }}</td>
-                <td>{{ $penjualan->kasir->name ?? '' }}</td>
-                <td>{{ $penjualan->outlet->name ?? '' }}</td>
+                <td>{{ $penjualan->customer?->name }}</td>
+                <td>{{ $penjualan->kasir?->name ?? '' }}</td>
+                <td>{{ $penjualan->outlet?->name ?? '' }}</td>
                 <td>{{ $totalDiscount }}</td>
                 <td>@currency($penjualan->total)</td>
             </tr>

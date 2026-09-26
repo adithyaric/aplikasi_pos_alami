@@ -147,6 +147,7 @@ class RoleMiddleware
                 && ! in_array($route, [
                     'laporan.index',
                     'laporan.penjualan',
+                    'laporan.penjualan.pusat-cabang',
                     'laporan.piutang',
                     'laporan.pembayaran',
                     'laporan.penjualan.invoice',

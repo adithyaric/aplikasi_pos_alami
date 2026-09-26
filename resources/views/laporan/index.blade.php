@@ -316,40 +316,238 @@
             </div>
             <div class="box-body">
                 <p class="text-muted small" style="margin-top:0">
-                    Membuat tab dinamis untuk setiap produk, lalu menghubungkannya ke tab Agen, Jumlah Penjualan, dan Piutang.
+                    Pilih jenis data yang ingin diexport. Tab produk akan mengikuti cabang, agen, canvas, atau sales yang dipilih.
                 </p>
-                <form method="GET" action="{{ route('laporan.penjualan.pusat-cabang') }}" class="form-inline">
-                    <div class="form-group">
-                        <label for="multi_report_start">Dari</label>
-                        <input type="date" id="multi_report_start" name="tanggal_mulai" class="form-control"
-                            value="{{ now()->startOfMonth()->format('Y-m-d') }}" required>
+                <form method="GET" action="{{ route('laporan.penjualan.pusat-cabang') }}" id="multi_sheet_report_form">
+                    <div class="row">
+                        <div class="col-sm-3">
+                            <div class="form-group" style="width:100%">
+                                <label for="multi_report_start">Dari</label>
+                                <input type="date" id="multi_report_start" name="tanggal_mulai" class="form-control"
+                                    value="{{ now()->startOfMonth()->format('Y-m-d') }}" required>
+                            </div>
+                        </div>
+                        <div class="col-sm-3">
+                            <div class="form-group" style="width:100%">
+                                <label for="multi_report_end">Sampai</label>
+                                <input type="date" id="multi_report_end" name="tanggal_selesai" class="form-control"
+                                    value="{{ now()->format('Y-m-d') }}" required>
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-group" style="margin-left:8px">
-                        <label for="multi_report_end">Sampai</label>
-                        <input type="date" id="multi_report_end" name="tanggal_selesai" class="form-control"
-                            value="{{ now()->format('Y-m-d') }}" required>
-                    </div>
-                    <span class="text-muted small" style="margin-left:8px;margin-right:4px">Export:</span>
+
                     @if ($user->hasPermission('reports.all'))
-                        <button type="submit" name="scope" value="pusat" class="btn btn-primary">
-                            <i class="fa fa-building"></i> Pusat
-                        </button>
-                        <button type="submit" name="scope" value="cabang" class="btn btn-info">
-                            <i class="fa fa-sitemap"></i> Cabang
-                        </button>
-                        <button type="submit" name="scope" value="semua" class="btn btn-success">
-                            <i class="fa fa-files-o"></i> Pusat &amp; Cabang
-                        </button>
+                        <div class="row" style="margin-top:8px">
+                            <div class="col-md-6" data-report-scope="pusat">
+                                <div class="well well-sm">
+                                    <h4 style="margin-top:0"><i class="fa fa-building"></i> Export Pusat</h4>
+                                    <div class="form-group">
+                                        <label for="multi_report_filter_type">Jenis penjualan</label>
+                                        <select name="filter_type" id="multi_report_filter_type" class="form-control">
+                                            <option value="cabang">Cabang</option>
+                                            <option value="agen">Agen</option>
+                                            <option value="canvas">Canvas</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="multi_report_target_id">Nama data</label>
+                                        <select name="target_id" id="multi_report_target_id" class="form-control"></select>
+                                    </div>
+                                    <button type="submit" name="scope" value="pusat" class="btn btn-primary">
+                                        <i class="fa fa-file-excel-o"></i> Export Pusat
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6" data-report-scope="cabang">
+                                <div class="well well-sm">
+                                    <h4 style="margin-top:0"><i class="fa fa-sitemap"></i> Export Cabang</h4>
+                                    <div class="form-group">
+                                        <label for="multi_report_outlet_id">Cabang</label>
+                                        <select name="outlet_id" id="multi_report_outlet_id" class="form-control">
+                                            <option value="">Pilih cabang</option>
+                                            @foreach ($reportBranches as $branch)
+                                                <option value="{{ $branch->id }}">{{ $branch->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="multi_report_salesman_id">Sales cabang</label>
+                                        <select name="salesman_id" id="multi_report_salesman_id" class="form-control">
+                                            <option value="">Semua sales di cabang</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" name="scope" value="cabang" class="btn btn-info">
+                                        <i class="fa fa-file-excel-o"></i> Export Cabang
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     @else
-                        <button type="submit" name="scope" value="cabang" class="btn btn-info">
-                            <i class="fa fa-file-excel-o"></i> Cabang
-                        </button>
+                        <div class="row" style="margin-top:8px">
+                            <div class="col-md-6" data-report-scope="cabang">
+                                <div class="well well-sm">
+                                    <h4 style="margin-top:0"><i class="fa fa-sitemap"></i> Export Cabang</h4>
+                                    <div class="form-group">
+                                        <label for="multi_report_outlet_id">Cabang</label>
+                                        <select name="outlet_id" id="multi_report_outlet_id" class="form-control">
+                                            @foreach ($reportBranches->where('id', $user->branchId()) as $branch)
+                                                <option value="{{ $branch->id }}">{{ $branch->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="multi_report_salesman_id">Sales cabang</label>
+                                        <select name="salesman_id" id="multi_report_salesman_id" class="form-control">
+                                            <option value="">Semua sales di cabang</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" name="scope" value="cabang" class="btn btn-info">
+                                        <i class="fa fa-file-excel-o"></i> Export Cabang
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     @endif
                 </form>
             </div>
         </div>
     </div>
 </div>
+<script>
+    (function () {
+        var form = document.getElementById('multi_sheet_report_form');
+        if (!form) return;
+
+        var targetSelect = document.getElementById('multi_report_target_id');
+        var filterType = document.getElementById('multi_report_filter_type');
+        var branchSelect = document.getElementById('multi_report_outlet_id');
+        var salesmanSelect = document.getElementById('multi_report_salesman_id');
+        var targetOptions = {
+            cabang: @json($reportBranches->values()),
+            agen: @json($reportAgents->values()),
+            canvas: @json($reportCanvases->values())
+        };
+        var salesmanOptions = @json($reportSalesmen->values());
+        var currentSalesmanId = @json($reportCurrentSalesmanId);
+
+        function appendOption(select, value, label) {
+            var option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            select.appendChild(option);
+        }
+
+        function fillTargets() {
+            if (!targetSelect || !filterType) return;
+            targetSelect.innerHTML = '';
+            var label = filterType.options[filterType.selectedIndex].text;
+            appendOption(targetSelect, '', 'Semua ' + label);
+            (targetOptions[filterType.value] || []).forEach(function (item) {
+                appendOption(targetSelect, item.id, item.name);
+            });
+        }
+
+        function fillSalesmen() {
+            if (!salesmanSelect || !branchSelect) return;
+            salesmanSelect.innerHTML = '';
+            appendOption(salesmanSelect, '', 'Semua sales di cabang');
+            var branchId = branchSelect.value;
+            salesmanOptions
+                .filter(function (item) {
+                    return String(item.outlet_id) === String(branchId)
+                        && (!currentSalesmanId || String(item.id) === String(currentSalesmanId));
+                })
+                .forEach(function (item) {
+                    appendOption(salesmanSelect, item.id, item.name);
+                });
+            if (currentSalesmanId) {
+                salesmanSelect.value = String(currentSalesmanId);
+                salesmanSelect.disabled = true;
+            }
+        }
+
+        if (filterType) {
+            filterType.addEventListener('change', fillTargets);
+            fillTargets();
+        }
+        if (branchSelect) {
+            branchSelect.addEventListener('change', fillSalesmen);
+            fillSalesmen();
+        }
+
+        function enableReportSections() {
+            form.querySelectorAll('[data-report-scope] select').forEach(function (select) {
+                select.disabled = false;
+            });
+            if (currentSalesmanId && salesmanSelect) {
+                salesmanSelect.value = String(currentSalesmanId);
+                salesmanSelect.disabled = true;
+            }
+        }
+
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            var scope = event.submitter ? event.submitter.value : 'cabang';
+            form.querySelectorAll('[data-report-scope]').forEach(function (section) {
+                var isActive = section.getAttribute('data-report-scope') === scope;
+                section.querySelectorAll('select').forEach(function (select) {
+                    if (select !== salesmanSelect || !currentSalesmanId) {
+                        select.disabled = !isActive;
+                    }
+                });
+            });
+
+            var submitter = event.submitter;
+            if (submitter) {
+                submitter.disabled = true;
+                submitter.setAttribute('data-original-label', submitter.innerHTML);
+                submitter.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Menyiapkan export...';
+            }
+
+            var params = new URLSearchParams(new FormData(form));
+            params.set('scope', scope);
+            fetch(form.action + '?' + params.toString(), {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
+            })
+                .then(function (response) {
+                    if (!response.ok) {
+                        return response.text().then(function () {
+                            throw new Error('Export gagal diproses.');
+                        });
+                    }
+
+                    var disposition = response.headers.get('Content-Disposition') || '';
+                    var filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+                    var filename = filenameMatch ? filenameMatch[1] : 'laporan_penjualan.xlsx';
+
+                    return response.blob().then(function (blob) {
+                        return { blob: blob, filename: filename };
+                    });
+                })
+                .then(function (file) {
+                    var url = window.URL.createObjectURL(file.blob);
+                    var link = document.createElement('a');
+                    link.href = url;
+                    link.download = file.filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    window.URL.revokeObjectURL(url);
+                    window.location.reload();
+                })
+                .catch(function (error) {
+                    enableReportSections();
+                    if (submitter) {
+                        submitter.disabled = false;
+                        submitter.innerHTML = submitter.getAttribute('data-original-label') || 'Export';
+                    }
+                    window.alert(error.message || 'Export gagal diproses.');
+                });
+        });
+    })();
+</script>
 @endif
 
 {{-- ============ MODALS ============ --}}

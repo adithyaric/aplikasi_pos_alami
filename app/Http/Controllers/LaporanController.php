@@ -34,6 +34,8 @@ use App\Exports\StockExport;
 use App\Exports\StockOpnameExport;
 use App\Models\DeliveryOrder;
 use App\Models\Account;
+use App\Models\Agent;
+use App\Models\Canvas;
 use App\Models\Journal;
 use App\Models\Outlet;
 use App\Models\Pembelian;
@@ -42,6 +44,7 @@ use App\Models\PickingList;
 use App\Models\ProductMinimumAdjustment;
 use App\Models\RefundPembelian;
 use App\Models\RequestOrder;
+use App\Models\Salesman;
 use App\Models\Stock;
 use App\Models\StockAdjustment;
 use App\Models\StockMovement;
@@ -52,6 +55,7 @@ use App\Services\DocumentTemplateRenderer;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 
 class LaporanController extends Controller
@@ -64,6 +68,7 @@ class LaporanController extends Controller
 
     public function index()
     {
+        $user = auth()->user();
         $documentTemplates = collect($this->templateManager->metadata())
             ->except([
                 DocumentTemplateManager::PURCHASE_DOCX,
@@ -74,6 +79,16 @@ class LaporanController extends Controller
         return view('laporan.index', [
             'cashiers' => User::where('role', 'staff-outlet')->get(),
             'outlets' => Outlet::get(),
+            'reportBranches' => Outlet::branches()->orderBy('name')->get(['id', 'name']),
+            'reportAgents' => Agent::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'reportCanvases' => Canvas::where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'reportSalesmen' => Salesman::withTrashed()
+                ->whereNotNull('outlet_id')
+                ->orderBy('name')
+                ->get(['id', 'name', 'outlet_id']),
+            'reportCurrentSalesmanId' => $user?->role === 'sales'
+                ? Salesman::where('user_id', $user->id)->value('id')
+                : null,
             'suppliers' => Supplier::get(),
             'documentTemplates' => $documentTemplates,
             'templateVariables' => $this->templateManager->variableGroups(),
@@ -368,25 +383,65 @@ class LaporanController extends Controller
         $request->validate([
             'tanggal_mulai' => 'required|date',
             'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
-            'scope' => 'nullable|in:pusat,cabang,semua',
+            'scope' => 'required|in:pusat,cabang,semua',
+            'filter_type' => 'nullable|in:cabang,agen,canvas',
             'outlet_id' => 'nullable|integer|exists:outlets,id',
+            'target_id' => 'nullable|integer',
+            'salesman_id' => 'nullable|integer|exists:salesmans,id',
         ]);
 
         $user = auth()->user();
         $scope = $request->input('scope', LaporanPenjualanPusatCabangExport::SCOPE_SEMUA);
+        $filterType = $request->input('filter_type');
         $outletId = $request->integer('outlet_id') ?: null;
+        $targetId = $request->integer('target_id') ?: null;
+        $salesmanId = $request->integer('salesman_id') ?: null;
         $userId = null;
 
         if ($user?->isBranchScoped()) {
-            abort_unless($scope === LaporanPenjualanPusatCabangExport::SCOPE_CABANG, 403);
+            abort_unless(
+                $scope === LaporanPenjualanPusatCabangExport::SCOPE_CABANG
+                    || ($scope === LaporanPenjualanPusatCabangExport::SCOPE_SEMUA && $filterType === null),
+                403
+            );
             $scope = LaporanPenjualanPusatCabangExport::SCOPE_CABANG;
             $outletId = $user->branchId();
-            $userId = $user->role === 'sales' ? (int) $user->id : null;
+            $filterType = null;
+            $targetId = null;
+            if ($user->role === 'sales') {
+                $salesmanId = Salesman::where('user_id', $user->id)->value('id');
+                $userId = (int) $user->id;
+            }
         } else {
             abort_unless($user?->hasPermission('reports.all'), 403);
 
             if ($scope === LaporanPenjualanPusatCabangExport::SCOPE_PUSAT) {
                 $outletId = null;
+                $salesmanId = null;
+                abort_unless($filterType !== null, 422, 'Jenis penjualan pusat wajib dipilih.');
+                $targetModel = match ($filterType) {
+                    'agen' => Agent::where('is_active', true),
+                    'canvas' => Canvas::where('is_active', true),
+                    'cabang' => Outlet::branches(),
+                    default => null,
+                };
+                abort_unless(
+                    $targetModel !== null
+                        && ($targetId === null || $targetModel->whereKey($targetId)->exists()),
+                    422,
+                    'Pilihan data pusat tidak valid.'
+                );
+            } elseif ($scope === LaporanPenjualanPusatCabangExport::SCOPE_CABANG) {
+                $filterType = null;
+                $targetId = null;
+                abort_unless($outletId !== null && Outlet::branches()->whereKey($outletId)->exists(), 422, 'Cabang wajib dipilih.');
+                if ($salesmanId !== null) {
+                    abort_unless(
+                        Salesman::withTrashed()->whereKey($salesmanId)->where('outlet_id', $outletId)->exists(),
+                        422,
+                        'Sales cabang tidak valid.'
+                    );
+                }
             }
         }
 
@@ -401,15 +456,60 @@ class LaporanController extends Controller
             $scope,
             $outletId,
             $userId,
+            $filterType,
+            $targetId,
+            $salesmanId,
         ))->store($outputPath);
 
-        $filename = match ($scope) {
-            LaporanPenjualanPusatCabangExport::SCOPE_PUSAT => 'laporan-penjualan-pusat.xlsx',
-            LaporanPenjualanPusatCabangExport::SCOPE_CABANG => 'laporan-penjualan-cabang.xlsx',
-            default => 'laporan-penjualan-pusat-dan-cabang.xlsx',
-        };
+        $filename = $this->laporanPenjualanPusatCabangFilename(
+            $scope,
+            $filterType,
+            $targetId,
+            $outletId,
+            $salesmanId,
+        );
 
         return response()->download($outputPath, $filename)->deleteFileAfterSend(true);
+    }
+
+    private function laporanPenjualanPusatCabangFilename(
+        string $scope,
+        ?string $filterType,
+        ?int $targetId,
+        ?int $outletId,
+        ?int $salesmanId,
+    ): string {
+        if ($scope === LaporanPenjualanPusatCabangExport::SCOPE_PUSAT && $filterType !== null) {
+            $targetName = $targetId === null
+                ? null
+                : match ($filterType) {
+                    'agen' => Agent::whereKey($targetId)->value('name'),
+                    'canvas' => Canvas::whereKey($targetId)->value('name'),
+                    'cabang' => Outlet::withTrashed()->whereKey($targetId)->value('name'),
+                    default => null,
+                };
+
+            if ($targetName) {
+                return 'laporan_penjualan_pusat_'.Str::slug($filterType).'_'.Str::slug($targetName).'.xlsx';
+            }
+
+            return 'laporan_penjualan_pusat_semua-'.Str::slug($filterType).'.xlsx';
+        }
+
+        if ($scope === LaporanPenjualanPusatCabangExport::SCOPE_CABANG) {
+            $branchName = Outlet::withTrashed()->whereKey($outletId)->value('name') ?: 'cabang';
+            $branchPart = Str::slug($branchName) ?: 'cabang';
+
+            if ($salesmanId !== null) {
+                $salesmanName = Salesman::withTrashed()->whereKey($salesmanId)->value('name') ?: 'sales';
+
+                return 'laporan_penjualan_cabang_'.$branchPart.'_sales_'.(Str::slug($salesmanName) ?: 'sales').'.xlsx';
+            }
+
+            return 'laporan_penjualan_cabang_'.$branchPart.'_semua-sales.xlsx';
+        }
+
+        return 'laporan_penjualan_pusat-dan-cabang.xlsx';
     }
 
     public function exportPiutang(Request $request)
