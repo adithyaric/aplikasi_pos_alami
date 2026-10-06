@@ -14,9 +14,9 @@ class FinancialReportService
 {
     private const RETAINED_EARNINGS_ACCOUNT_CODE = '300002';
 
-    public function generalJournal(?string $startDate = null, ?string $endDate = null): Collection
+    public function generalJournal(?string $startDate = null, ?string $endDate = null, string $location = 'pusat'): Collection
     {
-        return Journal::excludeReturns()->with('details.account')
+        return Journal::excludeReturns()->forLocation($location)->with(['details.account', 'outlet'])
             ->when($startDate, fn ($query) => $query->whereDate('transaction_date', '>=', $startDate))
             ->when($endDate, fn ($query) => $query->whereDate('transaction_date', '<=', $endDate))
             ->orderBy('transaction_date')
@@ -24,9 +24,9 @@ class FinancialReportService
             ->get();
     }
 
-    public function generalJournalPage(?string $startDate = null, ?string $endDate = null, int $perPage = 25): LengthAwarePaginator
+    public function generalJournalPage(?string $startDate = null, ?string $endDate = null, int $perPage = 25, string $location = 'pusat'): LengthAwarePaginator
     {
-        return Journal::excludeReturns()->with('details.account')
+        return Journal::excludeReturns()->forLocation($location)->with(['details.account', 'outlet'])
             ->when($startDate, fn ($query) => $query->whereDate('transaction_date', '>=', $startDate))
             ->when($endDate, fn ($query) => $query->whereDate('transaction_date', '<=', $endDate))
             ->orderBy('transaction_date')

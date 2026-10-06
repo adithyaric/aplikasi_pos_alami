@@ -279,9 +279,16 @@ class SeededOperationalFlowsTest extends TestCase
         $branchQtyBeforeSale = (int) OwnerStock::where('owner_id', $branch->id)
             ->where('product_id', $product->id)
             ->sum('qty');
+        $saleDate = Penjualan::branchSales()
+            ->where('outlet_id', $branch->id)
+            ->orderByDesc('sale_date')
+            ->firstOrFail()
+            ->sale_date
+            ->addDay()
+            ->toDateString();
 
         $saleResponse = $this->actingAs($sales)->post(route('penjualan.store'), [
-            'sale_date' => now()->toDateString(),
+            'sale_date' => $saleDate,
             'buyer_type' => 'toko',
             'outlet_target_id' => $shop->id,
             'payment_type' => 'termin',
@@ -309,7 +316,7 @@ class SeededOperationalFlowsTest extends TestCase
 
         $returnResponse = $this->actingAs($sales)->post(route('refund.store'), [
             'code' => 'RTR-CUSTOMER-DEMO-001',
-            'tanggal' => now()->toDateString(),
+            'tanggal' => $saleDate,
             'buyer_type' => 'toko',
             'buyer_id' => $shop->id,
             'product' => [

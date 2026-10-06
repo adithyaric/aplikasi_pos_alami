@@ -27,7 +27,8 @@ class AccountingService
         ?string $description,
         array $details,
         ?string $sourceKey = null,
-        bool $isManual = false
+        bool $isManual = false,
+        ?int $outletId = null
     ): Journal {
         $normalized = collect($details)
             ->map(function (array $detail): array {
@@ -66,7 +67,7 @@ class AccountingService
             }
         }
 
-        return DB::transaction(function () use ($date, $refType, $refId, $description, $normalized, $sourceKey, $isManual) {
+        return DB::transaction(function () use ($date, $refType, $refId, $description, $normalized, $sourceKey, $isManual, $outletId) {
             $dateValue = $date ?: now()->toDateString();
             $journal = $sourceKey
                 ? Journal::where('source_key', $sourceKey)->lockForUpdate()->first()
@@ -85,6 +86,7 @@ class AccountingService
                     'ref_id' => $refId,
                     'description' => $description,
                     'is_manual' => $isManual,
+                    'outlet_id' => $outletId,
                 ]);
                 $journal->details()->delete();
             } else {
@@ -96,6 +98,7 @@ class AccountingService
                     'source_key' => $sourceKey,
                     'description' => $description,
                     'is_manual' => $isManual,
+                    'outlet_id' => $outletId,
                 ]);
             }
 
@@ -115,6 +118,7 @@ class AccountingService
             $journal->update([
                 'transaction_date' => $payload['transaction_date'],
                 'description' => $payload['description'] ?? null,
+                'outlet_id' => $payload['outlet_id'] ?? null,
             ]);
             $journal->details()->delete();
 
@@ -180,7 +184,9 @@ class AccountingService
             $sale->id,
             'Penjualan '.$sale->code.' - '.$sale->buyer_display_name,
             $details,
-            'SALES:'.$sale->id
+            'SALES:'.$sale->id,
+            false,
+            $sale->isBranchSale() ? $sale->outlet_id : null
         );
 
         if (! $isCashSale) {
@@ -192,7 +198,9 @@ class AccountingService
                 $sale->id,
                 'SALES_PAYMENT',
                 fn (array $history) => $history['payment_date'] ?? $sale->sale_date ?? $sale->created_at,
-                'Pembayaran penjualan '.$sale->code
+                'Pembayaran penjualan '.$sale->code,
+                false,
+                $sale->isBranchSale() ? $sale->outlet_id : null
             );
         }
     }
@@ -395,7 +403,8 @@ class AccountingService
         string $refType,
         callable $dateResolver,
         string $description,
-        bool $creditPaymentAccount = false
+        bool $creditPaymentAccount = false,
+        ?int $outletId = null
     ): void {
         foreach (array_values($history) as $index => $payment) {
             $amount = round((float) ($payment['amount'] ?? 0), 2);
@@ -421,7 +430,9 @@ class AccountingService
                 $referenceId,
                 $description.' #'.($index + 1),
                 $details,
-                $refType.':'.$referenceId.':'.$index
+                $refType.':'.$referenceId.':'.$index,
+                false,
+                $outletId
             );
         }
     }

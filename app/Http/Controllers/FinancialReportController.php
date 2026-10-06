@@ -7,9 +7,11 @@ use App\Exports\GeneralJournalExport;
 use App\Exports\GeneralLedgerExport;
 use App\Exports\ProfitLossExport;
 use App\Models\Account;
+use App\Models\Outlet;
 use App\Services\AccountingService;
 use App\Services\FinancialReportService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 
 class FinancialReportController extends Controller
@@ -30,9 +32,11 @@ class FinancialReportController extends Controller
 
     public function generalJournal(Request $request)
     {
-        $journals = $this->reports->generalJournalPage($request->date_from, $request->date_to);
+        $branches = Outlet::branches()->orderBy('name')->get();
+        $location = $this->journalLocation($request, $branches->pluck('id')->all());
+        $journals = $this->reports->generalJournalPage($request->date_from, $request->date_to, 25, $location);
 
-        return view('accounting.reports.general-journal', compact('journals'));
+        return view('accounting.reports.general-journal', compact('journals', 'branches', 'location'));
     }
 
     public function ledger(Request $request)
@@ -71,7 +75,16 @@ class FinancialReportController extends Controller
 
     public function exportGeneralJournal(Request $request)
     {
-        return Excel::download(new GeneralJournalExport($request->date_from, $request->date_to), 'jurnal-umum.xlsx');
+        $location = $this->journalLocation($request, Outlet::branches()->pluck('id')->all());
+
+        return Excel::download(new GeneralJournalExport($request->date_from, $request->date_to, $location), 'jurnal-umum.xlsx');
+    }
+
+    private function journalLocation(Request $request, array $branchIds): string
+    {
+        $request->validate(['location' => ['nullable', Rule::in(array_merge(['pusat', 'all'], array_map('strval', $branchIds)))]]);
+
+        return $request->input('location') ?: 'pusat';
     }
 
     public function exportLedger(Request $request)

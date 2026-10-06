@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Builder;
 
 class Journal extends Model
@@ -16,6 +17,7 @@ class Journal extends Model
         'source_key',
         'description',
         'is_manual',
+        'outlet_id',
     ];
 
     protected $casts = [
@@ -28,6 +30,11 @@ class Journal extends Model
         return $this->hasMany(JournalDetail::class);
     }
 
+    public function outlet(): BelongsTo
+    {
+        return $this->belongsTo(Outlet::class)->withTrashed();
+    }
+
     public function scopeExcludeReturns(Builder $query): Builder
     {
         return $query->where(function (Builder $builder) {
@@ -38,6 +45,15 @@ class Journal extends Model
                         ->where('ref_type', 'not like', '%REFUND%');
                 });
         });
+    }
+
+    public function scopeForLocation(Builder $query, string $location): Builder
+    {
+        if ($location === 'pusat') {
+            return $query->whereNull('outlet_id');
+        }
+
+        return $location === 'all' ? $query : $query->where('outlet_id', (int) $location);
     }
 
     public function totalDebit(): float
