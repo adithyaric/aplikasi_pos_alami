@@ -118,6 +118,7 @@ Route::middleware(['role:po|finance|leader-cabang|admin-gudang|admin-cabang|staf
     Route::post('/pembelian/{pembelian}/owner-reject', [PembelianController::class, 'rejectOwner'])->name('pembelian.owner-reject');
     Route::get('/pembelian/{pembelian}/pembayaran/edit', [PembelianController::class, 'editPembayaran'])->name('pembelian.pembayaran.edit');
     Route::put('/pembelian/{pembelian}/pembayaran', [PembelianController::class, 'updatePembayaran'])->name('pembelian.pembayaran.update');
+    Route::delete('/pembelian/{pembelian}/pembayaran/{index}', [PembelianController::class, 'cancelPembayaran'])->name('pembelian.pembayaran.cancel');
     // Route::post('/pembelian/{pembelian}/publish', [PembelianController::class, 'publish'])->name('pembelian.publish');
     Route::get('/pembelian/{pembelian}/publish', [PembelianController::class, 'publish'])->name('pembelian.publish');
 
@@ -155,6 +156,7 @@ Route::middleware(['role:po|finance|leader-cabang|admin-gudang|admin-cabang|staf
     Route::put('/penjualan/{penjualan}', [PenjualanController::class, 'updateWarehouseSale'])->name('penjualan.update');
     Route::get('/penjualan/{penjualan}/pembayaran/edit', [PenjualanController::class, 'editPembayaran'])->name('penjualan.pembayaran.edit');
     Route::put('/penjualan/{penjualan}/pembayaran', [PenjualanController::class, 'updatePembayaran'])->name('penjualan.pembayaran.update');
+    Route::delete('/penjualan/{penjualan}/pembayaran/{index}', [PenjualanController::class, 'cancelPembayaran'])->name('penjualan.pembayaran.cancel');
     Route::get('/penjualan/{penjualan}', [PenjualanController::class, 'show'])->name('penjualan.show');
     Route::delete('/penjualan/{penjualan}', [PenjualanController::class, 'destroy'])->name('penjualan.destroy');
 

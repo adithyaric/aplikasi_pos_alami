@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\PembelianRequest;
 use App\Models\CustomerPo;
 use App\Models\Account;
+use App\Models\JournalDetail;
 use App\Models\Kas;
 use App\Models\Outlet;
 use App\Models\Pembelian;
@@ -19,6 +20,7 @@ use App\Services\AccountingService;
 use App\Support\ProductUnitConverter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class PembelianController extends Controller
 {
@@ -737,6 +739,14 @@ class PembelianController extends Controller
         $pembelian->load(['supplier', 'pembelianProducts.product', 'pembelianTransaction']);
         $title = 'Edit Pembayaran Pembelian';
         $paymentHistory = $pembelian->pembelianTransaction?->payment_history ?? [];
+        if (empty($paymentHistory) && ($pembelian->pembelianTransaction?->amount ?? 0) > 0) {
+            $paymentHistory = [[
+                'payment_date' => $pembelian->pembelianTransaction->payment_date ?? $pembelian->created_at,
+                'amount' => $pembelian->pembelianTransaction->amount,
+                'account_id' => $pembelian->pembelianTransaction->account_id,
+                'payment_reference' => $pembelian->pembelianTransaction->payment_reference,
+            ]];
+        }
 
         return view('pembelians.pembayaran-edit', [
             'pembelian' => $pembelian,
@@ -761,7 +771,7 @@ class PembelianController extends Controller
             'payment_method'    => 'required|in:cash',
             'account_id'        => 'nullable|integer|exists:accounts,id',
             'payment_reference' => 'nullable|string',
-            'amount'            => 'required|numeric|min:0|max:'.$maxAmount,
+            'amount'            => 'required|numeric|min:0.01|max:'.$maxAmount,
             'notes'             => 'nullable|string',
             'status'            => 'required|in:unpaid,paid,partial',
             'bukti_transfer'    => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
@@ -773,7 +783,7 @@ class PembelianController extends Controller
             'payment_reference.string' => 'Referensi pembayaran harus berupa teks.',
             'amount.required' => 'Jumlah pembayaran harus diisi.',
             'amount.numeric' => 'Jumlah pembayaran harus berupa angka.',
-            'amount.min' => 'Jumlah pembayaran minimal 0.',
+            'amount.min' => 'Jumlah pembayaran minimal 0.01.',
             'amount.max' => 'Jumlah pembayaran maksimal :max.',
             'notes.string' => 'Catatan harus berupa teks.',
             'status.required' => 'Status pembayaran harus diisi.',
@@ -785,8 +795,26 @@ class PembelianController extends Controller
 
         DB::beginTransaction();
         try {
-            $previousAmount = $pembelian->pembelianTransaction?->amount ?? 0;
+            $pembelian = Pembelian::whereKey($pembelian->id)->lockForUpdate()->firstOrFail();
+            $previousAmount = $pembelian->pembelianTransaction()->lockForUpdate()->first()?->amount ?? 0;
+            if (round((float) $request->amount + (float) $previousAmount, 2) > round((float) $pembelian->total, 2)) {
+                throw ValidationException::withMessages(['amount' => 'Jumlah pembayaran melebihi sisa utang.']);
+            }
+            $cashAccount = app(AccountingService::class)->paymentAccount($request->integer('account_id') ?: null, $pembelian->kas_id);
+            $cashAccount = Account::whereKey($cashAccount->id)->lockForUpdate()->firstOrFail();
+            if ($cashAccount->type_code !== 'BANK' || ! $cashAccount->is_active || $cashAccount->is_header
+                || ($request->filled('account_id') && $cashAccount->id !== $request->integer('account_id'))) {
+                throw ValidationException::withMessages(['account_id' => 'Pilih akun kas yang aktif.']);
+            }
+            $balance = JournalDetail::where('account_id', $cashAccount->id)
+                ->selectRaw('COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS balance')
+                ->value('balance');
+            if (round((float) $request->amount, 2) > round((float) $balance, 2)) {
+                throw ValidationException::withMessages(['amount' => 'Saldo kas tidak mencukupi untuk pembayaran ini.']);
+            }
+
             $newTotalAmount = $previousAmount + $request->amount;
+            $status = $newTotalAmount >= (float) $pembelian->total ? 'paid' : 'partial';
 
             // Handle file upload
             $buktiPath = null;
@@ -799,6 +827,15 @@ class PembelianController extends Controller
             if ($pembelian->pembelianTransaction) {
                 // Update existing transaction
                 $paymentHistory = $pembelian->pembelianTransaction->payment_history ?? [];
+                if (empty($paymentHistory) && $previousAmount > 0) {
+                    $paymentHistory[] = [
+                        'payment_date' => $pembelian->pembelianTransaction->payment_date ?? $pembelian->created_at,
+                        'amount' => $previousAmount,
+                        'payment_method' => $pembelian->pembelianTransaction->payment_method,
+                        'account_id' => $pembelian->pembelianTransaction->account_id,
+                        'payment_reference' => $pembelian->pembelianTransaction->payment_reference,
+                    ];
+                }
 
                 if ($request->amount > 0) {
                     $paymentHistory[] = [
@@ -821,7 +858,7 @@ class PembelianController extends Controller
                     'amount'            => $newTotalAmount,
                     'payment_history'   => $paymentHistory,
                     'notes'             => $request->notes,
-                    'status'            => $request->status,
+                    'status'            => $status,
                 ];
 
                 if ($buktiPath) {
@@ -853,7 +890,7 @@ class PembelianController extends Controller
                     'amount'            => $request->amount,
                     'payment_history'   => $paymentHistory,
                     'notes'             => $request->notes,
-                    'status'            => $request->status,
+                    'status'            => $status,
                     'bukti_transfer'    => $buktiPath,
                 ];
 
@@ -867,6 +904,9 @@ class PembelianController extends Controller
             'success' => true,
             'message' => 'Pembayaran berhasil disimpan'
         ]);
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            throw $e;
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -875,6 +915,39 @@ class PembelianController extends Controller
                 'message' => 'Terjadi kesalahan: '.$e->getMessage()
             ], 500);
         }
+    }
+
+    public function cancelPembayaran(Pembelian $pembelian, $index)
+    {
+        abort_if(auth()->user()->role === 'owner', 403);
+
+        DB::transaction(function () use ($pembelian, $index) {
+            $payment = $pembelian->pembelianTransaction()->lockForUpdate()->firstOrFail();
+            $history = $payment->payment_history ?: ($payment->amount > 0 ? [[
+                'payment_date' => $payment->payment_date,
+                'amount' => $payment->amount,
+                'account_id' => $payment->account_id,
+                'payment_reference' => $payment->payment_reference,
+            ]] : []);
+            abort_unless(ctype_digit((string) $index) && array_key_exists((int) $index, $history), 404);
+
+            array_splice($history, (int) $index, 1);
+            $amount = round((float) collect($history)->sum('amount'), 2);
+            $last = end($history) ?: [];
+            $payment->update([
+                'payment_history' => $history,
+                'amount' => $amount,
+                'status' => $amount <= 0 ? 'unpaid' : ($amount >= (float) $pembelian->total ? 'paid' : 'partial'),
+                'payment_date' => $last['payment_date'] ?? null,
+                'payment_method' => $last['payment_method'] ?? null,
+                'account_id' => $last['account_id'] ?? null,
+                'payment_reference' => $last['payment_reference'] ?? null,
+            ]);
+            app(AccountingService::class)->syncPurchase($pembelian->fresh(['pembelianProducts', 'stocks', 'pembelianTransaction']));
+        });
+
+        return redirect()->route('pembelian.pembayaran.edit', $pembelian)
+            ->with('toast_success', 'Pembayaran dibatalkan dan saldo kas dikembalikan.');
     }
 
     public function nextCode(Supplier $supplier)

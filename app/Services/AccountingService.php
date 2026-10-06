@@ -208,39 +208,35 @@ class AccountingService
     public function syncPurchase(Pembelian $purchase): void
     {
         $purchase->loadMissing(['pembelianProducts', 'stocks', 'pembelianTransaction']);
-        if (! $purchase->is_published && $purchase->receipt_status !== 'completed') {
-            $this->deleteSourceFamily('PURCHASE:'.$purchase->id, 'PURCHASE_PAYMENT:'.$purchase->id.':%');
-            return;
-        }
-
         $this->deletePaymentJournals('PURCHASE_PAYMENT:'.$purchase->id.':%');
-
-        $value = round((float) $purchase->stocks->sum('subtotal'), 2);
-        if ($value <= 0) {
-            $value = round((float) $purchase->pembelianProducts->sum(function ($item) {
-                return ((float) ($item->qty_diterima ?? $item->qty ?? 0)) * (float) ($item->harga_beli ?? 0);
-            }), 2);
-        }
-
-        if ($value <= 0) {
-            return;
-        }
-
-        $inventoryAccount = $this->settingAccount('DEFAULT_ACC_INVENTORY');
         $payableAccount = $this->settingAccount('DEFAULT_ACC_AP');
         $cashAccount = $this->paymentAccount($purchase->pembelianTransaction?->account_id, $purchase->kas_id ?? null);
+        if (! $purchase->is_published && $purchase->receipt_status !== 'completed') {
+            Journal::where('source_key', 'PURCHASE:'.$purchase->id)->delete();
+        } else {
+            $value = round((float) $purchase->stocks->sum('subtotal'), 2);
+            if ($value <= 0) {
+                $value = round((float) $purchase->pembelianProducts->sum(function ($item) {
+                    return ((float) ($item->qty_diterima ?? $item->qty ?? 0)) * (float) ($item->harga_beli ?? 0);
+                }), 2);
+            }
 
-        $this->createJournal(
-            $purchase->receipt_date ?: $purchase->created_at,
-            'PURCHASE',
-            $purchase->id,
-            'Penerimaan pembelian '.$purchase->code,
-            [
-                ['account_id' => $inventoryAccount->id, 'debit' => $value, 'credit' => 0],
-                ['account_id' => $payableAccount->id, 'debit' => 0, 'credit' => $value],
-            ],
-            'PURCHASE:'.$purchase->id
-        );
+            if ($value > 0) {
+                $this->createJournal(
+                    $purchase->receipt_date ?: $purchase->created_at,
+                    'PURCHASE',
+                    $purchase->id,
+                    'Penerimaan pembelian '.$purchase->code,
+                    [
+                        ['account_id' => $this->settingAccount('DEFAULT_ACC_INVENTORY')->id, 'debit' => $value, 'credit' => 0],
+                        ['account_id' => $payableAccount->id, 'debit' => 0, 'credit' => $value],
+                    ],
+                    'PURCHASE:'.$purchase->id
+                );
+            } else {
+                Journal::where('source_key', 'PURCHASE:'.$purchase->id)->delete();
+            }
+        }
 
         $history = $purchase->pembelianTransaction?->payment_history ?? [];
         if ($purchase->pembelianTransaction && empty($history) && (float) $purchase->pembelianTransaction->amount > 0) {

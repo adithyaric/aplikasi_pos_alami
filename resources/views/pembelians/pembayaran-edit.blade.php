@@ -114,16 +114,24 @@
                                             <th class="text-right">Jumlah</th>
                                             <th>Kas</th>
                                             <th>Referensi</th>
+                                            <th>Aksi</th>
                                             {{--  <th class="text-center">Bukti</th>  --}}
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach ($paymentHistory as $history)
+                                        @foreach ($paymentHistory as $index => $history)
                                             <tr>
                                                 <td>{{ \Carbon\Carbon::parse($history['payment_date'])->format('d/m/Y H:i') }}</td>
                                                 <td class="text-right">Rp {{ number_format($history['amount'], 0, ',', '.') }}</td>
                                                 <td>Kas</td>
                                                 <td>{{ $history['payment_reference'] ?? '-' }}</td>
+                                                <td>
+                                                    <form method="POST" action="{{ route('pembelian.pembayaran.cancel', [$pembelian, $index]) }}" onsubmit="return confirm('Batalkan pembayaran ini? Saldo kas akan dikembalikan.');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="btn btn-danger btn-xs">Batalkan Pembayaran</button>
+                                                    </form>
+                                                </td>
                                                 {{--  <td class="text-center">
                                                     @if (!empty($history['bukti_transfer']))
                                                         <a href="{{ Storage::disk('public')->url($history['bukti_transfer']) }}"
@@ -140,13 +148,13 @@
                                     <tfoot>
                                         <tr>
                                             <th colspan="1">Total Dibayar</th>
-                                            <th class="text-right" colspan="4">
+                                            <th class="text-right" colspan="5">
                                                 Rp {{ number_format($pembelian->pembelianTransaction->amount, 0, ',', '.') }}
                                             </th>
                                         </tr>
                                         <tr class="text-red">
                                             <th colspan="1">Sisa</th>
-                                            <th class="text-right" colspan="4">
+                                            <th class="text-right" colspan="5">
                                                 Rp {{ number_format($pembelian->total - $pembelian->pembelianTransaction->amount, 0, ',', '.') }}
                                             </th>
                                         </tr>

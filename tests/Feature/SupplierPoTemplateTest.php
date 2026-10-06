@@ -61,6 +61,7 @@ class SupplierPoTemplateTest extends TestCase
             ->get(route('laporan.index'))
             ->assertOk()
             ->assertDontSee('Template Dokumen Pembelian &amp; Penjualan', false)
-            ->assertSee('Template Dokumen Penjualan');
+            ->assertSee('Template Dokumen Penjualan')
+            ->assertSeeInOrder(['Laporan Penjualan Multi-Sheet', 'Template Dokumen Penjualan']);
     }
 }

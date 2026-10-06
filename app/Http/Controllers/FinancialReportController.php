@@ -84,7 +84,7 @@ class FinancialReportController extends Controller
     {
         $request->validate(['location' => ['nullable', Rule::in(array_merge(['pusat', 'all'], array_map('strval', $branchIds)))]]);
 
-        return $request->input('location') ?: 'pusat';
+        return $request->input('location') ?: 'all';
     }
 
     public function exportLedger(Request $request)

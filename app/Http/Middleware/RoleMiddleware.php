@@ -205,6 +205,7 @@ class RoleMiddleware
             'penjualan.show',
             'penjualan.pembayaran.edit',
             'penjualan.pembayaran.update',
+            'penjualan.pembayaran.cancel',
             'laporan.penjualan.invoice',
             'laporan.penjualan.nota',
             'laporan.penjualan.surat-jalan',

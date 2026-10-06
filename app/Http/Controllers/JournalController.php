@@ -19,7 +19,7 @@ class JournalController extends Controller
     public function index(Request $request)
     {
         $branches = Outlet::branches()->orderBy('name')->get();
-        $location = $request->input('location') ?: 'pusat';
+        $location = $request->input('location') ?: 'all';
         $request->validate(['location' => ['nullable', Rule::in(array_merge(['pusat', 'all'], $branches->pluck('id')->map('strval')->all()))]]);
         $journals = Journal::excludeReturns()->forLocation($location)->with(['details.account', 'outlet'])
             ->when($request->filled('date_from'), fn ($query) => $query->whereDate('transaction_date', '>=', $request->date_from))

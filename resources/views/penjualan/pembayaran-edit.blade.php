@@ -118,17 +118,25 @@
                                             <th class="text-right">Jumlah</th>
                                             <th>Metode</th>
                                             <th>Referensi</th>
-                                            <th>Catatan</th>
+                                        <th>Catatan</th>
+                                        <th>Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach ($paymentHistory as $history)
+                                        @foreach ($paymentHistory as $index => $history)
                                             <tr>
                                                 <td>{{ \Carbon\Carbon::parse($history['payment_date'])->format('d/m/Y H:i') }}</td>
                                                 <td class="text-right">Rp {{ number_format($history['amount'], 0, ',', '.') }}</td>
-                                                <td>{{ strtoupper(str_replace('_', ' ', $history['payment_method'])) }}</td>
+                                                <td>{{ strtoupper(str_replace('_', ' ', $history['payment_method'] ?? '-')) }}</td>
                                                 <td>{{ $history['payment_reference'] ?? '-' }}</td>
                                                 <td>{{ $history['notes'] ?? '-' }}</td>
+                                                <td>
+                                                    <form method="POST" action="{{ route('penjualan.pembayaran.cancel', [$penjualan, $index]) }}" onsubmit="return confirm('Batalkan pembayaran ini?');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="btn btn-danger btn-xs">Batalkan Pembayaran</button>
+                                                    </form>
+                                                </td>
                                             </tr>
                                         @endforeach
                                     </tbody>

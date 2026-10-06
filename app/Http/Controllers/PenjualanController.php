@@ -461,10 +461,19 @@ class PenjualanController extends Controller
             'outletBuyer',
             'paymentTransaction',
         ]);
+        $paymentHistory = $penjualan->paymentTransaction?->payment_history ?? [];
+        if (empty($paymentHistory) && ($penjualan->paymentTransaction?->amount ?? 0) > 0) {
+            $paymentHistory = [[
+                'payment_date' => $penjualan->paymentTransaction->payment_date ?? $penjualan->sale_date ?? $penjualan->created_at,
+                'amount' => $penjualan->paymentTransaction->amount,
+                'payment_method' => $penjualan->paymentTransaction->payment_method,
+                'payment_reference' => $penjualan->paymentTransaction->payment_reference,
+            ]];
+        }
 
         return view('penjualan.pembayaran-edit', [
             'penjualan' => $penjualan,
-            'paymentHistory' => $penjualan->paymentTransaction?->payment_history ?? [],
+            'paymentHistory' => $paymentHistory,
             'paymentAccounts' => Account::active()->posting()->where('type_code', 'BANK')->orderBy('code')->get(),
         ]);
     }
@@ -496,6 +505,15 @@ class PenjualanController extends Controller
         DB::transaction(function () use ($request, $penjualan, $currentAmount) {
             $payment = $penjualan->paymentTransaction ?: $penjualan->paymentTransaction()->make();
             $history = $payment->payment_history ?? [];
+            if (empty($history) && $currentAmount > 0) {
+                $history[] = [
+                    'payment_date' => $payment->payment_date ?? $penjualan->sale_date ?? $penjualan->created_at,
+                    'amount' => $currentAmount,
+                    'payment_method' => $payment->payment_method,
+                    'account_id' => $payment->account_id,
+                    'payment_reference' => $payment->payment_reference,
+                ];
+            }
             $paidAmount = $currentAmount + (float) $request->amount;
 
             $history[] = [
@@ -533,6 +551,44 @@ class PenjualanController extends Controller
         return redirect()
             ->route('penjualan.pembayaran.edit', $penjualan)
             ->with('toast_success', 'Pembayaran penjualan berhasil disimpan.');
+    }
+
+    public function cancelPembayaran(Penjualan $penjualan, $index)
+    {
+        $this->ensureSalePaymentAccess($penjualan);
+
+        DB::transaction(function () use ($penjualan, $index) {
+            $payment = $penjualan->paymentTransaction()->lockForUpdate()->firstOrFail();
+            $history = $payment->payment_history ?: ($payment->amount > 0 ? [[
+                'payment_date' => $payment->payment_date,
+                'amount' => $payment->amount,
+                'account_id' => $payment->account_id,
+                'payment_reference' => $payment->payment_reference,
+            ]] : []);
+            abort_unless(ctype_digit((string) $index) && array_key_exists((int) $index, $history), 404);
+
+            array_splice($history, (int) $index, 1);
+            $amount = round((float) collect($history)->sum('amount'), 2);
+            $status = $amount <= 0 ? 'unpaid' : ($amount >= (float) $penjualan->total ? 'paid' : 'partial');
+            $last = end($history) ?: [];
+            $payment->update([
+                'payment_history' => $history,
+                'amount' => $amount,
+                'status' => $status,
+                'payment_date' => $last['payment_date'] ?? null,
+                'payment_method' => $last['payment_method'] ?? null,
+                'account_id' => $last['account_id'] ?? null,
+                'payment_reference' => $last['payment_reference'] ?? null,
+            ]);
+            $penjualan->update([
+                'payment_status' => $status,
+                'payment_type' => $penjualan->payment_type === 'cash' ? 'termin' : $penjualan->payment_type,
+            ]);
+            $this->accounting->syncSale($penjualan->fresh(['items.product', 'items.stock', 'items.allocations.stock', 'paymentTransaction']));
+        });
+
+        return redirect()->route('penjualan.pembayaran.edit', $penjualan)
+            ->with('toast_success', 'Pembayaran penjualan dibatalkan.');
     }
 
     public function show(Penjualan $penjualan)

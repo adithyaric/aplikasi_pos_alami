@@ -139,7 +139,7 @@ class AccountingTest extends TestCase
         $this->assertSame($firstCount, Journal::count());
     }
 
-    public function test_general_journal_defaults_to_pusat_and_filters_branch_and_all_in_page_and_export(): void
+    public function test_general_journal_defaults_to_all_and_filters_branch_and_pusat_in_page_and_export(): void
     {
         $user = User::factory()->create(['role' => 'superadmin']);
         $branch = Outlet::create(['name' => 'Cabang Alpha', 'jenis_outlet' => 'branch']);
@@ -156,6 +156,10 @@ class AccountingTest extends TestCase
         app(AccountingService::class)->createJournal('2026-10-06', 'MANUAL', null, 'Beta entry', $lines, null, true, $otherBranch->id);
 
         $this->actingAs($user)->get(route('accounting.general-journal'))
+            ->assertOk()->assertSee('Pusat entry')->assertSee('Alpha entry')->assertSee('Beta entry');
+        $this->actingAs($user)->get(route('accounting.journals.index'))
+            ->assertOk()->assertSee('Pusat entry')->assertSee('Alpha entry')->assertSee('Beta entry');
+        $this->actingAs($user)->get(route('accounting.general-journal', ['location' => 'pusat']))
             ->assertOk()->assertSee('Pusat entry')->assertDontSee('Alpha entry')->assertDontSee('Beta entry');
         $this->actingAs($user)->get(route('accounting.general-journal', ['location' => (string) $branch->id]))
             ->assertOk()->assertSee('Alpha entry')->assertDontSee('Pusat entry')->assertDontSee('Beta entry');
