@@ -18,6 +18,9 @@ class Pembelian extends Model
         'supplier_id',
         'kas_id',
         'total',
+        'discount_percent',
+        'tax_percent',
+        'shipping_cost',
         'is_published',
         'owner_approval_status',
         'owner_approved_by',
@@ -32,6 +35,9 @@ class Pembelian extends Model
     protected $casts = [
         'receipt_date' => 'datetime',
         'owner_approved_at' => 'datetime',
+        'discount_percent' => 'decimal:2',
+        'tax_percent' => 'decimal:2',
+        'shipping_cost' => 'integer',
     ];
 
     public const OWNER_APPROVAL_STATUSES = [
@@ -75,6 +81,17 @@ class Pembelian extends Model
     public function pembelianProducts()
     {
         return $this->hasMany(PembelianProduct::class);
+    }
+
+    public function recalculateTotal(): void
+    {
+        $subtotal = (int) $this->pembelianProducts()->sum('subtotal');
+        $this->update([
+            'total' => (int) round(
+                $subtotal * (1 - (float) $this->discount_percent / 100 + (float) $this->tax_percent / 100)
+                + (int) $this->shipping_cost
+            ),
+        ]);
     }
 
     public function pembelianTransaction()

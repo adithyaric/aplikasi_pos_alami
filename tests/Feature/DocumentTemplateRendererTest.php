@@ -276,6 +276,52 @@ class DocumentTemplateRendererTest extends TestCase
         @unlink($output);
     }
 
+    public function test_purchase_xlsx_repeats_merged_item_cells_without_extra_boundaries(): void
+    {
+        Storage::fake('public');
+        $purchase = $this->createPurchaseWithItems();
+        $templatePath = 'templates/documents/suppliers/'.$purchase->supplier_id.'/merged-po.xlsx';
+        $purchase->supplier->update(['po_template' => $templatePath]);
+
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setCellValue('B4', '{{purchase.items.no}}');
+        $sheet->setCellValue('D4', '{{purchase.items.name}}');
+        $sheet->setCellValue('F4', '{{purchase.items.unit}}');
+        $sheet->setCellValue('H4', '{{purchase.items.qty}}');
+        $sheet->setCellValue('L4', '{{purchase.items.price}}');
+        $sheet->setCellValue('N4', '{{purchase.items.subtotal}}');
+        foreach (['B4:C4', 'D4:E4', 'F4:G4', 'H4:K4', 'L4:M4', 'N4:P4'] as $range) {
+            $sheet->mergeCells($range);
+            $sheet->getStyle($range)->applyFromArray(['borders' => [
+                'outline' => ['borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN],
+            ]]);
+        }
+        $sheet->setCellValue('L7', '{{sale.potongan}}');
+        $sheet->setCellValue('L8', '{{sale.tax}}');
+        $sheet->setCellValue('N9', '{{sale.total}}');
+        $this->storeSpreadsheet($spreadsheet, $templatePath);
+
+        $output = app(DocumentTemplateRenderer::class)->renderPurchaseXlsx($purchase);
+        $result = IOFactory::load($output)->getActiveSheet();
+
+        $this->assertSame('Purchase Product Two', $result->getCell('D5')->getValue());
+        foreach (['B5:C5', 'D5:E5', 'F5:G5', 'H5:K5', 'L5:M5', 'N5:P5'] as $range) {
+            $this->assertContains($range, $result->getMergeCells());
+        }
+        foreach (['B5', 'D5', 'F5', 'H5', 'I5', 'J5', 'L5', 'N5', 'O5'] as $cell) {
+            $this->assertSame(
+                \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_NONE,
+                $result->getStyle($cell)->getBorders()->getRight()->getBorderStyle(),
+                $cell.' has an unwanted internal right border',
+            );
+        }
+        $this->assertSame(0, $result->getCell('L8')->getValue());
+        $this->assertSame(0, $result->getCell('L9')->getValue());
+        $this->assertSame('Rp 200', $result->getCell('N10')->getValue());
+        @unlink($output);
+    }
+
     public function test_purchase_xlsx_prefers_the_selected_supplier_template(): void
     {
         Storage::fake('public');

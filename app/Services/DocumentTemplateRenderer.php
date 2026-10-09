@@ -529,7 +529,7 @@ class DocumentTemplateRenderer
 
             foreach ($sourceMerges as $merge) {
                 [$start, $end] = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::rangeBoundaries($merge);
-                if ($start[1] !== $sourceRow || $end[1] !== $sourceRow) {
+                if ((int) $start[1] !== $sourceRow || (int) $end[1] !== $sourceRow) {
                     continue;
                 }
 
@@ -555,6 +555,19 @@ class DocumentTemplateRenderer
                                 'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
                                 'color' => ['argb' => 'FF000000'],
                             ],
+                        ],
+                    ]);
+                }
+
+                foreach ($sheet->getMergeCells() as $merge) {
+                    [$start, $end] = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::rangeBoundaries($merge);
+                    if ((int) $start[1] !== $rowIndex || (int) $end[1] !== $rowIndex) {
+                        continue;
+                    }
+
+                    $sheet->getStyle($merge)->applyFromArray([
+                        'borders' => [
+                            'vertical' => ['borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_NONE],
                         ],
                     ]);
                 }
@@ -969,9 +982,9 @@ class DocumentTemplateRenderer
             'date' => $this->date($date),
             'date_serial' => $this->excelDate($date),
             'total' => (int) $pembelian->total,
-            'subtotal' => (int) $pembelian->total,
+            'subtotal' => array_sum(array_column($items, 'subtotal')),
             'old_debt' => 0,
-            'shipping_cost' => 0,
+            'shipping_cost' => (int) $pembelian->shipping_cost,
             'payment' => (float) ($pembelian->pembelianTransaction?->amount ?? 0),
             'new_debt' => max(0, (float) $pembelian->total - (float) ($pembelian->pembelianTransaction?->amount ?? 0)),
             'location' => $this->locationFromAddress($company['address']),
@@ -1004,6 +1017,8 @@ class DocumentTemplateRenderer
             'date_serial' => $purchase['date_serial'],
             'subtotal' => $purchase['subtotal'],
             'discount' => 0,
+            'potongan' => (float) $pembelian->discount_percent,
+            'tax' => (float) $pembelian->tax_percent,
             'total' => $purchase['total'],
             'old_debt' => $purchase['old_debt'],
             'shipping_cost' => $purchase['shipping_cost'],

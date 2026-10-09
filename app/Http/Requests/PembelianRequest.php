@@ -14,6 +14,15 @@ class PembelianRequest extends FormRequest
             'total' => $this->cleanNumeric($this->total),
         ]);
 
+        if ($this->has('shipping_cost')) {
+            $this->merge(['shipping_cost' => preg_replace('/[^\d-]/', '', (string) $this->shipping_cost) ?: 0]);
+        }
+        foreach (['discount_percent', 'tax_percent'] as $field) {
+            if ($this->has($field) && $this->input($field) === '') {
+                $this->merge([$field => 0]);
+            }
+        }
+
         if ($this->has('product')) {
             $products = $this->product;
             foreach ($products as $key => $product) {
@@ -60,6 +69,9 @@ class PembelianRequest extends FormRequest
             'supplier_id'                  => 'required|exists:suppliers,id',
             'subtotal'                     => 'nullable',
             'total'                        => 'nullable',
+            'discount_percent'             => 'nullable|numeric|decimal:0,2|min:0|max:100',
+            'tax_percent'                  => 'nullable|numeric|decimal:0,2|min:0|max:100',
+            'shipping_cost'                => 'nullable|integer|min:0',
             'product'                      => 'required|array',
             'product.*.product_id'         => 'required|exists:products,id',
             'product.*.qty'                => 'required|numeric|min:1',

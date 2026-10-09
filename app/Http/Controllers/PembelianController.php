@@ -233,7 +233,10 @@ class PembelianController extends Controller
                 // 'outlet_id' => $request->outlet_id,
                 'supplier_id' => $request->supplier_id,
                 // 'kas_id' => $request->kas_id,
-                'total' => $request->total,
+                'total' => 0,
+                'discount_percent' => $request->input('discount_percent') ?? 0,
+                'tax_percent' => $request->input('tax_percent') ?? 0,
+                'shipping_cost' => $request->input('shipping_cost') ?? 0,
                 'is_published' => false,
                 'owner_approval_status' => 'approved',
                 'owner_approved_by' => null,
@@ -242,6 +245,7 @@ class PembelianController extends Controller
             ]);
 
             $this->updateStock($request, $pembelian);
+            $pembelian->recalculateTotal();
 
             PembelianTransaction::create([
                 'pembelian_id' => $pembelian->id,
@@ -319,6 +323,7 @@ class PembelianController extends Controller
 
             $pembelian->update($data);
             $this->updateStock($request, $pembelian);
+            $pembelian->recalculateTotal();
         });
 
         return redirect(route('pembelian.index'))->with('toast_success', 'Berhasil Memperbarui Data!');
@@ -727,9 +732,7 @@ class PembelianController extends Controller
 
         $pembelianProduct->delete();
 
-        $pembelian->update(
-            ['total' => $pembelian->pembelianProducts->sum('subtotal')]
-        );
+        $pembelian->recalculateTotal();
 
         return redirect()->back()->with('toast_success', 'Berhasil Menghapus Data!');
     }

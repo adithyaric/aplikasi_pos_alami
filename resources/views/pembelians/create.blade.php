@@ -156,6 +156,30 @@
                             </div>
                             <hr>
                             <div class="form-group">
+                                <label>Subtotal</label>
+                                <input type="text" class="form-control" id="po-subtotal" readonly>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4 form-group">
+                                    <label for="discount_percent">Potongan (%)</label>
+                                    <input type="number" class="form-control" name="discount_percent" id="discount_percent"
+                                        min="0" max="100" step="0.01" value="{{ old('discount_percent', 0) }}">
+                                    @error('discount_percent') <div class="text-danger">{{ $message }}</div> @enderror
+                                </div>
+                                <div class="col-md-4 form-group">
+                                    <label for="tax_percent">Pajak (%)</label>
+                                    <input type="number" class="form-control" name="tax_percent" id="tax_percent"
+                                        min="0" max="100" step="0.01" value="{{ old('tax_percent', 0) }}">
+                                    @error('tax_percent') <div class="text-danger">{{ $message }}</div> @enderror
+                                </div>
+                                <div class="col-md-4 form-group">
+                                    <label for="shipping_cost">Biaya Pengiriman (Rp)</label>
+                                    <input type="text" class="form-control numeral-mask" name="shipping_cost" id="shipping_cost"
+                                        value="{{ old('shipping_cost', 0) }}">
+                                    @error('shipping_cost') <div class="text-danger">{{ $message }}</div> @enderror
+                                </div>
+                            </div>
+                            <div class="form-group">
                                 <label>Total</label>
                                 <input type="text" required class="form-control" name="total" id="total" readonly>
                             </div>
@@ -773,13 +797,19 @@
                 $row.find('.subtotal').val(formatRupiah(subtotal));
                 total += subtotal;
             });
-            $('#total').val(formatRupiah(total));
+            $('#po-subtotal').val(formatRupiah(total));
+            let discount = parseFloat($('#discount_percent').val()) || 0;
+            let tax = parseFloat($('#tax_percent').val()) || 0;
+            let shipping = parseInt($('#shipping_cost').cleanVal(), 10) || 0;
+            $('#total').val(formatRupiah(Math.round(total - total * discount / 100 + total * tax / 100 + shipping)));
         }
 
         $('.numeral-mask').mask("#,##0", {
             reverse: true
         });
         updateSubtotalAndTotal();
+
+        $(document).on('input change', '#discount_percent, #tax_percent, #shipping_cost', updateSubtotalAndTotal);
 
         function removeBahanBaku(button) {
             if ($('#example tbody tr').length > 1) {

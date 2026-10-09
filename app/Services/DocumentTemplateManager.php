@@ -255,6 +255,7 @@ class DocumentTemplateManager
                 ],
                 'Alias kompatibilitas template supplier lama' => [
                     '{{sale.number}}', '{{sale.date}}', '{{sale.subtotal}}',
+                    '{{sale.potongan}}', '{{sale.tax}}', '{{sale.total}}',
                     '{{sale.old_debt}}', '{{sale.shipping_cost}}', '{{sale.payment}}',
                     '{{sale.new_debt}}', '{{buyer.name}}', '{{buyer.address}}',
                     '{{buyer.company_name}}', '{{buyer.phone}}', '{{buyer.email}}',
