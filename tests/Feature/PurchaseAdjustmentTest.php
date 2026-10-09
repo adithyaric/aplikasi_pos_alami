@@ -44,7 +44,7 @@ class PurchaseAdjustmentTest extends TestCase
             'total' => '1', // The submitted total must not override the formula.
             'discount_percent' => '5',
             'tax_percent' => '11',
-            'shipping_cost' => '10,000',
+            'shipping_cost' => '175,000',
             'product' => [[
                 'product_id' => $product->id,
                 'qty' => 1,
@@ -63,10 +63,10 @@ class PurchaseAdjustmentTest extends TestCase
         $this->actingAs($user)->post(route('pembelian.store'), $payload)
             ->assertRedirect(route('pembelian.index'));
         $purchase = Pembelian::firstOrFail();
-        $this->assertSame('116000', $purchase->total);
+        $this->assertSame('281000', $purchase->total);
         $this->assertEquals(5, $purchase->discount_percent);
         $this->assertEquals(11, $purchase->tax_percent);
-        $this->assertEquals(10000, $purchase->shipping_cost);
+        $this->assertEquals(175000, $purchase->shipping_cost);
         $this->actingAs($user)->get(route('pembelian.edit', $purchase))
             ->assertOk()
             ->assertSee('name="discount_percent"', false)
@@ -93,8 +93,8 @@ class PurchaseAdjustmentTest extends TestCase
         $this->assertSame('Rp 100.000', $result->getCell('A1')->getValue());
         $this->assertSame(5, $result->getCell('A2')->getValue());
         $this->assertSame(11, $result->getCell('A3')->getValue());
-        $this->assertSame('10000', (string) $result->getCell('A4')->getValue());
-        $this->assertSame('Rp 116.000', $result->getCell('A5')->getValue());
+        $this->assertSame('Rp.175.000', $result->getCell('A4')->getValue());
+        $this->assertSame('Rp 281.000', $result->getCell('A5')->getValue());
         @unlink($output);
 
         $payload['discount_percent'] = '10';

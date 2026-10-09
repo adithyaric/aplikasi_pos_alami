@@ -1021,7 +1021,7 @@ class DocumentTemplateRenderer
             'tax' => (float) $pembelian->tax_percent,
             'total' => $purchase['total'],
             'old_debt' => $purchase['old_debt'],
-            'shipping_cost' => $purchase['shipping_cost'],
+            'shipping_cost' => 'Rp.'.number_format($purchase['shipping_cost'], 0, ',', '.'),
             'payment' => $purchase['payment'],
             'paid' => $purchase['payment'],
             'new_debt' => $purchase['new_debt'],
